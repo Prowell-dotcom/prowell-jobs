@@ -1,73 +1,62 @@
-# Prowell Jobs
+# Prowell Jobs — Global opportunity platform (expanded MVP)
 
-**Prowell Jobs** is a mobile-friendly job vacancy website with an employer submission form and an administrator approval workflow.
+Website: **https://prowelljobs.com** · Contact: **prowellofficial@gmail.com** · Tel: **+254 703 772 555** / **+254 782 772 996** · CEO: **Mr. Ngugi**
 
-- Planned website: **https://prowelljobs.com** (domain purchased by owner; deployment not yet confirmed)
-- General contact: **prowellofficial@gmail.com**
-- Stack: HTML, CSS, JavaScript, Python, SQLite, Docker
-- Hosting target: **Railway**, deployed from **GitHub**
+This is an upgrade to the existing Prowell Jobs website running on Railway, with code in `Prowell-dotcom/prowell-jobs`. It supports many kinds of work: informal or casual gigs, ride-hailing and boda boda, domestic work, construction, farming, technical trades, hospitality, logistics, technology, healthcare, education and professional careers worldwide.
 
-> **Status:** Working MVP, not yet a fully hardened recruitment service. No sample job listings should be presented as confirmed live vacancies.
+## Features included and working
 
-## Features
+- **32 broad employment sectors** and 12 featured career tiles; keyword, location, country, sector, employment type, arrangement, experience, pay period, currency and min-pay filtering.
+- Employer vacancy form: job title, country, location, employer, responsibilities, required skills and qualifications, benefits, application deadline, contact methods, salary range and pay period (hour, day, week, month, year, trip, task, or negotiable).
+- **Moderated job postings** (submitted as pending; published only after administrator approval). Separate manual `Verified` badge for employer identities independently checked.
+- Candidate profile submissions: nickname, sector, country, city, skills, summary, availability, experience, pay expectation, private email and phone. Profiles do **not** appear until admin approval. Public candidate profile API excludes private email and phone.
+- Candidate withdrawal and deletion with a one-time private code shown upon submission.
+- Moderated visitor reviews and comments with optional 1–5 star ratings (no invented testimonials).
+- Confidential suspicious-listing reporting; admin review queue.
+- Career tips and guides, About Us with CEO details, FAQs, Terms of Use, Privacy notice, employer guidance and contact details.
+- **Live RSS job feed** at `/jobs.rss` for approved vacancies.
+- Email interest signup stores consented preferences for **future** alerts; **automated email sending is not configured**.
+- Responsive layouts, original vector illustration (`assets/world-of-work.svg`), colorful category artwork and modern navy/indigo/turquoise styling.
 
-- Search and filter job postings by keyword, location, category, job type, arrangement, and experience level
-- Save jobs in the visitor's own browser
-- Employer submission form
-- Pending/approved/rejected job moderation
-- Administrator review at `/admin.html`
-- SQLite persistence and `/api/health` endpoint
-- Responsive layout for desktop and mobile
+### What is NOT implemented yet
 
-## Test locally
+This version does **not** include password-protected employer/job-seeker accounts, direct candidate/employer messaging, CV uploads, automatic candidate matching, automatic employer identity verification, CAPTCHA, automated email alerts, SMS, payments or completed international regulatory compliance reviews. Employers request candidate introductions manually via the Prowell Jobs team. Candidate contacts must not be shared without further explicit permission. Do not claim any official affiliation with ride-hailing services; job titles are descriptive only.
 
-Python 3.10+ is required. No third-party Python dependencies.
+### Production caution
 
-**macOS or Linux**
+The application collects personal data. Before wide marketing or collecting large numbers of candidate profiles, get a privacy/security and local employment-law review, add email verification and stronger anti-spam/rate limits, role-based authentication, retention controls, backups, and formal employer checks. Domestic workers and vulnerable job seekers merit particular care. The policy pages are starter wording, not legal advice.
+
+## Technology
+
+- Frontend: plain HTML, CSS, JavaScript (no build step).
+- Backend: Python standard library `http.server` + SQLite.
+- Hosting: Railway with existing persistent volume `/data`.
+- Source: GitHub with CI tests in `.github/workflows/check.yml`.
+
+## Run locally
 
 ```bash
-export ADMIN_KEY="your-own-long-random-admin-password"
-python3 server.py
+cd Prowell-Jobs-Upgrade
+ADMIN_KEY='your-private-development-key' python server.py
 ```
 
-**Windows PowerShell**
+On Windows PowerShell:
 
 ```powershell
-$env:ADMIN_KEY = "your-own-long-random-admin-password"
+$env:ADMIN_KEY = 'your-private-development-key'
 python server.py
 ```
 
-Open http://localhost:8000. The administration page is http://localhost:8000/admin.html.
-To run the included automated tests:
+Open `http://localhost:8000`, then `http://localhost:8000/admin.html`. For an offline design preview, open `index.html` directly: it displays **clearly marked fictional sample listings** and does not publish submissions.
+
+## Run automated tests
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-## Upload to GitHub and deploy
+The tests cover the old vacancy workflow, broader casual listings, moderation, candidate privacy, withdrawal and deletion, reviews, alerts and reports.
 
-Follow **[GITHUB-AND-RAILWAY.md](GITHUB-AND-RAILWAY.md)** for exact steps to create your private repository, push or upload the code, connect the repository to Railway, secure the administrator credentials, preserve submitted jobs with a mounted volume, and associate your purchased domain.
+## Updating your existing live site
 
-**Do not upload just the ZIP to GitHub.** Extract it first and upload the files inside the project folder. The `Dockerfile` must be at the root of the repository for automatic detection.
-
-## Environment variables
-
-| Name | Purpose |
-| --- | --- |
-| `ADMIN_KEY` | **Required on Railway.** A unique private key for administrator access. Never commit it. |
-| `DATABASE_PATH` | Set to `/data/prowell-jobs.sqlite3` when a Railway volume is mounted at `/data`. |
-| `PORT` | Railway supplies this automatically; defaults to `8000` locally. |
-
-Database files (`*.sqlite3`), `.env` secrets, and Python caches are excluded using `.gitignore`.
-
-## API summary
-
-- `GET /api/health` — health check
-- `GET /api/jobs` — approved jobs
-- `POST /api/jobs` — create pending job submission
-- `GET /api/admin/jobs` — all submissions (requires bearer admin key)
-- `PATCH /api/admin/jobs/<id>` — approve or reject (requires bearer admin key)
-
-## Important before public launch
-
-This version is an MVP and needs additional hardening before inviting real public traffic: employer and vacancy identity verification, privacy and terms pages, scam reporting, abuse prevention, backups, monitoring, and a production-grade HTTP server. The current Python standard-library web server is not designed for an unrestricted high-traffic public platform. Job applications currently go to the employer's own email address or external URL; this project does not collect applicants' CVs. The platform contact is a `mailto:` link, not an automatic email messaging service.
+**Read `UPGRADE-DEPLOYMENT.md` first.** Do not delete your Railway project, volume, domain, database or `ADMIN_KEY`. This code includes an **additive SQLite migration** that keeps old job postings and adds new fields/tables.

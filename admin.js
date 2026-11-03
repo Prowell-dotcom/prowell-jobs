@@ -1,9 +1,44 @@
 'use strict';
-const qs=s=>document.querySelector(s);
-const escapeHTML=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let key='', jobs=[];
-async function api(path,options={}){const response=await fetch(path,{...options,headers:{...options.headers,Authorization:`Bearer ${key}`}});const data=await response.json();if(!response.ok)throw Error(data.error||'Server error');return data;}
-function render(){const filter=qs('#adminFilter').value;const filtered=jobs.filter(j=>filter==='all'||j.status===filter);qs('#adminTotal').textContent=`(${filtered.length})`;qs('#adminJobs').innerHTML=filtered.length?filtered.map(job=>`<article class="admin-item"><div><h3>${escapeHTML(job.title)} <span class="status-label ${escapeHTML(job.status)}">${escapeHTML(job.status)}</span></h3><p>${escapeHTML(job.company)} · ${escapeHTML(job.location)} · ${escapeHTML(job.jobType)} · ${escapeHTML(new Date(job.createdAt).toLocaleDateString())}</p><details><summary>See full job description and application details</summary><div style="white-space:pre-wrap;overflow-wrap:anywhere">${escapeHTML(job.description)}</div><p>Contact: ${escapeHTML(job.email||'Not provided')}</p><p>Apply URL: ${escapeHTML(job.applyUrl||'Not provided')}</p></details></div><div class="admin-actions"><button type="button" class="approve" data-id="${escapeHTML(job.id)}" data-status="approved" ${job.status==='approved'?'disabled':''}>Approve</button><button type="button" class="reject" data-id="${escapeHTML(job.id)}" data-status="rejected" ${job.status==='rejected'?'disabled':''}>Reject</button><button type="button" data-id="${escapeHTML(job.id)}" data-status="pending" ${job.status==='pending'?'disabled':''}>Pending</button></div></article>`).join(''):'<p class="admin-message">No vacancies in this view.</p>';}
-qs('#keyForm').addEventListener('submit',async e=>{e.preventDefault();key=qs('#adminKey').value;try{const data=await api('/api/admin/jobs');jobs=data.jobs;render();qs('#adminStatus').textContent='Connected. Review listings carefully before approving.';qs('#adminKey').value='';}catch(error){key='';qs('#adminStatus').textContent=error.message;}});
-qs('#adminFilter').addEventListener('change',render);
-qs('#adminJobs').addEventListener('click',async e=>{const button=e.target.closest('[data-id]');if(!button)return;const {id,status}=button.dataset;if(status==='approved'&&!confirm('Have you verified this employer and its application destination? Approve this vacancy for publication?'))return;button.disabled=true;try{await api(`/api/admin/jobs/${encodeURIComponent(id)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});jobs=jobs.map(j=>j.id===id?{...j,status}:j);render();qs('#adminStatus').textContent=`Vacancy marked ${status}.`;}catch(error){button.disabled=false;qs('#adminStatus').textContent=error.message;}});
+const $=s=>document.querySelector(s);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let adminKey='', activeTab='jobs';
+let dataset={jobs:[],candidates:[],reviews:[],reports:[],alerts:[]};
+const headings={jobs:'Submitted vacancies',candidates:'Candidate profiles',reviews:'Community feedback',reports:'Safety reports',alerts:'Future alert interest'};
+async function api(path,options={}){const res=await fetch(path,{...options,headers:{...options.headers,Authorization:'Bearer '+adminKey}});const data=await res.json();if(!res.ok)throw Error(data.error||'Request failed.');return data;}
+async function refresh(){for(const table of Object.keys(dataset)){const data=await api('/api/admin/'+table);dataset[table]=data[table]||[];}render();}
+function detailText(label,value){return `<p><b>${esc(label)}:</b> ${esc(value||'Not provided')}</p>`;}
+function actions(row){if(activeTab==='alerts')return '';
+ const buttons=[['approved','approve','Approve'],['rejected','reject','Reject'],['pending','','Pending']];
+ if(activeTab==='reports')buttons[0][2]='Resolved';
+ const base=buttons.map(([status,cls,label])=>`<button type="button" class="${cls}" data-id="${esc(row.id)}" data-status="${status}" ${row.status===status?'disabled':''}>${label}</button>`).join('');
+ return `<div class="admin-actions">${base}${activeTab==='jobs'?`<button type="button" data-id="${esc(row.id)}" data-verified="${row.verified?'false':'true'}">${row.verified?'Remove Verified':'Mark Verified'}</button>`:''}</div>`;
+}
+function recordMarkup(r){let title='',desc='',full='';
+ if(activeTab==='jobs'){
+   title=`${esc(r.title)}${r.verified?' · ✓ Employer Verified':''}`;
+   desc=`${esc(r.company)} · ${esc(r.location)} · ${esc(r.jobType)} · ${esc(r.category)}`;
+   full=detailText('Description',r.description)+detailText('Responsibilities',r.responsibilities)+detailText('Requirements',r.requirements)+detailText('Pay',`${r.currency||''} ${r.salaryMin??'?'} – ${r.salaryMax??'?'} per ${r.payPeriod||'month'}`)+detailText('Apply email',r.email)+detailText('Apply URL',r.applyUrl)+detailText('Phone',r.phone)+detailText('Deadline',r.deadline);
+ } else if(activeTab==='candidates'){
+   title=esc(r.alias);desc=`${esc(r.category)} · ${esc(r.city||'')}, ${esc(r.country)} · ${esc(r.availability)}`;
+   full=detailText('Skills',r.skills)+detailText('Summary',r.summary)+detailText('Experience',r.experience)+detailText('Expected pay',r.payExpectation)+detailText('PRIVATE email',r.email)+detailText('PRIVATE phone',r.phone)+detailText('Consent',r.consent?'Explicit consent received':'NO CONSENT');
+ } else if(activeTab==='reviews'){
+   title=esc(r.name);desc=`${esc(r.relationship)} · ${esc(r.kind)}${r.rating?' · '+r.rating+'/5':''}`;
+   full=detailText('Feedback',r.comment);
+ } else if(activeTab==='reports'){
+   title=esc(r.subject);desc='Confidential report — never shown publicly';
+   full=detailText('Report',r.details)+detailText('Email',r.email);
+ } else {
+   title=esc(r.email);desc=`Sector: ${esc(r.category||'All')} · Country: ${esc(r.country||'Any')}`;
+   full=detailText('Opt-in',r.consent?'Yes':'No')+'<p>Automated email delivery is not enabled.</p>';
+ }
+ return `<article class="admin-item"><div><h3>${title} ${r.status?`<span class="admin-pill ${esc(r.status)}">${esc(r.status)}</span>`:''}</h3><p>${desc} · ${esc(new Date(r.createdAt).toLocaleDateString())}</p><details><summary>View details${activeTab==='candidates'?' (private contact included)':''}</summary><div>${full}</div></details></div>${actions(r)}</article>`;
+}
+function render(){const rows=dataset[activeTab]||[];const filter=$('#adminFilter').value;const shown=rows.filter(x=>filter==='all'||!x.status||x.status===filter);$('#adminHeading').textContent=headings[activeTab];$('#adminTotal').textContent=`(${shown.length})`;$('#adminRecords').innerHTML=shown.length?shown.map(recordMarkup).join(''):'<p class="admin-empty">No records in this view.</p>';$('#adminFilter').disabled=activeTab==='alerts';}
+$('#keyForm').addEventListener('submit',async e=>{e.preventDefault();adminKey=$('#adminKey').value;try{await refresh();$('#adminKey').value='';$('#adminStatus').textContent='Connected. Review records and approve only after appropriate checks.';}catch(err){adminKey='';$('#adminStatus').textContent=err.message;}});
+$('#adminTabs').addEventListener('click',e=>{const btn=e.target.closest('[data-tab]');if(!btn)return;activeTab=btn.dataset.tab;document.querySelectorAll('[data-tab]').forEach(b=>{b.classList.toggle('active',b===btn);b.setAttribute('aria-selected',String(b===btn));});render();});
+$('#adminFilter').addEventListener('change',render);
+$('#adminRecords').addEventListener('click',async e=>{const btn=e.target.closest('[data-id]');if(!btn||!adminKey)return;const id=btn.dataset.id;const current=dataset[activeTab].find(r=>r.id===id);if(!current)return;const verification=btn.dataset.verified;
+ if((btn.dataset.status==='approved'||verification==='true')&&!confirm('Confirm that the content or employer has been checked and may be published / verified.'))return;
+ btn.disabled=true;let payload={status:btn.dataset.status||current.status};if(verification!==undefined)payload.verified=verification==='true';
+ try{await api(`/api/admin/${activeTab}/${encodeURIComponent(id)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});Object.assign(current,payload);render();$('#adminStatus').textContent='Record updated successfully.';}catch(err){btn.disabled=false;$('#adminStatus').textContent=err.message;}
+});
