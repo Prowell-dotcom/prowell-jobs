@@ -1,67 +1,38 @@
-# Prowell Jobs — Global opportunity platform (expanded MVP)
+# Prowell Jobs — free accounts upgrade
 
-Website: **https://prowelljobs.com** · Contact: **prowellofficial@gmail.com** · Tel: **+254 703 772 555** / **+254 782 772 996** · CEO: **Mr. Ngugi**
+**All membership is free.** There is no KSh 100 charge, M-Pesa push, payment flow, paid tier or billing integration in this release. 
 
-This is an upgrade to the existing Prowell Jobs website running on Railway, with code in `Prowell-dotcom/prowell-jobs`. It supports many kinds of work: informal or casual gigs, ride-hailing and boda boda, domestic work, construction, farming, technical trades, hospitality, logistics, technology, healthcare, education and professional careers worldwide.
+## What it includes
 
-## Features included and working
+- New responsive public homepage with inclusive sector cards, compelling benefits, leadership message and free sign-up calls to action.
+- A **draft** welcome message credited to CEO Mr. Ngugi **for his approval before publication**. Obtain approval for the wording; do not present this draft as a verified direct quote.
+- Separate job-seeker and employer account registration; secure passwords with salted PBKDF2-SHA256 hashes.
+- Secure HttpOnly cookie sessions, 7-day expiry, CSRF tokens, login and logout.
+- Email confirmation, forgotten-password email and secure password reset (uses your existing verified Resend settings).
+- Role checks for vacancy posting (employers) and job applications/candidate profiles (job seekers).
+- Personal dashboard showing **only the signed-in user's** submitted vacancies, applications and candidate profiles, linked to their member ID.
+- Existing admin moderation, Resend notification delivery adapter and live SQLite database structure kept in place.
+- Public browsing of available jobs remains accessible without an account.
 
-- **32 broad employment sectors** and 12 featured career tiles; keyword, location, country, sector, employment type, arrangement, experience, pay period, currency and min-pay filtering.
-- Employer vacancy form: job title, country, location, employer, responsibilities, required skills and qualifications, benefits, application deadline, contact methods, salary range and pay period (hour, day, week, month, year, trip, task, or negotiable).
-- **Moderated job postings** (submitted as pending; published only after administrator approval). Separate manual `Verified` badge for employer identities independently checked.
-- **On-site job applications**: applicants can apply to approved vacancies via a private form, receive a one-time withdrawal code, and administrators can review the new Applications inbox. External employer application links are also displayed when provided. Applicants are not forwarded automatically to employers.
-- Candidate profile submissions: nickname, sector, country, city, skills, summary, availability, experience, pay expectation, private email and phone. Profiles do **not** appear until admin approval. Public candidate profile API excludes private email and phone.
-- Candidate withdrawal and deletion with a one-time private code shown upon submission.
-- Moderated visitor reviews and comments with optional 1–5 star ratings (no invented testimonials).
-- Confidential suspicious-listing reporting; admin review queue.
-- Career tips and guides, About Us with CEO details, FAQs, Terms of Use, Privacy notice, employer guidance and contact details.
-- **Live RSS job feed** at `/jobs.rss` for approved vacancies.
-- Email interest signup stores consented preferences for **future** alerts; **automated email sending is not configured**.
-- Responsive layouts, original vector illustration (`assets/world-of-work.svg`), colorful category artwork and modern navy/indigo/turquoise styling.
+## Safe upgrade on GitHub and Railway
 
-### What is NOT implemented yet
+1. **Protect your current data first.** Your existing Railway persistent volume contains real job and application information. Create a verified SQLite backup/export before changing the live code if your existing data matters. Do not remove or recreate the Railway volume.
+2. Download and extract `Prowell-Jobs-Free-Accounts-GitHub.zip`. Do **not** upload the ZIP directly to GitHub.
+3. Replace matching root files and add new root files in `Prowell-dotcom/prowell-jobs` (branch `main`). Upload all **contents** of the extracted project, retaining the `assets/`, `.github/workflows/`, and `tests/` paths.
+4. Make sure `accounts.py`, `member.js`, `membership.css`, `account.html`, `dashboard.html`, `jobs.html` and the updated `Dockerfile` appear at repository root. **Do not omit `notifications.py`**, which preserves the working Resend request headers.
+5. Commit with message `Launch free Prowell Jobs accounts and new homepage`.
+6. Open Railway `positive-caring → prowell-jobs → Deployments`; verify the latest deployment is Active. Do **not** change the existing `DATABASE_PATH`, `/data` volume, `ADMIN_KEY`, Resend variables or domain. Railway's existing `PORT` setting still applies.
+7. Visit `https://prowelljobs.com/` to see the new homepage, and `https://prowelljobs.com/account.html` to create separate test accounts using email addresses that you control.
+8. Test account email verification, login, logout, employer vacancy posting (pending moderation), job seeker application (private), user dashboard visibility, admin approval, and notifications. The admin dashboard is still `/admin.html`.
 
-This version does **not** include password-protected employer/job-seeker accounts, direct candidate/employer messaging, automatic forwarding of applications to employers, CV uploads, automatic candidate matching, automatic employer identity verification, CAPTCHA, automated email alerts, SMS, payments or completed international regulatory compliance reviews. Employers request candidate introductions manually via the Prowell Jobs team. Candidate contacts must not be shared without further explicit permission. Do not claim any official affiliation with ride-hailing services; job titles are descriptive only.
+**Email verification:** The signup process sends a verification message from your configured Resend service. `MEMBER_EMAIL_VERIFICATION_REQUIRED` defaults to `1` and should remain enabled in production. If Resend is unavailable, newly registered users can sign in but cannot post/apply until their address is verified.
 
-### Production caution
+**Account ownership:** Only submissions made **after this upgrade** are linked to accounts. Existing vacancies/applications are retained in the database but are not retroactively associated with new accounts; admins can continue reviewing them as before.
 
-The application collects personal data. Before wide marketing or collecting large numbers of candidate profiles, get a privacy/security and local employment-law review, add email verification and stronger anti-spam/rate limits, role-based authentication, retention controls, backups, and formal employer checks. Domestic workers and vulnerable job seekers merit particular care. The policy pages are starter wording, not legal advice.
+**Fees:** No payment variables or M-Pesa API keys are necessary. The Till number and phone number you provided are **not used for membership**.
 
-## Technology
+## Tests and limitations
 
-- Frontend: plain HTML, CSS, JavaScript (no build step).
-- Backend: Python standard library `http.server` + SQLite.
-- Hosting: Railway with existing persistent volume `/data`.
-- Source: GitHub with CI tests in `.github/workflows/check.yml`.
+Run locally: `python -m unittest discover -s tests -v` (28 tests passed on the prepared release).
 
-## Run locally
-
-```bash
-cd Prowell-Jobs-Upgrade
-ADMIN_KEY='your-private-development-key' python server.py
-```
-
-On Windows PowerShell:
-
-```powershell
-$env:ADMIN_KEY = 'your-private-development-key'
-python server.py
-```
-
-Open `http://localhost:8000`, then `http://localhost:8000/admin.html`. For an offline design preview, open `index.html` directly: it displays **clearly marked fictional sample listings** and does not publish submissions.
-
-## Run automated tests
-
-```bash
-python -m unittest discover -s tests -v
-```
-
-The tests cover the vacancy workflow, applications, private applicant data, withdrawals, broader casual listings, moderation, candidate privacy, reviews, alerts and reports.
-
-## Updating your existing live site
-
-**Read `UPGRADE-DEPLOYMENT.md` first.** Do not delete your Railway project, volume, domain, database or `ADMIN_KEY`. This code includes an **additive SQLite migration** that keeps old job postings and adds new fields/tables.
-
-## Employer and administrator notifications
-
-Optional opt-in employer email/SMS acknowledgment and status updates, plus administrator alerts for new vacancies. Configure verified Resend and/or Twilio credentials via Railway Variables; see [EMAIL-SMS-SETUP.md](EMAIL-SMS-SETUP.md). No messages are sent before setup.
+For production scale, add bot prevention/CAPTCHA, stronger account recovery controls, administrator MFA, database backups/restore verification, an appropriate retention/deletion workflow and legal review of terms and privacy. This version has no resume upload, employer self-service applicant inbox, automated matchmaking or paid membership. No real email is sent during automated tests. Test actual email delivery on the live Railway deployment before promoting signups widely.

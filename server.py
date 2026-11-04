@@ -24,6 +24,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 from notifications import email_configured, sms_configured, send_notification, NotificationDeliveryError
+from accounts import password_hash, verify_password, SESSION_SECONDS, COOKIE_NAME
 
 ROOT = Path(__file__).resolve().parent
 DATABASE_PATH = Path(os.getenv('DATABASE_PATH', str(ROOT / 'prowell-jobs.sqlite3'))).resolve()
@@ -39,6 +40,9 @@ submission_times: dict[str, list[float]] = {}
 ADMIN_SESSION_SECONDS = 7 * 24 * 60 * 60
 ADMIN_SESSION_COOKIE = "prowell_admin_session"
 ADMIN_KEY_FINGERPRINT = hashlib.sha256(ADMIN_KEY.encode()).hexdigest()
+MEMBER_LOGIN_REQUIRED = os.getenv('MEMBER_LOGIN_REQUIRED', '1') != '0'
+MEMBER_EMAIL_VERIFICATION_REQUIRED = os.getenv('MEMBER_EMAIL_VERIFICATION_REQUIRED', '1') == '1'
+
 # Moderation badges indicate unseen submissions, not pending or total records.
 ADMIN_TABS = ('jobs', 'applications', 'candidates', 'reviews', 'reports', 'alerts', 'notification_outbox')
 
@@ -148,6 +152,28 @@ def initialize_db():
         db.execute('''CREATE TABLE IF NOT EXISTS alerts (
             id TEXT PRIMARY KEY,email TEXT NOT NULL,category TEXT,country TEXT,
             consent INTEGER NOT NULL,createdAt TEXT NOT NULL)''')
+        # Free accounts: additive schema; existing Railway records remain intact.
+        db.execute('''CREATE TABLE IF NOT EXISTS members (
+            id TEXT PRIMARY KEY,email TEXT NOT NULL COLLATE NOCASE UNIQUE,
+            fullName TEXT NOT NULL,role TEXT NOT NULL,phone TEXT,
+            passwordSalt TEXT NOT NULL,passwordHash TEXT NOT NULL,
+            emailVerified INTEGER NOT NULL DEFAULT 0,
+            verificationHash TEXT, verificationExpires REAL,
+            createdAt TEXT NOT NULL)''')
+        db.execute('''CREATE TABLE IF NOT EXISTS member_sessions (
+            tokenHash TEXT PRIMARY KEY,memberId TEXT NOT NULL,
+            csrfToken TEXT NOT NULL,createdAt TEXT NOT NULL,expiresAt REAL NOT NULL)''')
+        db.execute('CREATE INDEX IF NOT EXISTS idx_member_sessions_exp ON member_sessions(expiresAt)')
+        member_cols={r['name'] for r in db.execute('PRAGMA table_info(members)')}
+        for col, sqltype in (('recoveryHash','TEXT'),('recoveryExpires','REAL')):
+            if col not in member_cols:
+                db.execute(f'ALTER TABLE members ADD COLUMN {col} {sqltype}')
+        for table in ('jobs','applications','candidates'):
+            cols={r['name'] for r in db.execute(f'PRAGMA table_info({table})')}
+            if 'memberId' not in cols:
+                db.execute(f'ALTER TABLE {table} ADD COLUMN memberId TEXT')
+            db.execute(f'CREATE INDEX IF NOT EXISTS idx_{table}_member ON {table}(memberId)')
+
 
 
 def check_rate(ip: str, bucket: str, limit: int = 6) -> bool:
@@ -591,6 +617,7 @@ class Handler(SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header('X-Content-Type-Options','nosniff')
         self.send_header('Referrer-Policy','strict-origin-when-cross-origin')
+        self.send_header('Content-Security-Policy', "frame-ancestors 'none'; object-src 'none'; base-uri 'self'")
         self.send_header('X-Frame-Options','DENY')
         self.send_header('Permissions-Policy','camera=(), microphone=(), geolocation=()')
         super().end_headers()
@@ -755,6 +782,209 @@ class Handler(SimpleHTTPRequestHandler):
                  'Email not yet accepted. View Notifications for the error and retry status.')
         return self.send_json(202,{'message':message,'status':status or 'sending'})
 
+    # -------- Free member signup and account sessions --------
+    def _member_cookie(self, token='', clear=False):
+        secure = bool(os.getenv('RAILWAY_ENVIRONMENT') or
+                      self.headers.get('X-Forwarded-Proto', '').lower() == 'https')
+        text = f'{COOKIE_NAME}={token}; Path=/; HttpOnly; SameSite=Lax'
+        if secure:
+            text += '; Secure'
+        return text + ('; Max-Age=0' if clear else f'; Max-Age={SESSION_SECONDS}')
+
+    def _member_session(self):
+        try:
+            cookies=SimpleCookie(); cookies.load(self.headers.get('Cookie', ''))
+            cookie=cookies.get(COOKIE_NAME); token=cookie.value if cookie else ''
+        except (CookieError, ValueError):
+            return None
+        if not token or len(token)>160:
+            return None
+        with db_connection() as db:
+            row=db.execute('''SELECT s.tokenHash,s.csrfToken,s.expiresAt,
+                m.id,m.email,m.fullName,m.role,m.phone,m.emailVerified
+                FROM member_sessions s JOIN members m ON m.id=s.memberId
+                WHERE s.tokenHash=?''', (hashlib.sha256(token.encode()).hexdigest(),)).fetchone()
+        return dict(row) if row and row['expiresAt'] > time.time() else None
+
+    def _member_write_ok(self, session):
+        return bool(session and self.headers.get('X-Member-CSRF') and
+                    hmac.compare_digest(session['csrfToken'],self.headers.get('X-Member-CSRF')))
+
+    def _member_public(self, session):
+        return {'authenticated':bool(session),
+                'member':{k:session[k] for k in ('id','email','fullName','role','phone','emailVerified')} if session else None,
+                'csrfToken':session['csrfToken'] if session else None,
+                'membership':{'priceKES':0,'free':True,'paymentRequired':False},
+                'loginRequiredForSubmissions':True}
+
+    def _member_new_session(self, member_id):
+        token=secrets.token_urlsafe(32); csrf=secrets.token_urlsafe(32)
+        with db_connection() as db:
+            db.execute('DELETE FROM member_sessions WHERE expiresAt<?',(time.time(),))
+            db.execute('INSERT INTO member_sessions VALUES (?,?,?,?,?)',
+                       (hashlib.sha256(token.encode()).hexdigest(),member_id,csrf,timestamp(),time.time()+SESSION_SECONDS))
+        session=self._member_session_from_id(member_id,csrf)
+        return self.send_json(200,self._member_public(session),{'Set-Cookie':self._member_cookie(token)})
+
+    def _member_session_from_id(self, member_id, csrf):
+        with db_connection() as db:
+            row=db.execute('SELECT id,email,fullName,role,phone,emailVerified FROM members WHERE id=?',
+                           (member_id,)).fetchone()
+        return {**dict(row),'csrfToken':csrf} if row else None
+
+    def _create_member(self):
+        if not check_rate(self.client_address[0],'member-signup',7):
+            return self.send_json(429,{'error':'Too many registration attempts. Try later.'})
+        try:
+            data=self.json_body()
+            email=checked_email(field(data,'email',180,True),True).lower()
+            name=field(data,'fullName',120,True)
+            role=field(data,'role',30,True)
+            phone=field(data,'phone',45)
+            password=data.get('password')
+            if role not in ('jobseeker','employer'):
+                raise ValueError('Choose Job seeker or Employer.')
+            if not isinstance(password,str) or len(password)<12 or len(password)>128:
+                raise ValueError('Use a password of 12–128 characters.')
+            if data.get('consent') is not True:
+                raise ValueError('Please agree to the privacy notice and terms.')
+            if phone and not re.fullmatch(r'\+?[0-9 ()-]{7,24}',phone):
+                raise ValueError('Enter a valid contact number including country code.')
+            if len(name)<2:
+                raise ValueError('Enter your name or business contact name.')
+        except ValueError as exc:
+            return self.send_json(400,{'error':str(exc)})
+        mid=str(uuid.uuid4()); salt,digest=password_hash(password)
+        verify_token=secrets.token_urlsafe(32)
+        verify_hash=hashlib.sha256(verify_token.encode()).hexdigest()
+        with db_connection() as db:
+            existing=db.execute('SELECT 1 FROM members WHERE email=?',(email,)).fetchone()
+            if existing:
+                return self.send_json(409,{'error':'An account with this email already exists. Sign in instead.'})
+            db.execute('''INSERT INTO members(id,email,fullName,role,phone,passwordSalt,passwordHash,
+                verificationHash,verificationExpires,createdAt) VALUES (?,?,?,?,?,?,?,?,?,?)''',
+                (mid,email,name,role,phone,salt,digest,verify_hash,time.time()+86400,timestamp()))
+            if email_configured():
+                verify_url='https://prowelljobs.com/api/member/verify?token='+verify_token
+                event_id='member:'+mid+':verify'
+                db.execute('''INSERT INTO notification_outbox(eventId,jobId,kind,channel,recipient,subject,body,status,createdAt)
+                  VALUES(?,?,?,?,?,?,?,'pending',?)''',
+                  (event_id,mid,'member_verification','email',email,
+                   'Verify your Prowell Jobs account',
+                   'Welcome to Prowell Jobs. Confirm your email to activate your account:\n'+verify_url+
+                   '\nThis link expires in 24 hours. Creating an account and using Prowell Jobs is free.',timestamp()))
+        if email_configured():
+            deliver_notification_event('member:'+mid+':verify')
+            notification_wake.set()
+        return self._member_new_session(mid)
+
+    def _login_member(self):
+        if not check_rate(self.client_address[0],'member-login',14):
+            return self.send_json(429,{'error':'Too many login attempts. Try later.'})
+        try:
+            data=self.json_body(); email=field(data,'email',180,True).lower()
+            password=data.get('password','')
+            if not isinstance(password,str):raise ValueError('Invalid credentials.')
+        except ValueError as exc:
+            return self.send_json(400,{'error':str(exc)})
+        with db_connection() as db:
+            row=db.execute('SELECT id,passwordSalt,passwordHash FROM members WHERE email=?',(email,)).fetchone()
+        if not row or not verify_password(password,row['passwordSalt'],row['passwordHash']):
+            return self.send_json(401,{'error':'Incorrect email or password.'})
+        return self._member_new_session(row['id'])
+
+    def _logout_member(self):
+        session=self._member_session()
+        if session and not self._member_write_ok(session):
+            return self.send_json(403,{'error':'Invalid session token.'})
+        if session:
+            with db_connection() as db:
+                db.execute('DELETE FROM member_sessions WHERE tokenHash=?',(session['tokenHash'],))
+        return self.send_json(200,{'authenticated':False}, {'Set-Cookie':self._member_cookie(clear=True)})
+
+    def _verify_member_email(self):
+        from urllib.parse import parse_qs
+        qs=parse_qs(urlsplit(self.path).query)
+        token=qs.get('token',[''])[0]
+        success=False
+        if len(token) in range(20,200):
+            with db_connection() as db:
+                row=db.execute('SELECT id,verificationExpires FROM members WHERE verificationHash=?',
+                               (hashlib.sha256(token.encode()).hexdigest(),)).fetchone()
+                if row and row['verificationExpires'] and row['verificationExpires']>time.time():
+                    db.execute('UPDATE members SET emailVerified=1,verificationHash=NULL,verificationExpires=NULL WHERE id=?',(row['id'],))
+                    success=True
+        # Prevent token leakage into page referrer or browser history after redirect.
+        self.send_response(303)
+        self.send_header('Location','/account.html?verified='+('1' if success else '0'))
+        self.send_header('Referrer-Policy','no-referrer')
+        self.send_header('Cache-Control','no-store')
+        self.end_headers()
+
+    def _member_dashboard(self):
+        session=self._member_session()
+        if not session:
+            return self.send_json(401,{'error':'Please sign in.'})
+        member_id=session['id']
+        with db_connection() as db:
+            result={}
+            for table,cols in {
+                'jobs':'id,title,company,location,status,createdAt',
+                'applications':'id,jobTitle,employerName,status,createdAt',
+                'candidates':'id,alias,category,status,createdAt',
+            }.items():
+                rows=db.execute(f'SELECT {cols} FROM {table} WHERE memberId=? ORDER BY createdAt DESC LIMIT 100',
+                                (member_id,)).fetchall()
+                result[table]=[dict(row) for row in rows]
+        return self.send_json(200, result)
+
+    def _member_forgot(self):
+        if not check_rate(self.client_address[0],'member-recovery',6):
+            return self.send_json(429,{'error':'Too many requests. Try again later.'})
+        try:
+            data=self.json_body(); email=checked_email(field(data,'email',180,True),True).lower()
+        except ValueError as exc:
+            return self.send_json(400,{'error':str(exc)})
+        with db_connection() as db:
+            row=db.execute('SELECT id FROM members WHERE email=?',(email,)).fetchone()
+            if row and email_configured():
+                token=secrets.token_urlsafe(32)
+                db.execute('UPDATE members SET recoveryHash=?,recoveryExpires=? WHERE id=?',
+                           (hashlib.sha256(token.encode()).hexdigest(),time.time()+3600,row['id']))
+                event_id='member:'+row['id']+':recovery:'+secrets.token_hex(5)
+                url='https://prowelljobs.com/account.html?reset='+token
+                db.execute('''INSERT INTO notification_outbox(eventId,jobId,kind,channel,recipient,subject,body,status,createdAt)
+                    VALUES(?,?,?,?,?,?,?,'pending',?)''',
+                    (event_id,row['id'],'member_recovery','email',email,'Reset your Prowell Jobs password',
+                     'Use this link to reset your password (expires in 1 hour):\n'+url+'\nIf this was not you, ignore this message.',timestamp()))
+            else:
+                event_id=None
+        if event_id:
+            deliver_notification_event(event_id);notification_wake.set()
+        return self.send_json(200,{'message':'If that email has an account, a password reset link will be sent.'})
+
+    def _member_reset(self):
+        if not check_rate(self.client_address[0],'member-reset',10):
+            return self.send_json(429,{'error':'Too many password reset attempts.'})
+        try:
+            data=self.json_body()
+            token=field(data,'token',150,True)
+            password=data.get('password')
+            if len(token)<25 or not isinstance(password,str) or not 12<=len(password)<=128:
+                raise ValueError('Invalid or expired reset link, or password too short.')
+        except ValueError as exc:
+            return self.send_json(400,{'error':str(exc)})
+        salt,digest=password_hash(password)
+        with db_connection() as db:
+            row=db.execute('SELECT id,recoveryExpires FROM members WHERE recoveryHash=?',
+                           (hashlib.sha256(token.encode()).hexdigest(),)).fetchone()
+            if not row or row['recoveryExpires']<=time.time():
+                return self.send_json(400,{'error':'Reset link invalid or expired.'})
+            db.execute('''UPDATE members SET passwordSalt=?,passwordHash=?,recoveryHash=NULL,
+                recoveryExpires=NULL WHERE id=?''',(salt,digest,row['id']))
+            db.execute('DELETE FROM member_sessions WHERE memberId=?',(row['id'],))
+        return self.send_json(200,{'message':'Password updated. Sign in with your new password.'})
+
     def json_body(self):
         try:
             length = int(self.headers.get('Content-Length','0'))
@@ -766,6 +996,12 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
+        if path == '/api/member/me':
+            return self.send_json(200,self._member_public(self._member_session()))
+        if path == '/api/member/verify':
+            return self._verify_member_email()
+        if path == '/api/member/dashboard':
+            return self._member_dashboard()
         if path == '/api/admin/session':
             session = self.admin_session()
             return self.send_json(200, {'authenticated': bool(session),
@@ -810,7 +1046,7 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path.startswith('/api/'):
             return self.send_json(404,{'error':'Unknown endpoint.'})
-        allowed = {'/','/index.html','/styles.css','/app.js','/admin.html','/admin.js','/favicon.svg','/robots.txt','/sitemap.xml'}
+        allowed = {'/','/index.html','/jobs.html','/account.html','/dashboard.html','/membership.css','/member.js','/styles.css','/app.js','/admin.html','/admin.js','/favicon.svg','/robots.txt','/sitemap.xml'}
         if path not in allowed and not (path.startswith('/assets/') and path.endswith(('.svg','.png','.jpg','.webp')) and '..' not in path):
             return self.send_json(404,{'error':'File not found.'})
         if path == '/':
@@ -819,6 +1055,16 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = urlsplit(self.path).path
+        if path == '/api/member/signup':
+            return self._create_member()
+        if path == '/api/member/login':
+            return self._login_member()
+        if path == '/api/member/logout':
+            return self._logout_member()
+        if path == '/api/member/forgot':
+            return self._member_forgot()
+        if path == '/api/member/reset':
+            return self._member_reset()
         if path == '/api/admin/login':
             return self.admin_login()
         if path == '/api/admin/logout':
@@ -837,10 +1083,21 @@ class Handler(SimpleHTTPRequestHandler):
         if path not in validators:
             return self.send_json(404,{'error':'Unknown endpoint.'})
         table,validate = validators[path]
+        member_for_submission = None
+        if MEMBER_LOGIN_REQUIRED and table in ('jobs','candidates','applications'):
+            session=self._member_session()
+            role='employer' if table=='jobs' else 'jobseeker'
+            if not self._member_write_ok(session) or session['role']!=role:
+                return self.send_json(401,{'error':f'Sign in as a {role} before submitting.'})
+            member_for_submission = session['id']
+            if MEMBER_EMAIL_VERIFICATION_REQUIRED and not session['emailVerified']:
+                return self.send_json(403,{'error':'Verify your email address before submitting.'})
         try:
             raw = self.json_body()
             result = validate(raw)
             obj, withdrawal = result if table in ('candidates','applications') else (result,None)
+            if member_for_submission:
+                obj['memberId'] = member_for_submission
         except ValueError as exc:
             return self.send_json(400,{'error':str(exc)})
         if not check_rate(self.client_address[0],table,4 if table != 'jobs' else 6):

@@ -1,6 +1,6 @@
 User-agent: *
-Allow: /
 Disallow: /admin.html
-Disallow: /api/admin/
-Disallow: /api/candidates
+Disallow: /account.html
+Disallow: /dashboard.html
+Disallow: /api/
 Sitemap: https://prowelljobs.com/sitemap.xml

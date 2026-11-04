@@ -12,6 +12,7 @@ from urllib.request import Request, urlopen
 _temp_dir = tempfile.TemporaryDirectory()
 os.environ['DATABASE_PATH'] = str(Path(_temp_dir.name) / 'test.sqlite3')
 os.environ['ADMIN_KEY'] = 'test-key-not-a-production-secret'
+os.environ['MEMBER_LOGIN_REQUIRED'] = '0'  # Legacy public-job tests; new account tests enforce login.
 import server  # noqa: E402  (environment must be configured before import)
 
 

@@ -73,19 +73,19 @@ function detail(id){const job=jobs.find(j=>j.id===id);if(!job)return;const canAp
   $('#detailApply').addEventListener('click',()=>{if(job.demo)return;$('#detailDialog').close();openApplication(job);});
   $('#detailDialog').showModal();}
 function safeUrl(v){try{const u=new URL(v);return u.protocol==='https:'||u.protocol==='http:'?u.href:null;}catch{return null;}}
-function openApplication(job){
-  const dialog=$('#applicationDialog'),form=$('#applicationForm');form.reset();form.hidden=false;
+async function openApplication(job){
+  if(!await window.ProwellAuth.requireRole('jobseeker'))return;const dialog=$('#applicationDialog'),form=$('#applicationForm');form.reset();form.hidden=false;
   $('#applicationReceipt').hidden=true;$('#applicationError').hidden=true;
   form.elements.jobId.value=job.id;
   $('#applicationJobName').textContent=`Applying for ${job.title} — ${job.company} (${job.location})`;
   dialog.showModal();
 }
-function openPost(){const form=$('#postForm');form.reset();$('#postError').hidden=true;$('#postSubmit').disabled=false;$('#postSubmit').innerHTML=`Submit vacancy ${icon('arrow')}`;$('#postDialog').showModal();}
+async function openPost(){if(!await window.ProwellAuth.requireRole('employer'))return;const form=$('#postForm');form.reset();$('#postError').hidden=true;$('#postSubmit').disabled=false;$('#postSubmit').innerHTML=`Submit vacancy ${icon('arrow')}`;$('#postDialog').showModal();}
 function extractPost(form){const f=new FormData(form),get=k=>String(f.get(k)||'').trim();return {title:get('title'),company:get('company'),category:get('category'),location:get('location'),country:get('country'),workMode:get('workMode'),jobType:get('jobType'),experience:get('experience'),currency:get('currency'),payPeriod:get('payPeriod'),salaryMin:get('salaryMin')===''?null:Number(get('salaryMin')),salaryMax:get('salaryMax')===''?null:Number(get('salaryMax')),description:get('description'),requirements:get('requirements'),responsibilities:get('responsibilities'),benefits:get('benefits'),deadline:get('deadline'),phone:get('phone'),email:get('email'),applyUrl:get('applyUrl'),notifyEmail:get('notifyEmail'),notifyPhone:get('notifyPhone'),notifyConsent:f.get('notifyConsent')==='on'};}
 function validatePost(data){if(!data.email&&!data.applyUrl&&!data.phone)return 'Please add an application phone, email or link.';if(data.applyUrl&&!safeUrl(data.applyUrl))return 'Application link must start with https:// or http://.';if(data.salaryMin!=null&&data.salaryMax!=null&&data.salaryMax<data.salaryMin)return 'Maximum salary must be equal to or greater than minimum salary.';if(data.description.length<30)return 'Write at least 30 characters describing the job.';if(data.notifyConsent&&!data.notifyEmail&&!data.notifyPhone)return 'Add an email or SMS number for notifications.';if(data.notifyConsent&&data.notifyPhone&&!/^\+[1-9]\d{7,14}$/.test(data.notifyPhone))return 'For SMS, use an international number like +254703772555.';return null;}
 async function submitPost(e){e.preventDefault();const data=extractPost(e.currentTarget),err=validatePost(data),error=$('#postError');if(err){error.textContent=err;error.hidden=false;return;}error.hidden=true;const submit=$('#postSubmit');submit.disabled=true;submit.textContent='Submitting...';try{
   if(demoMode){const local=stored('prowell-jobs-localjobs',[]);const localJob={...data,id:`local-${Date.now()}`,createdAt:new Date().toISOString(),demo:false};local.unshift(localJob);persist('prowell-jobs-localjobs',local);jobs=[localJob,...jobs];showToast('Saved locally as a preview. Other people cannot see this job.');resetFilters();}
-  else{const response=await fetch('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});const res=await response.json();if(!response.ok)throw new Error(res.error||'Could not submit vacancy.');showToast(res.employerEmailQueued ? 'Vacancy received for review. We are sending a confirmation to your private email. Approval is still pending.' : 'Vacancy received for admin review. For an email confirmation next time, add your private notification email and tick the consent box.');}
+  else{const response=await window.ProwellAuth.fetch('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});const res=await response.json();if(!response.ok)throw new Error(res.error||'Could not submit vacancy.');showToast(res.employerEmailQueued ? 'Vacancy received for review. We are sending a confirmation to your private email. Approval is still pending.' : 'Vacancy received for admin review. For an email confirmation next time, add your private notification email and tick the consent box.');}
   $('#postDialog').close();$('#jobs').scrollIntoView({behavior:'smooth'});
  }catch(error){$('#postError').textContent=error.message||'Something went wrong. Please try again.';$('#postError').hidden=false;}
   finally{submit.disabled=false;submit.innerHTML=`Submit vacancy ${icon('arrow')}`;}}
@@ -110,7 +110,7 @@ populateOptions();$('#year').textContent=String(new Date().getFullYear());syncSa
 // Community and candidate discovery: API data only, never invented testimonials.
 async function apiPost(url,payload){
   if(demoMode||location.protocol==='file:')throw Error('Submissions require the hosted website. This downloaded preview does not publish information.');
-  const response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const response=await (['/api/candidates','/api/applications'].includes(url)?window.ProwellAuth.fetch:fetch)(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   const data=await response.json(); if(!response.ok)throw Error(data.error||'Submission failed.'); return data;
 }
 function formObject(form){const out={};new FormData(form).forEach((v,k)=>out[k]=typeof v==='string'?v.trim():v);return out;}
@@ -125,7 +125,7 @@ async function loadPublicCommunity(){
     catch{$(node).innerHTML='<p class="empty-panel">Community information is temporarily unavailable.</p>';}
   }
 }
-$$('[data-open-candidate]').forEach(btn=>btn.addEventListener('click',()=>openModal('candidateDialog')));
+$$('[data-open-candidate]').forEach(btn=>btn.addEventListener('click',async()=>{if(await window.ProwellAuth.requireRole('jobseeker'))openModal('candidateDialog')}));
 $$('[data-open-review]').forEach(btn=>btn.addEventListener('click',()=>openModal('reviewDialog')));
 $$('[data-open-report]').forEach(btn=>btn.addEventListener('click',()=>openModal('reportDialog')));
 $$('[data-close-modal]').forEach(btn=>btn.addEventListener('click',()=>btn.closest('dialog').close()));
@@ -166,3 +166,7 @@ $('#alertForm').addEventListener('submit',async e=>{e.preventDefault();const for
 $$('[data-sector]').forEach(btn=>btn.addEventListener('click',()=>{$('#categoryFilter').value=btn.dataset.sector;$('#savedOnly').checked=false;visibleLimit=6;renderJobs();$('#jobs').scrollIntoView({behavior:'smooth'});}));
 
 $('#withdrawForm').addEventListener('submit',async e=>{e.preventDefault();const f=e.currentTarget;const id=String(f.elements.id.value||'').trim();const code=String(f.elements.withdrawalCode.value||'').trim();const output=$('#withdrawStatus');if(!/^[a-f0-9-]{36}$/i.test(id)){output.textContent='Please enter a valid profile ID.';return;}try{if(demoMode||location.protocol==='file:')throw Error('Profile removal is available on the live website only.');const resp=await fetch('/api/candidates/'+encodeURIComponent(id),{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({withdrawalCode:code})});const data=await resp.json();if(!resp.ok)throw Error(data.error||'Could not withdraw profile.');output.textContent=data.message;f.reset();loadPublicCommunity();}catch(err){output.textContent=err.message;}});
+
+// Open the posting or candidate flow from the authenticated member dashboard.
+if(new URLSearchParams(location.search).get('post')==='1')setTimeout(()=>openPost(),250);
+if(new URLSearchParams(location.search).get('candidate')==='1')setTimeout(async()=>{if(await window.ProwellAuth.requireRole('jobseeker'))openModal('candidateDialog')},250);
