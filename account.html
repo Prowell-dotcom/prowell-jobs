@@ -1,9 +1,259 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><meta name="referrer" content="no-referrer"><meta name="theme-color" content="#0B1B33"><title>Sign in or join for free | Prowell Jobs</title><meta name="description" content="Create a free Prowell Jobs account to apply for work or post job opportunities."><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/membership.css"><script src="/member.js" defer></script></head><body data-page="account" class="auth-page">
-<header class="m-header"><div class="m-container m-header-inner"><a class="m-logo" href="/"><span class="m-logo-icon">P<span>✦</span></span><span class="m-logo-type">prowell<span class="m-logo-accent">.</span><small>JOBS</small></span></a><div class="m-header-actions"><a class="m-link" href="/jobs.html#jobs">Browse opportunities</a><a class="m-link" href="/">← Back home</a></div></div></header>
-<main class="auth-layout"><section class="auth-aside"><div class="auth-aside-inner"><span class="eyebrow light">YOUR PLACE TO GROW</span><h1>Your next chapter starts with a <em>single step.</em></h1><p>Whether you're looking for work or building your team, join a community that values every kind of skill and ambition.</p><div class="auth-assurance"><div><span>✓</span> Free forever to create an account</div><div><span>✓</span> Return securely with one login</div><div><span>✓</span> Track your applications or job posts</div></div><div class="auth-art"><img src="/assets/world-of-work.svg" alt="Career and workplace illustration"></div><span class="auth-aside-footer">Prowell Jobs · Every skill deserves an opportunity.</span></div></section>
-<section class="auth-content"><div class="auth-card"><span class="eyebrow">WELCOME TO PROWELL JOBS</span><h2>Open the door to <em>possibility.</em></h2><p class="auth-subtitle">Create an account or pick up right where you left off.</p><div id="alreadySignedIn" class="auth-signedin" hidden></div><div class="auth-switch"><button type="button" data-mode="login" aria-pressed="true">Log in</button><button type="button" data-mode="signup" aria-pressed="false">Create account</button></div><div id="authStatus" class="auth-status" role="status" hidden></div>
-<form id="loginForm" class="auth-form" novalidate><label>Email address<input type="email" name="email" autocomplete="email" placeholder="you@example.com" required></label><label>Password<input type="password" name="password" autocomplete="current-password" required placeholder="Your password"></label><div class="auth-help"><button type="button" class="inline-link" data-mode="forgot">Forgot your password?</button></div><button type="submit" class="m-btn m-submit">Log in to my account <span>→</span></button></form>
-<form id="signupForm" class="auth-form" hidden><label>I am joining as <select name="role" id="signupRole" required><option value="jobseeker">A job seeker</option><option value="employer">An employer / business</option></select></label><label>Full name or employer contact<input name="fullName" required minlength="2" maxlength="120" autocomplete="name" placeholder="Your full name"></label><label>Email address<input name="email" type="email" required maxlength="180" autocomplete="email" placeholder="you@example.com"></label><label>Phone number <span class="optional">(optional)</span><input name="phone" type="tel" maxlength="45" autocomplete="tel" placeholder="e.g. +254 703 772 555"></label><label>Create a password <small>At least 12 characters</small><input name="password" type="password" minlength="12" maxlength="128" required autocomplete="new-password" placeholder="Choose a secure password"></label><label class="auth-consent"><input type="checkbox" name="consent" required> <span>I agree to the <a href="/jobs.html#terms" target="_blank" rel="noopener">Terms of Use</a> and <a href="/jobs.html#privacy" target="_blank" rel="noopener">Privacy Policy</a>. Prowell may email me account verification and submission updates.</span></label><button type="submit" class="m-btn m-submit">Create my free account <span>→</span></button><p class="auth-footnote">No KSh 100 fee. No M-Pesa payment. Email verification required before posting or applying.</p></form>
-<form id="forgotForm" class="auth-form" hidden><p>We'll email a password reset link if your address is registered.</p><label>Email address<input name="email" type="email" required placeholder="you@example.com"></label><button type="submit" class="m-btn m-submit">Send reset link <span>→</span></button><button type="button" data-mode="login" class="inline-link">Return to login</button></form>
-<form id="resetForm" class="auth-form" hidden><p>Choose a new password for your Prowell Jobs account.</p><label>New password<input name="password" type="password" minlength="12" required maxlength="128" autocomplete="new-password" placeholder="At least 12 characters"></label><button type="submit" class="m-btn m-submit">Set new password <span>→</span></button></form><p class="auth-bottom">Need help? <a href="mailto:prowellofficial@gmail.com">prowellofficial@gmail.com</a></p></div></section></main>
-</body></html>
+<!doctype html>
+<html lang="en">
+ <head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width,initial-scale=1" name="viewport"/>
+  <meta content="noindex" name="robots"/>
+  <meta content="no-referrer" name="referrer"/>
+  <meta content="#0B1B33" name="theme-color"/>
+  <title>
+   Sign in or join for free | Prowell Jobs
+  </title>
+  <meta content="Create a free Prowell Jobs account to apply for work or post job opportunities." name="description"/>
+  <link href="/favicon.svg" rel="icon"/>
+  <link href="/membership.css?v=signup-20261104-2" rel="stylesheet"/>
+  <script defer="" src="/member.js?v=signup-20261104-2">
+  </script>
+ </head>
+ <body class="auth-page" data-page="account">
+  <header class="m-header">
+   <div class="m-container m-header-inner">
+    <a class="m-logo" href="/">
+     <span class="m-logo-icon">
+      P
+      <span>
+       ✦
+      </span>
+     </span>
+     <span class="m-logo-type">
+      prowell
+      <span class="m-logo-accent">
+       .
+      </span>
+      <small>
+       JOBS
+      </small>
+     </span>
+    </a>
+    <div class="m-header-actions">
+     <a class="m-link" href="/jobs.html#jobs">
+      Browse opportunities
+     </a>
+     <a class="m-link" href="/">
+      &larr; Back home
+     </a>
+    </div>
+   </div>
+  </header>
+  <main class="auth-layout">
+   <section class="auth-aside">
+    <div class="auth-aside-inner">
+     <span class="eyebrow light">
+      YOUR PLACE TO GROW
+     </span>
+     <h1>
+      Your next chapter starts with a
+      <em>
+       single step.
+      </em>
+     </h1>
+     <p>
+      Whether you're looking for work or building your team, join a community that values every kind of skill and ambition.
+     </p>
+     <div class="auth-assurance">
+      <div>
+       <span>
+        &checkmark;
+       </span>
+       Free forever to create an account
+      </div>
+      <div>
+       <span>
+        &checkmark;
+       </span>
+       Return securely with one login
+      </div>
+      <div>
+       <span>
+        &checkmark;
+       </span>
+       Track your applications or job posts
+      </div>
+     </div>
+     <div class="auth-art">
+      <img alt="Career and workplace illustration" src="/assets/world-of-work.svg"/>
+     </div>
+     <span class="auth-aside-footer">
+      Prowell Jobs &middot; Every skill deserves an opportunity.
+     </span>
+    </div>
+   </section>
+   <section class="auth-content">
+    <div class="auth-card">
+     <span class="eyebrow">
+      WELCOME TO PROWELL JOBS
+     </span>
+     <h2>
+      Open the door to
+      <em>
+       possibility.
+      </em>
+     </h2>
+     <p class="auth-subtitle">
+      Create an account or pick up right where you left off.
+     </p>
+     <div class="auth-signedin" hidden="" id="alreadySignedIn">
+     </div>
+     <div aria-label="Choose sign in or sign up" class="auth-switch" role="group">
+      <button aria-pressed="true" data-mode="login" type="button">
+       Log in
+      </button>
+      <button aria-pressed="false" data-mode="signup" type="button">
+       Create account
+      </button>
+     </div>
+     <div aria-live="polite" class="auth-status" hidden="" id="authStatus" role="status">
+     </div>
+     <form class="auth-form" id="loginForm" novalidate="">
+      <label>
+       Email address
+       <input autocomplete="email" name="email" placeholder="you@example.com" required="" type="email"/>
+      </label>
+      <label>
+       Password
+       <input autocomplete="current-password" name="password" placeholder="Your password" required="" type="password"/>
+      </label>
+      <div class="auth-help">
+       <button class="inline-link" data-mode="forgot" type="button">
+        Forgot your password?
+       </button>
+      </div>
+      <button class="m-btn m-submit" type="submit">
+       Log in to my account
+       <span>
+        &rarr;
+       </span>
+      </button>
+      <p class="auth-new-user">
+       New to Prowell Jobs?
+       <a data-mode-link="signup" href="/account.html?mode=signup">
+        Create a free account
+       </a>
+      </p>
+     </form>
+     <form aria-label="Create a free Prowell Jobs account" class="auth-form" hidden="" id="signupForm">
+      <label>
+       I am joining as
+       <select id="signupRole" name="role" required="">
+        <option value="jobseeker">
+         A job seeker
+        </option>
+        <option value="employer">
+         An employer / business
+        </option>
+       </select>
+      </label>
+      <label>
+       Full name or employer contact
+       <input autocomplete="name" maxlength="120" minlength="2" name="fullName" placeholder="Your full name" required=""/>
+      </label>
+      <label>
+       Email address
+       <input autocomplete="email" maxlength="180" name="email" placeholder="you@example.com" required="" type="email"/>
+      </label>
+      <label>
+       Phone number
+       <span class="optional">
+        (optional)
+       </span>
+       <input autocomplete="tel" maxlength="45" name="phone" placeholder="e.g. +254 703 772 555" type="tel"/>
+      </label>
+      <label>
+       Create a password
+       <small>
+        At least 12 characters
+       </small>
+       <input aria-describedby="signupPasswordHint" autocomplete="new-password" id="signupPassword" maxlength="128" minlength="12" name="password" placeholder="Choose a secure password" required="" type="password"/>
+      </label>
+      <label for="signupConfirmPassword">
+       Confirm password
+       <input autocomplete="new-password" id="signupConfirmPassword" maxlength="128" minlength="12" name="confirmPassword" placeholder="Re-enter your password" required="" type="password"/>
+      </label>
+      <label class="auth-visibility" for="showSignupPasswords">
+       <input id="showSignupPasswords" type="checkbox"/>
+       <span>
+        Show passwords
+       </span>
+      </label>
+      <p class="auth-hint" id="signupPasswordHint">
+       Use a strong, unique password. Both password fields must match.
+      </p>
+      <label class="auth-consent">
+       <input name="consent" required="" type="checkbox"/>
+       <span>
+        I agree to the
+        <a href="/jobs.html#terms" rel="noopener" target="_blank">
+         Terms of Use
+        </a>
+        and
+        <a href="/jobs.html#privacy" rel="noopener" target="_blank">
+         Privacy Policy
+        </a>
+        . Prowell may email me account verification and submission updates.
+       </span>
+      </label>
+      <button class="m-btn m-submit" type="submit">
+       Sign up &mdash; it&rsquo;s free
+       <span>
+        &rarr;
+       </span>
+      </button>
+      <p class="auth-footnote">
+       No KSh 100 fee. No M-Pesa payment. Email verification required before posting or applying.
+      </p>
+     </form>
+     <form class="auth-form" hidden="" id="forgotForm">
+      <p>
+       We'll email a password reset link if your address is registered.
+      </p>
+      <label>
+       Email address
+       <input name="email" placeholder="you@example.com" required="" type="email"/>
+      </label>
+      <button class="m-btn m-submit" type="submit">
+       Send reset link
+       <span>
+        &rarr;
+       </span>
+      </button>
+      <button class="inline-link" data-mode="login" type="button">
+       Return to login
+      </button>
+     </form>
+     <form class="auth-form" hidden="" id="resetForm">
+      <p>
+       Choose a new password for your Prowell Jobs account.
+      </p>
+      <label>
+       New password
+       <input autocomplete="new-password" maxlength="128" minlength="12" name="password" placeholder="At least 12 characters" required="" type="password"/>
+      </label>
+      <button class="m-btn m-submit" type="submit">
+       Set new password
+       <span>
+        &rarr;
+       </span>
+      </button>
+     </form>
+     <p class="auth-bottom">
+      Need help?
+      <a href="mailto:prowellofficial@gmail.com">
+       prowellofficial@gmail.com
+      </a>
+     </p>
+    </div>
+   </section>
+  </main>
+ </body>
+</html>
+

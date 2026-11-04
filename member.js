@@ -58,7 +58,11 @@ window.addEventListener('DOMContentLoaded',()=>{
 });
 function setMsg(msg,kind){const box=qs('#authStatus');if(box){box.textContent=msg;box.dataset.kind=kind||'info';box.hidden=false;}}
 function switchMode(mode){
-  ['login','signup','forgot','reset'].forEach(m=>{const el=qs('#form-'+m);if(el)el.hidden=m!==mode;});
+  const forms={login:'loginForm',signup:'signupForm',forgot:'forgotForm',reset:'resetForm'};
+  Object.entries(forms).forEach(([name,id])=>{
+    const form=qs('#'+id);
+    if(form)form.hidden=name!==mode;
+  });
   document.querySelectorAll('[data-mode]').forEach(b=>{b.classList.toggle('selected',b.dataset.mode===mode);b.setAttribute('aria-pressed',String(b.dataset.mode===mode));});
   const msg=qs('#authStatus');if(msg)msg.hidden=true;
 }
@@ -68,7 +72,35 @@ function initAccount(){
   const mode=params.has('reset')?'reset':(params.get('mode')==='signup'?'signup':'login');switchMode(mode);
   if(params.get('verified'))setMsg(params.get('verified')==='1'?'Your email is verified. Welcome to Prowell Jobs.':'The verification link was invalid or expired. Please contact support.',params.get('verified')==='1'?'success':'error');
   if(params.get('role')&&qs('#signupRole'))qs('#signupRole').value=params.get('role');
-  document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>switchMode(b.dataset.mode)));
+  document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>{
+    switchMode(b.dataset.mode);
+    if(b.dataset.mode==='login'||b.dataset.mode==='signup'){
+      const url=new URL(location.href);url.searchParams.set('mode',b.dataset.mode);
+      history.replaceState(null,'',url.pathname+url.search);
+    }
+  }));
+  document.querySelectorAll('[data-mode-link]').forEach(link=>link.addEventListener('click',e=>{
+    e.preventDefault();
+    switchMode(link.dataset.modeLink);
+    const url=new URL(location.href);
+    url.searchParams.set('mode',link.dataset.modeLink);
+    history.replaceState(null,'',url.pathname+url.search);
+    qs('#signupRole')?.focus();
+  }));
+  const signupForm=qs('#signupForm');
+  const signupPassword=signupForm?.querySelector('[name="password"]');
+  const confirmPassword=signupForm?.querySelector('[name="confirmPassword"]');
+  const updatePasswordMatch=()=>{
+    if(!signupPassword||!confirmPassword)return;
+    confirmPassword.setCustomValidity(confirmPassword.value && confirmPassword.value!==signupPassword.value?'Passwords do not match.':'');
+  };
+  signupPassword?.addEventListener('input',updatePasswordMatch);
+  confirmPassword?.addEventListener('input',updatePasswordMatch);
+  qs('#showSignupPasswords')?.addEventListener('change',e=>{
+    const type=e.target.checked?'text':'password';
+    if(signupPassword)signupPassword.type=type;
+    if(confirmPassword)confirmPassword.type=type;
+  });
   const nextRaw=params.get('next')||'/dashboard.html';
   const next=(nextRaw.startsWith('/')&&!nextRaw.startsWith('//')&&!nextRaw.includes('\\'))?nextRaw:'/dashboard.html';
   const bind=(id,endpoint,converter,onSuccess)=>{const form=qs('#'+id);if(!form)return;form.addEventListener('submit',async e=>{
@@ -76,7 +108,14 @@ function initAccount(){
     try{const obj=converter(new FormData(form));const result=await json(endpoint,obj);onSuccess(result);}catch(err){setMsg(err.message,'error');}finally{button.disabled=false;}
   });};
   bind('loginForm','/api/member/login',f=>({email:f.get('email'),password:f.get('password')}),()=>location.assign(next));
-  bind('signupForm','/api/member/signup',f=>({fullName:f.get('fullName'),email:f.get('email'),role:f.get('role'),phone:f.get('phone'),password:f.get('password'),consent:f.get('consent')==='on'}),()=>location.assign('/dashboard.html?welcome=1'));
+  bind('signupForm','/api/member/signup',f=>{
+    if(f.get('password')!==f.get('confirmPassword')){
+      confirmPassword?.setCustomValidity('Passwords do not match.');
+      confirmPassword?.reportValidity();
+      throw Error('Your passwords do not match. Please try again.');
+    }
+    return {fullName:f.get('fullName'),email:f.get('email'),role:f.get('role'),phone:f.get('phone'),password:f.get('password'),consent:f.get('consent')==='on'};
+  },()=>location.assign('/dashboard.html?welcome=1'));
   bind('forgotForm','/api/member/forgot',f=>({email:f.get('email')}),r=>setMsg(r.message,'success'));
   bind('resetForm','/api/member/reset',f=>({token:params.get('reset'),password:f.get('password')}),r=>{switchMode('login');setMsg(r.message,'success');history.replaceState(null,'','/account.html');});
   session().then(s=>{if(s.authenticated){const p=qs('#alreadySignedIn');if(p){p.hidden=false;p.innerHTML='Signed in as <strong>'+safe(s.member.fullName)+'</strong>. <a href="/dashboard.html">Open your dashboard →</a>';}}});
