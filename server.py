@@ -18,7 +18,7 @@ import threading
 import time
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from http.cookies import SimpleCookie, CookieError
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -1246,6 +1246,40 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(200,{table:output})
         if path == '/api/admin/documents/history':
             return admin_docs.handle_get(self, db_connection)
+        if path == '/api/admin/activity':
+            # Seven-day view, not deletion. Keep historic business records intact.
+            if not self.admin_session():
+                return self.send_json(401, {'error':'Administrator sign-in required.'})
+            admin_docs.initialize_table(db_connection)
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+            history = []
+            def add(kind, title, when, recipient='', detail='', status=''):
+                history.append({'type':kind, 'title':title, 'createdAt':when,
+                                'recipient':recipient or '', 'detail':detail or '', 'status':status or ''})
+            with db_connection() as db:
+                for r in db.execute('''SELECT title,company,COALESCE(notifyEmail,email,'') AS contact,status,createdAt
+                    FROM jobs WHERE createdAt >= ? ORDER BY createdAt DESC LIMIT 100''',(cutoff,)):
+                    add('job',r['title'],r['createdAt'],r['contact'],r['company'],r['status'])
+                for r in db.execute('''SELECT jobTitle,fullName,email,status,createdAt
+                    FROM applications WHERE createdAt >= ? ORDER BY createdAt DESC LIMIT 100''',(cutoff,)):
+                    add('application',r['jobTitle'],r['createdAt'],r['email'],r['fullName'],r['status'])
+                for r in db.execute('''SELECT o.title,o.status,o.createdAt,m.email AS clientEmail
+                    FROM writing_orders o JOIN members m ON m.id=o.clientId
+                    WHERE o.createdAt >= ? ORDER BY o.createdAt DESC LIMIT 100''',(cutoff,)):
+                    add('writing_order',r['title'],r['createdAt'],r['clientEmail'],'Client request',r['status'])
+                for r in db.execute('''SELECT o.title,a.createdAt,m.fullName,m.email
+                    FROM writing_assignment_audit a
+                    JOIN writing_bids b ON b.id=a.bidId
+                    JOIN members m ON m.id=b.writerId
+                    JOIN writing_orders o ON o.id=a.orderId
+                    WHERE a.createdAt >= ? ORDER BY a.createdAt DESC LIMIT 100''',(cutoff,)):
+                    add('writer_assignment',r['title'],r['createdAt'],r['email'],r['fullName'],'Assigned')
+                for r in db.execute('''SELECT filename,recipient,subject,sentAt,providerEmailId
+                    FROM admin_document_sends WHERE sentAt >= ? ORDER BY sentAt DESC LIMIT 100''',(cutoff,)):
+                    add('document_sent',r['filename'],r['sentAt'],r['recipient'],r['subject'],
+                        'Accepted by Resend' if r['providerEmailId'] else 'Unknown')
+            history.sort(key=lambda r: r['createdAt'], reverse=True)
+            return self.send_json(200, {'days':7,'records':history[:150]})
         if path.startswith('/api/admin/'):
             if not self.authorized():
                 return self.send_json(401,{'error':'Invalid administrator key.'})
@@ -1275,9 +1309,8 @@ class Handler(SimpleHTTPRequestHandler):
         allowed = {'/','/index.html','/jobs.html','/account.html','/dashboard.html','/writing.html','/writing-admin.html','/writing.css','/writing.js','/writing-admin.js','/membership.css','/member.js','/admin-account.js','/styles.css','/app.js','/admin.html','/admin.js','/admin-documents.html','/admin-documents.js','/favicon.svg','/robots.txt','/sitemap.xml'}
         if path not in allowed and not (path.startswith('/assets/') and path.endswith(('.svg','.png','.jpg','.webp')) and '..' not in path):
             return self.send_json(404,{'error':'File not found.'})
-        # Administrator cookies use Path=/api/admin and are deliberately absent on
-        # static page requests. Render this page; its APIs independently require
-        # an authenticated administrator session and CSRF validation.
+        # This static page is allowed; its send/history APIs require an admin session.
+        # Cookie Path=/api/admin is not sent to /admin-documents.html.
         if path in ('/jobs.html','/writing.html','/dashboard.html') and not self._member_session():
             from urllib.parse import quote
             self.send_response(302)

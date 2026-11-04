@@ -38,15 +38,16 @@ async function markSectionViewed(section){
  unreadCounts[section]=0;
  renderUnreadBadges();
 }
-function showSignedIn(){signedIn=true;renderUnreadBadges();$('#keyForm').hidden=true;$('#sessionPanel').hidden=false;$('#notificationDiagnostics').hidden=activeTab!=='notification_outbox';}
+function showSignedIn(){signedIn=true;$('#activityPanel').hidden=false;renderUnreadBadges();$('#keyForm').hidden=true;$('#sessionPanel').hidden=false;$('#notificationDiagnostics').hidden=activeTab!=='notification_outbox';}
 function showSignedOut(message='Signed out. Use your administrator account to sign in again.'){
- signedIn=false;csrfToken='';unreadCounts={};renderUnreadBadges();dataset={jobs:[],applications:[],candidates:[],reviews:[],reports:[],alerts:[],notification_outbox:[]};
+ signedIn=false;csrfToken='';unreadCounts={};$('#activityPanel').hidden=true;renderUnreadBadges();dataset={jobs:[],applications:[],candidates:[],reviews:[],reports:[],alerts:[],notification_outbox:[]};
  $('#sessionPanel').hidden=true;$('#keyForm').hidden=false;$('#adminKey').value='';
  $('#adminStatus').textContent=message;$('#notificationDiagnostics').hidden=true;render();
 }
 async function refresh(){if(!signedIn)return;
  for(const table of Object.keys(dataset)){const data=await api('/api/admin/'+table);dataset[table]=data[table]||[];}
  render();
+ await loadActivity();
  await fetchUnreadCounts();
  await markSectionViewed(activeTab);
  if(activeTab==='notification_outbox')await refreshNotificationStatus();
@@ -139,6 +140,32 @@ $('#adminTabs').addEventListener('click',async e=>{
    if(section==='notification_outbox')await refreshNotificationStatus();
  }catch(err){$('#adminStatus').textContent='Could not load this section: '+err.message;}
 });
+
+async function loadActivity(){
+ if(!signedIn)return;
+ const panel=$('#activityPanel'),status=$('#activityStatus'),list=$('#activityList');
+ if(!panel||!status||!list)return;
+ status.textContent='Loading recent activity…';
+ try{
+  const data=await api('/api/admin/activity');
+  list.replaceChildren();
+  const rows=Array.isArray(data.records)?data.records:[];
+  status.textContent=rows.length?rows.length+' recent activity item(s).':'No activity in the past 7 days.';
+  const labels={job:'Job posted',application:'Job application',writing_order:'Writing order',writer_assignment:'Writer assigned',document_sent:'Document email'};
+  for(const item of rows){
+   const row=document.createElement('article');row.className='activity-entry';
+   const content=document.createElement('div'),title=document.createElement('strong'),meta=document.createElement('div');
+   title.textContent=item.title||'Untitled';meta.className='activity-meta';
+   const when=item.createdAt?new Date(item.createdAt).toLocaleString():'';
+   meta.textContent=[item.detail||'',item.recipient?'Contact: '+item.recipient:'',item.status||'',when].filter(Boolean).join(' · ');
+   content.append(title,meta);
+   const kind=document.createElement('span');kind.className='activity-kind';kind.textContent=labels[item.type]||'Activity';
+   row.append(content,kind);list.appendChild(row);
+  }
+ }catch(err){status.textContent='Could not load recent activity: '+err.message;}
+}
+$('#refreshActivityButton')?.addEventListener('click',()=>loadActivity());
+
 // Lightweight live checks: show newly submitted records without page reload.
 setInterval(()=>{if(signedIn)fetchUnreadCounts().catch(()=>{});},45000);
 

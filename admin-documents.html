@@ -48,7 +48,7 @@ button:disabled{opacity:.5;cursor:not-allowed}.primary{background:linear-gradien
 <form id="senderForm" autocomplete="off">
 <label for="recipient">Recipient email address *</label><input type="email" id="recipient" placeholder="client@example.com" required maxlength="254" autocapitalize="none" autocomplete="off">
 <label for="subject">Email subject *</label><input id="subject" type="text" placeholder="Your document from Prowell Jobs" required maxlength="160">
-<label for="message">Message to client (optional)</label><textarea id="message" maxlength="3000" placeholder="Hello,\n\nPlease find the requested document attached.\n\nKind regards,\nProwell Jobs"></textarea>
+<label for="message">Message to client (editable)</label><textarea id="message" maxlength="3000" placeholder="Your message to the client">It is a pleasure working with prowelljobs.com</textarea>
 <label for="documentFile">Add documents *</label><div class="upload"><input id="documentFile" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.rtf,.csv,.odt,.ods,.odp,.jpg,.jpeg,.png"><small>Choose files together or add more in separate rounds. Up to 5 files; 7 MB each and 15 MB combined. PDF, Word, Excel, PowerPoint, text, OpenDocument, JPG or PNG.</small><div id="fileDetail" aria-live="polite">No files selected</div></div>
 <div class="confirm"><input type="checkbox" id="confirmSend" required><label for="confirmSend">I have checked the recipient email and all attachments and have permission to send these files.</label></div>
 <button type="submit" class="primary" id="sendButton" disabled>Send Documents by Email</button>

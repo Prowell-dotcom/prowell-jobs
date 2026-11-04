@@ -13,7 +13,7 @@ import os
 import re
 import secrets
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -62,7 +62,7 @@ def validate_document(payload):
         raise ValueError('Subject must be on one line.')
     message = _clean_text(payload.get('message', ''), 'Message', 3000, required=False)
     if not message:
-        message = 'Please find the attached document.'
+        message = 'It is a pleasure working with prowelljobs.com'
     uploads = payload.get('attachments')
     # Continue accepting the old single-file payload from previously cached pages.
     if uploads is None:
@@ -121,7 +121,7 @@ def send_via_resend(data):
         'from':f'Prowell Jobs <{sender}>',
         'to':[data['recipient']],
         'subject':data['subject'],
-        'text':data['message'] + '\n\n— Prowell Jobs\nhttps://prowelljobs.com',
+        'text':data['message'],
         'reply_to':['prowellofficial@gmail.com'],
         'attachments':[{'filename':f['filename'],'content':f['content']} for f in data['attachments']],
     }
@@ -158,8 +158,9 @@ def handle_get(handler, db_connection):
         return handler.send_json(401,{'error':'Administrator sign-in required.'})
     initialize_table(db_connection)
     with db_connection() as db:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
         records = [dict(row) for row in db.execute('''SELECT id,recipient,subject,filename,fileBytes,
-            providerEmailId,sentAt FROM admin_document_sends ORDER BY sentAt DESC LIMIT 30''').fetchall()]
+            providerEmailId,sentAt FROM admin_document_sends WHERE sentAt >= ? ORDER BY sentAt DESC LIMIT 100''', (cutoff,)).fetchall()]
     handler.send_json(200,{'records':records, 'maxFileBytes':MAX_DOCUMENT_BYTES,
                            'maxTotalBytes':MAX_TOTAL_DOCUMENT_BYTES, 'maxAttachments':MAX_ATTACHMENTS})
 
