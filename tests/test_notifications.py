@@ -154,5 +154,8 @@ class NotificationsTests(unittest.TestCase):
                 request=mocked.call_args.args[0]
                 self.assertEqual(request.full_url,'https://api.resend.com/emails')
                 self.assertEqual(json.loads(request.data)['to'],['test@example.org'])
+                self.assertEqual(request.get_header('User-agent'), 'ProwellJobs/1.0')
+                self.assertEqual(request.get_header('Accept'), 'application/json')
+                self.assertEqual(request.get_header('Idempotency-key'), 'event-1')
 
 if __name__=='__main__': unittest.main()

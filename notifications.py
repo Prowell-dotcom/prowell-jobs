@@ -31,7 +31,10 @@ def send_notification(channel, recipient, subject, body, idempotency_key):
                          'subject':subject,'text':body,'reply_to':['prowellofficial@gmail.com']}).encode()
         request=Request('https://api.resend.com/emails',data=data,method='POST',headers={
             'Authorization':'Bearer '+os.environ['RESEND_API_KEY'],
-            'Content-Type':'application/json','Idempotency-Key':idempotency_key[:256]})
+            'Content-Type':'application/json',
+            'Accept':'application/json',
+            'User-Agent':'ProwellJobs/1.0',
+            'Idempotency-Key':idempotency_key[:256]})
     elif channel == 'sms':
         if not sms_configured():
             raise NotificationDeliveryError('SMS provider not configured')
