@@ -2,7 +2,7 @@
 FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
-COPY index.html styles.css app.js favicon.svg robots.txt sitemap.xml admin.html admin.js server.py ./
+COPY index.html styles.css app.js favicon.svg robots.txt sitemap.xml admin.html admin.js server.py notifications.py ./
 COPY assets/ ./assets/
 EXPOSE 8000
 CMD ["python", "server.py"]

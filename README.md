@@ -61,3 +61,7 @@ The tests cover the vacancy workflow, applications, private applicant data, with
 ## Updating your existing live site
 
 **Read `UPGRADE-DEPLOYMENT.md` first.** Do not delete your Railway project, volume, domain, database or `ADMIN_KEY`. This code includes an **additive SQLite migration** that keeps old job postings and adds new fields/tables.
+
+## Employer and administrator notifications
+
+Optional opt-in employer email/SMS acknowledgment and status updates, plus administrator alerts for new vacancies. Configure verified Resend and/or Twilio credentials via Railway Variables; see [EMAIL-SMS-SETUP.md](EMAIL-SMS-SETUP.md). No messages are sent before setup.

@@ -197,6 +197,12 @@
 <label class="full-width">Benefits or additional details <textarea name="benefits" maxlength="1500" rows="2" placeholder="Accommodation, transport, commissions, benefits, etc."></textarea></label>
 <label>Application email <input name="email" type="email" maxlength="180" placeholder="jobs@company.com" /></label>
 <label>Application link <input name="applyUrl" type="url" maxlength="500" placeholder="https://example.com/apply" /></label></div>
+<fieldset class="employer-notify"><legend>Private employer updates (optional)</legend>
+<p class="form-hint">Want a notification when your vacancy is received, approved or declined? These details are for Prowell Jobs notifications only and are never displayed in the public advert. SMS messages are available only when SMS delivery is activated and supported for your country.</p>
+<div class="form-grid"><label>Notification email <input name="notifyEmail" type="email" maxlength="180" placeholder="you@example.com" autocomplete="email" /></label>
+<label>SMS number (international format) <input name="notifyPhone" type="tel" maxlength="30" placeholder="+254703772555" autocomplete="tel" /></label></div>
+<label class="consent-line"><input type="checkbox" name="notifyConsent" /> I agree to receive Prowell Jobs transactional vacancy-status notifications by email and/or SMS using the contact details above. This is not a marketing subscription.</label>
+</fieldset>
 <p class="form-hint">Provide at least an application phone, email or link. Review every detail carefully: approved adverts are public. We review listings before publication. A listing is not automatically employer-verified.</p>
 <div id="postError" class="form-error" role="alert" hidden></div><button id="postSubmit" type="submit" class="button button-green button-full">Submit vacancy for review ↗</button></form></div></dialog>
 

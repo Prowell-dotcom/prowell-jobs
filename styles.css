@@ -215,3 +215,10 @@ button{touch-action:manipulation}button:disabled{cursor:not-allowed;opacity:.6}
 .application-withdraw summary{cursor:pointer;color:#4b56ba;font-size:12px;font-weight:800}
 .application-withdraw form{margin-top:15px}.application-withdraw p{font-size:12px;line-height:1.6;color:#405374}
 #applicationDialog .detail-actions a{white-space:normal}
+
+/* Employer status-notification preferences in the job posting form. */
+.employer-notify{border:1px solid #d8e0f2;background:#f7f9ff;border-radius:18px;padding:18px 20px;margin:18px 0;color:#182a52}
+.employer-notify legend{font-weight:800;color:#273e83;padding:0 8px}
+.employer-notify .form-hint{margin:4px 0 14px}
+.employer-notify .consent-line{margin-top:12px}
+@media(max-width:600px){.employer-notify{padding:14px;margin:14px 0}}

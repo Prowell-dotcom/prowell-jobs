@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
+from notifications import email_configured, sms_configured, send_notification
 
 ROOT = Path(__file__).resolve().parent
 DATABASE_PATH = Path(os.getenv('DATABASE_PATH', str(ROOT / 'prowell-jobs.sqlite3'))).resolve()
@@ -87,10 +88,18 @@ def initialize_db():
         for column, sqltype in (
             ('country','TEXT'), ('requirements','TEXT'), ('responsibilities','TEXT'),
             ('benefits','TEXT'), ('deadline','TEXT'), ('payPeriod',"TEXT DEFAULT 'month'"),
-            ('phone','TEXT'), ('verified','INTEGER NOT NULL DEFAULT 0')
+            ('phone','TEXT'), ('verified','INTEGER NOT NULL DEFAULT 0'),
+            ('notifyEmail','TEXT'), ('notifyPhone','TEXT'), ('notifyConsent','INTEGER NOT NULL DEFAULT 0')
         ):
             if column not in cols:
                 db.execute(f'ALTER TABLE jobs ADD COLUMN {column} {sqltype}')
+        db.execute('''CREATE TABLE IF NOT EXISTS notification_outbox (
+            eventId TEXT PRIMARY KEY, jobId TEXT NOT NULL, kind TEXT NOT NULL,
+            channel TEXT NOT NULL, recipient TEXT NOT NULL, subject TEXT NOT NULL,
+            body TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
+            attempts INTEGER NOT NULL DEFAULT 0, nextAttemptAt REAL NOT NULL DEFAULT 0,
+            lastError TEXT, createdAt TEXT NOT NULL, sentAt TEXT)''')
+        db.execute('CREATE INDEX IF NOT EXISTS idx_notifications_retry ON notification_outbox(status,nextAttemptAt)')
         db.execute('CREATE INDEX IF NOT EXISTS idx_jobs_status_created ON jobs(status, createdAt DESC)')
         db.execute('''CREATE TABLE IF NOT EXISTS candidates (
             id TEXT PRIMARY KEY,alias TEXT NOT NULL,category TEXT NOT NULL,country TEXT NOT NULL,
@@ -181,6 +190,14 @@ def validate_job(payload):
         ('requirements',3500,False),('responsibilities',3500,False),('benefits',1500,False),
         ('deadline',10,False),('payPeriod',20,False),('phone',40,False)
     )}
+    wants_notice = payload.get('notifyConsent') is True
+    obj['notifyConsent'] = int(wants_notice)
+    obj['notifyEmail'] = checked_email(field(payload, 'notifyEmail', 180)) if wants_notice else ''
+    obj['notifyPhone'] = field(payload, 'notifyPhone', 30) if wants_notice else ''
+    if wants_notice and not (obj['notifyEmail'] or obj['notifyPhone']):
+        raise ValueError('Provide an email address or SMS number for employer notifications.')
+    if obj['notifyPhone'] and not re.fullmatch(r'\+[1-9]\d{7,14}', obj['notifyPhone']):
+        raise ValueError('SMS number must use international format, e.g. +254703772555.')
     if obj['category'] not in CATEGORIES or obj['workMode'] not in MODES or obj['jobType'] not in TYPES or obj['experience'] not in EXPERIENCE:
         raise ValueError('Choose valid job options.')
     obj['currency'] = obj['currency'] or 'KES'
@@ -320,6 +337,94 @@ PUBLIC_CANDIDATE_FIELDS = ('id','alias','category','country','city','skills','ex
                            'availability','summary','currency','payExpectation','createdAt')
 
 
+# Transactional notices are saved to SQLite first. A worker retries temporary provider failures.
+# No real emails or SMS are sent until the corresponding Railway credentials are configured.
+notification_wake = threading.Event()
+
+def queue_job_notices(db, job, event):
+    # event: submitted, approved, or rejected; never include applicant personal details.
+    title = (job['title'] or 'a vacancy').replace('\n', ' ')[:100]
+    company = (job['company'] or 'Employer').replace('\n', ' ')[:100]
+    ref = job['id'][:8]
+    if event == 'submitted':
+        subject = f'Prowell Jobs: job submitted for review ({ref})'
+        body = (f'Your vacancy "{title}" for {company} has been received by Prowell Jobs.\n'
+                f'Reference: {ref}\nStatus: Pending administrator review.\n'
+                'We will notify you if the listing is approved or rejected.\n'
+                'Do not pay anyone who claims they can guarantee approval.')
+    elif event == 'approved':
+        subject = f'Prowell Jobs: vacancy approved ({ref})'
+        body = f'Your vacancy "{title}" has been approved and is now visible at https://prowelljobs.com/.\nReference: {ref}'
+    else:
+        subject = f'Prowell Jobs: vacancy not approved ({ref})'
+        body = f'Your vacancy "{title}" was not approved for publication.\nReference: {ref}\nContact prowellofficial@gmail.com for questions.'
+
+    items=[]
+    if event == 'submitted':
+        admin_email = os.getenv('ADMIN_NOTIFICATION_EMAIL', 'prowellofficial@gmail.com').strip()
+        admin_sms = os.getenv('ADMIN_NOTIFICATION_PHONE','').strip()
+        admin_subject = f'Prowell Jobs: new vacancy requires review ({ref})'
+        admin_body = (f'New vacancy awaiting administrator review: {title} for {company}.\n'
+                      f'Reference: {ref}\nReview securely at https://prowelljobs.com/admin.html\n'
+                      'Do not disclose your administrator key.')
+        if email_configured() and email_valid(admin_email):
+            items.append(('admin','email',admin_email,admin_subject,admin_body))
+        if sms_configured() and re.fullmatch(r'\+[1-9]\d{7,14}',admin_sms):
+            items.append(('admin','sms',admin_sms,admin_subject,admin_body))
+
+    if job['notifyConsent']:
+        if email_configured() and job['notifyEmail']:
+            items.append(('employer','email',job['notifyEmail'],subject,body))
+        if sms_configured() and job['notifyPhone']:
+            items.append(('employer','sms',job['notifyPhone'],subject,body))
+    for audience, channel, recipient, subj, msg in items:
+        event_id=f'job:{job["id"]}:{event}:{audience}:{channel}'
+        if channel=='sms':
+            msg=('Prowell Jobs: '+ ('New job review requested' if audience=='admin' else
+                 ('Job submitted for review' if event=='submitted' else 'Job approved' if event=='approved' else 'Job not approved'))
+                 + f'. Ref {ref}. '+ ('Check admin dashboard.' if audience=='admin' else 'See your email or contact Prowell Jobs.'))
+        db.execute('''INSERT OR IGNORE INTO notification_outbox
+            (eventId,jobId,kind,channel,recipient,subject,body,status,createdAt)
+            VALUES (?,?,?,?,?,?,?,'pending',?)''',
+            (event_id,job['id'],event,channel,recipient,subj,msg,timestamp()))
+    return len(items)
+
+
+def process_notification_outbox(max_batch=10):
+    processed=0
+    with db_connection() as db:
+        rows=db.execute('''SELECT * FROM notification_outbox
+            WHERE status IN ('pending','retry') AND attempts < 4 AND nextAttemptAt <= ?
+            ORDER BY createdAt LIMIT ?''',(time.time(),max_batch)).fetchall()
+    for item in rows:
+        # Provider errors are never returned to the visitor. Only status codes are logged.
+        try:
+            send_notification(item['channel'],item['recipient'],item['subject'],item['body'],item['eventId'])
+            status='sent'; failure=None; sent=timestamp(); retry=0
+        except Exception as exc:
+            attempts=item['attempts']+1
+            status='failed' if attempts >= 4 else 'retry'
+            failure=type(exc).__name__
+            retry=time.time()+min(3600,60*2**attempts)
+            sent=None
+            print(f'[Prowell notifications] {item["channel"]}: {failure} (attempt {attempts})',flush=True)
+        with db_connection() as db:
+            db.execute('''UPDATE notification_outbox SET status=?,attempts=attempts+1,
+                          nextAttemptAt=?,lastError=?,sentAt=? WHERE eventId=?''',
+                       (status,retry,failure,sent,item['eventId']))
+        processed+=1
+    return processed
+
+
+def notification_loop():
+    while True:
+        notification_wake.wait(timeout=30)
+        notification_wake.clear()
+        try: process_notification_outbox()
+        except Exception as exc:
+            print('[Prowell notifications] Worker error:',type(exc).__name__,flush=True)
+
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,directory=str(ROOT),**kwargs)
@@ -360,7 +465,7 @@ class Handler(SimpleHTTPRequestHandler):
                   '/api/candidates':('candidates',PUBLIC_CANDIDATE_FIELDS)}
         if path in public:
             table, allowed = public[path]
-            cols = '*' if allowed is None else ','.join(allowed)
+            cols = ','.join(JOB_COLUMNS) if table == 'jobs' else (','.join(allowed) if allowed is not None else '*')
             with db_connection() as db:
                 rows = db.execute(f'SELECT {cols} FROM {table} WHERE status=? ORDER BY createdAt DESC LIMIT 500',('approved',)).fetchall()
             output = [dict(row) for row in rows]
@@ -371,7 +476,7 @@ class Handler(SimpleHTTPRequestHandler):
             if not self.authorized():
                 return self.send_json(401,{'error':'Invalid administrator key.'})
             table = path.split('/')[-1]
-            if table not in ('jobs','candidates','reviews','reports','alerts','applications'):
+            if table not in ('jobs','candidates','reviews','reports','alerts','applications','notification_outbox'):
                 return self.send_json(404,{'error':'Unknown endpoint.'})
             with db_connection() as db:
                 rows = db.execute(f'SELECT * FROM {table} ORDER BY createdAt DESC LIMIT 1000').fetchall()
@@ -415,6 +520,8 @@ class Handler(SimpleHTTPRequestHandler):
         cols = list(obj)
         with db_connection() as db:
             db.execute(f'INSERT INTO {table} ({",".join(cols)}) VALUES ({",".join("?" for _ in cols)})',list(obj.values()))
+            queued = queue_job_notices(db,obj,'submitted') if table == 'jobs' else 0
+        if queued: notification_wake.set()
         response = {'message':'Submitted for review. It will not appear publicly until approved.','id':obj['id']}
         if withdrawal:
             response['withdrawalCode'] = withdrawal
@@ -442,11 +549,16 @@ class Handler(SimpleHTTPRequestHandler):
         except ValueError as exc:
             return self.send_json(400,{'error':str(exc)})
         with db_connection() as db:
+            old_job = db.execute('SELECT * FROM jobs WHERE id=?',(parts[4],)).fetchone() if parts[3] == 'jobs' else None
             if parts[3] == 'jobs' and 'verified' in data:
                 done = db.execute('UPDATE jobs SET status=?,verified=? WHERE id=?',
                                   (data['status'],int(data['verified']),parts[4]))
             else:
                 done = db.execute(f'UPDATE {parts[3]} SET status=? WHERE id=?',(data['status'],parts[4]))
+            queued = 0
+            if done.rowcount and old_job and old_job['status'] != data['status'] and data['status'] in ('approved','rejected'):
+                queued = queue_job_notices(db,old_job,data['status'])
+        if queued: notification_wake.set()
         return self.send_json(200,{'message':'Updated.'}) if done.rowcount else self.send_json(404,{'error':'Record not found.'})
 
     def do_DELETE(self):
@@ -478,6 +590,8 @@ class Handler(SimpleHTTPRequestHandler):
 
 if __name__ == '__main__':
     initialize_db()
+    threading.Thread(target=notification_loop,daemon=True,name='prowell-notifier').start()
+    notification_wake.set()
     server = ThreadingHTTPServer(('0.0.0.0',PORT),Handler)
     print(f'[Prowell Jobs] Running at http://localhost:{PORT}',flush=True)
     try:
