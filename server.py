@@ -1275,12 +1275,9 @@ class Handler(SimpleHTTPRequestHandler):
         allowed = {'/','/index.html','/jobs.html','/account.html','/dashboard.html','/writing.html','/writing-admin.html','/writing.css','/writing.js','/writing-admin.js','/membership.css','/member.js','/admin-account.js','/styles.css','/app.js','/admin.html','/admin.js','/admin-documents.html','/admin-documents.js','/favicon.svg','/robots.txt','/sitemap.xml'}
         if path not in allowed and not (path.startswith('/assets/') and path.endswith(('.svg','.png','.jpg','.webp')) and '..' not in path):
             return self.send_json(404,{'error':'File not found.'})
-        if path == '/admin-documents.html' and not self.admin_session():
-            self.send_response(302)
-            self.send_header('Location','/account.html?mode=admin')
-            self.send_header('Cache-Control','no-store')
-            self.end_headers()
-            return
+        # Administrator cookies use Path=/api/admin and are deliberately absent on
+        # static page requests. Render this page; its APIs independently require
+        # an authenticated administrator session and CSRF validation.
         if path in ('/jobs.html','/writing.html','/dashboard.html') and not self._member_session():
             from urllib.parse import quote
             self.send_response(302)
