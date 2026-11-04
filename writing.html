@@ -5,8 +5,8 @@
 <meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#0B1B33">
 <title>Writing projects workspace | Prowell Jobs</title>
 <meta name="description" content="Members-only Prowell Writing workspace to post legitimate writing-support requests, bid, and manage private delivery.">
-<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writing.css?v=workspace-2">
-<script defer src="/member.js?v=writing1"></script><script defer src="/writing.js?v=workspace-2"></script>
+<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/writing.css?v=bid-direct-3">
+<script defer src="/member.js?v=writing1"></script><script defer src="/writing.js?v=bid-direct-3"></script>
 </head>
 <body data-page="writing" class="writing-workspace-page">
 <header class="topbar"><div class="container nav">
@@ -25,7 +25,7 @@
 <label>Type of service<select id="orderCategory" name="category" required></select></label>
 <label>Public summary — visible to members before bidding<textarea required name="publicSummary" minlength="25" maxlength="600" rows="3" placeholder="Describe the general project without confidential information."></textarea></label>
 <label>Confidential instructions — unlocked only for selected writer<textarea required name="brief" minlength="25" maxlength="8000" rows="5" placeholder="Explain the goals, scope, expectations and delivery format."></textarea></label>
-<label>Upload instructions or supporting documents (optional; PDF, DOCX or TXT, up to three files, 3 MB each)<input name="attachments" type="file" accept=".pdf,.docx,.txt" multiple><small>Files are stored privately and never appear in the bid listing.</small></label>
+<label>Upload supporting files (up to 5; max 20 MB each, 60 MB combined)<input name="attachments" type="file" accept=".pdf,.docx,.txt,.md,.csv,.rtf,.odt,.xlsx,.pptx,.jpg,.jpeg,.png,.webp,.mp3,.wav,.mp4" multiple><small>PDF, Office files, text, images and supported audio/video are accepted. Private files are never shown to bidders.</small></label>
 <div class="form-row"><label>Deadline<input required type="date" name="deadline"></label><label>Offered price / budget (KSh)<input required type="number" name="budgetKES" min="0" max="10000000" value="0"></label></div>
 <label class="checkline"><input type="checkbox" required name="integrityConsent"> I confirm this is permitted writing, tutoring, proofreading, coaching or other lawful work, not outsourced completion of graded assignments for misrepresentation.</label>
 <button type="submit" class="primary">Publish request for bids</button><p id="orderMsg" class="message" role="status"></p>

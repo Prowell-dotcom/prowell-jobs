@@ -27,8 +27,21 @@ CATEGORIES = (
  'CVs & Cover Letters','Business Writing','Website Content','Copywriting',
  'Translation & Transcription','Other Permitted Writing',
 )
-MAX_FILE_BYTES = 3 * 1024 * 1024
-ALLOWED_EXTENSIONS = {'.pdf':'application/pdf','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','.txt':'text/plain'}
+# Bounded uploads. Never accept arbitrary executables or unlimited files.
+MAX_FILE_BYTES = 20 * 1024 * 1024
+MAX_ATTACHMENTS = 5
+MAX_TOTAL_BYTES = 60 * 1024 * 1024
+ALLOWED_EXTENSIONS = {
+ '.pdf':'application/pdf',
+ '.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+ '.txt':'text/plain', '.md':'text/plain', '.csv':'text/csv',
+ '.rtf':'application/rtf', '.odt':'application/vnd.oasis.opendocument.text',
+ '.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+ '.pptx':'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+ '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.png':'image/png', '.webp':'image/webp',
+ '.mp3':'audio/mpeg', '.wav':'audio/wav', '.mp4':'video/mp4',
+}
+
 
 
 def init_db(db):
@@ -84,28 +97,48 @@ def validate_file(name, encoded):
     if not name or name.startswith('.') or any(ord(ch)<32 for ch in name):
         raise ValueError('Choose a valid file name.')
     suffix=Path(name).suffix.lower()
-    if suffix not in ALLOWED_EXTENSIONS:raise ValueError('Only PDF, DOCX and plain TXT files are allowed.')
-    if not isinstance(encoded,str) or len(encoded)>4*(MAX_FILE_BYTES//3+5):
-        raise ValueError('File exceeds the 3 MB maximum.')
+    if suffix not in ALLOWED_EXTENSIONS:
+        raise ValueError('Unsupported file type. Use PDF, Office documents, text, images or supported media; executables and scripts are not accepted.')
+    if not isinstance(encoded,str) or len(encoded)>4*((MAX_FILE_BYTES+2)//3)+8:
+        raise ValueError('File exceeds the 20 MB maximum.')
     try: blob=base64.b64decode(encoded,validate=True)
     except (binascii.Error,ValueError):raise ValueError('Invalid file encoding.')
-    if not blob or len(blob)>MAX_FILE_BYTES:raise ValueError('File is empty or too large (max 3 MB).')
-    if suffix=='.pdf' and not blob.startswith(b'%PDF-'):raise ValueError('This is not a valid PDF file.')
-    if suffix=='.txt':
-        try: blob.decode('utf-8')
-        except UnicodeDecodeError:raise ValueError('TXT files must use UTF-8 text.')
-        if b'\x00' in blob:raise ValueError('TXT files cannot contain binary data.')
-    if suffix=='.docx':
+    if not blob or len(blob)>MAX_FILE_BYTES:
+        raise ValueError('File is empty or too large (max 20 MB).')
+    if suffix=='.pdf' and not blob.startswith(b'%PDF-'):
+        raise ValueError('This is not a valid PDF file.')
+    if suffix in ('.txt','.md','.csv'):
+        try: blob.decode('utf-8-sig')
+        except UnicodeDecodeError:raise ValueError('Text and CSV files must use UTF-8 encoding.')
+        if b'\x00' in blob:raise ValueError('Text files cannot contain binary data.')
+    if suffix=='.rtf' and not blob.startswith(b'{\\rtf'):
+        raise ValueError('Invalid RTF file.')
+    if suffix in ('.docx','.xlsx','.pptx','.odt'):
+        required={'.docx':'word/document.xml','.xlsx':'xl/workbook.xml',
+                  '.pptx':'ppt/presentation.xml','.odt':'content.xml'}[suffix]
         try:
             with zipfile.ZipFile(io.BytesIO(blob)) as archive:
                 names=set(archive.namelist())
-                if '[Content_Types].xml' not in names or 'word/document.xml' not in names:
-                    raise ValueError('This DOCX file is not valid.')
-                if len(names)>1000 or sum(f.file_size for f in archive.infolist())>25*1024*1024:
-                    raise ValueError('The DOCX archive is too large.')
+                if required not in names or (suffix!='.odt' and '[Content_Types].xml' not in names):
+                    raise ValueError('Invalid Office document format.')
+                files=archive.infolist()
+                if len(files)>1500 or sum(x.file_size for x in files)>100*1024*1024:
+                    raise ValueError('Document archive exceeds safe expansion limits.')
                 if any('vbaproject.bin' in x.lower() for x in names):
                     raise ValueError('Macro-enabled documents are not allowed.')
-        except (zipfile.BadZipFile,RuntimeError):raise ValueError('Invalid DOCX format.')
+        except (zipfile.BadZipFile,RuntimeError):raise ValueError('Invalid Office document archive.')
+    if suffix in ('.jpg','.jpeg') and not blob.startswith(b'\xff\xd8\xff'):
+        raise ValueError('Invalid JPEG image.')
+    if suffix=='.png' and not blob.startswith(b'\x89PNG\r\n\x1a\n'):
+        raise ValueError('Invalid PNG image.')
+    if suffix=='.webp' and not (blob.startswith(b'RIFF') and blob[8:12]==b'WEBP'):
+        raise ValueError('Invalid WebP image.')
+    if suffix=='.wav' and not (blob.startswith(b'RIFF') and blob[8:12]==b'WAVE'):
+        raise ValueError('Invalid WAV recording.')
+    if suffix=='.mp3' and not (blob.startswith(b'ID3') or (blob[0]==255 and blob[1]&224==224)):
+        raise ValueError('Invalid MP3 audio.')
+    if suffix=='.mp4' and not blob[4:8]==b'ftyp':
+        raise ValueError('Invalid MP4 video.')
     return name, ALLOWED_EXTENSIONS[suffix],blob
 
 
@@ -224,9 +257,9 @@ class Marketplace:
         if err:return self.error(401 if not sess else 403,err)
         if not self.rate(self.h.client_address[0],'writing-order',7):return self.error(429,'Too many orders; try again later.')
         try:
-            # A normal JSON form is too small for file uploads: bounded envelope, maximum 3 documents.
+            # A bounded JSON envelope prevents untrusted uploads from exhausting memory.
             length=int(self.h.headers.get('Content-Length','0'))
-            if not 0<length<=13_000_000:return self.error(413,'Order upload exceeds the 9 MB combined document limit.')
+            if not 0<length<=85_000_000:return self.error(413,'Order upload exceeds the 60 MB combined document limit.')
             data=json.loads(self.h.rfile.read(length))
             title=parse_text(data,'title',150)
             category=parse_text(data,'category',80)
@@ -242,13 +275,13 @@ class Marketplace:
             if data.get('integrityConsent') is not True:
                 raise ValueError('Confirm that this work is permitted writing support.')
             attachments=data.get('attachments',[])
-            if not isinstance(attachments,list) or len(attachments)>3:raise ValueError('Up to three supporting documents are allowed.')
+            if not isinstance(attachments,list) or len(attachments)>MAX_ATTACHMENTS:raise ValueError('Up to five supporting documents are allowed.')
             prepared=[]
             for raw in attachments:
                 if not isinstance(raw,dict):raise ValueError('Invalid attachment metadata.')
                 prepared.append(validate_file(raw.get('filename',''),raw.get('contentBase64','')))
-            if sum(len(f[2]) for f in prepared)>9*1024*1024:
-                raise ValueError('Combined attachments must be under 9 MB.')
+            if sum(len(f[2]) for f in prepared)>MAX_TOTAL_BYTES:
+                raise ValueError('Combined attachments must be under 60 MB.')
         except (ValueError,TypeError,json.JSONDecodeError,UnicodeDecodeError) as exc:
             return self.error(400,str(exc))
         oid=str(uuid.uuid4());now=utc(); events=[];saved=[]
@@ -308,7 +341,7 @@ class Marketplace:
         self._dispatch_emails(events)
         return self.h.send_json(201,{'message':'Your proposal was submitted to the client.','id':bid_id})
 
-    def _assign_bid(self,order_id,bid_id,actor):
+    def _assign_bid(self,order_id,bid_id,actor,direct_writer_id=None):
         # Centralized assignment guarantees that client/admin cannot choose two writers.
         events=[]
         with self.db() as db:
@@ -317,6 +350,22 @@ class Marketplace:
             if actor!='administrator' and order['clientId']!=actor:
                 return self.error(403,'Only the client or administrator can select a writer.')
             if order['status']!='open':return self.error(409,'This request already has a selected writer.')
+            if direct_writer_id is not None:
+                writer=db.execute('''SELECT id,email,fullName,role,emailVerified FROM members WHERE id=?''',
+                                  (direct_writer_id,)).fetchone()
+                if not writer or writer['role'] not in ('writer','jobseeker') or not writer['emailVerified']:
+                    return self.error(400,'Choose a verified registered writer or job seeker.')
+                existing=db.execute('''SELECT id FROM writing_bids WHERE orderId=? AND writerId=?''',
+                                    (order_id,direct_writer_id)).fetchone()
+                if existing:
+                    bid_id=existing['id']
+                else:
+                    bid_id=str(uuid.uuid4())
+                    due=(datetime.strptime(order['deadline'],'%Y-%m-%d').date()-datetime.now(timezone.utc).date()).days
+                    db.execute('''INSERT INTO writing_bids(id,orderId,writerId,amountKES,days,proposal,createdAt)
+                        VALUES(?,?,?,?,?,?,?)''',
+                        (bid_id,order_id,direct_writer_id,order['budgetKES'],max(1,min(120,due)),
+                         'Direct assignment made by Prowell Jobs administrator.',utc()))
             bid=db.execute('''SELECT b.*,m.email,m.fullName FROM writing_bids b
                 JOIN members m ON m.id=b.writerId WHERE b.id=? AND b.orderId=?''',(bid_id,order_id)).fetchone()
             if not bid:return self.error(404,'That writer has not bid on this request.')
@@ -355,6 +404,22 @@ class Marketplace:
                 JOIN members m ON m.id=b.writerId WHERE b.orderId=? ORDER BY b.createdAt''',(order_id,)).fetchall()
         return self.h.send_json(200,{'order':dict(row),'bids':[dict(x) for x in bids]})
 
+    def _admin_writers(self):
+        if not self.h.authorized():return self.error(401,'Administrator login required.')
+        with self.db() as db:
+            writers=db.execute('''SELECT id,fullName,email,role FROM members
+                WHERE role IN ('writer','jobseeker') AND emailVerified=1
+                ORDER BY fullName COLLATE NOCASE,id LIMIT 1000''').fetchall()
+        return self.h.send_json(200,{'writers':[dict(w) for w in writers]})
+
+    def _admin_direct_assign(self,order_id):
+        if not self.h.authorized():return self.error(401,'Administrator login required.')
+        if not self.h.admin_write_authorized():return self.error(403,'Invalid administrator validation token.')
+        try:
+            data=self.h.json_body(); writer_id=parse_text(data,'writerId',70)
+        except ValueError as exc:return self.error(400,str(exc))
+        return self._assign_bid(order_id,None,'administrator',direct_writer_id=writer_id)
+
     def _admin_choose(self,order_id):
         if not self.h.authorized():return self.error(401,'Admin access required.')
         if not self.h.admin_write_authorized():return self.error(403,'Invalid admin session validation token.')
@@ -368,7 +433,7 @@ class Marketplace:
         if not self.rate(self.h.client_address[0],'writing-upload',12):return self.error(429,'Too many uploads; try again later.')
         try:
             length=int(self.h.headers.get('Content-Length','0'))
-            if not 0<length<=4_300_000:return self.error(413,'File is too large (max 3 MB).')
+            if not 0<length<=28_500_000:return self.error(413,'File is too large (max 20 MB).')
             data=json.loads(self.h.rfile.read(length))
             name,mime,blob=validate_file(data.get('filename',''),data.get('contentBase64',''))
         except (ValueError,TypeError,UnicodeDecodeError,json.JSONDecodeError) as exc:
@@ -482,6 +547,7 @@ class Marketplace:
         if len(parts)==5 and parts[:3]==['api','writing','orders'] and parts[4]=='instructions' and method=='GET':return self._order_detail(parts[3])
         if path=='/api/writing/my' and method=='GET':return self._my()
         if path=='/api/admin/writing/orders' and method=='GET':return self._admin_orders()
+        if path=='/api/admin/writing/writers' and method=='GET':return self._admin_writers()
         if len(parts)==5 and parts[:3]==['api','writing','orders']:
             oid=parts[3]
             if parts[4]=='bids' and method=='GET':return self._bids(oid)
@@ -496,5 +562,6 @@ class Marketplace:
         if len(parts)==6 and parts[:4]==['api','admin','writing','orders']:
             if parts[5]=='bids' and method=='GET':return self._admin_bids(parts[4])
             if parts[5]=='choose' and method=='POST':return self._admin_choose(parts[4])
+            if parts[5]=='assign-direct' and method=='POST':return self._admin_direct_assign(parts[4])
         if len(parts)==5 and parts[:4]==['api','admin','writing','orders'] and method=='POST':return self._review(parts[4])
         return self.error(404,'Writing endpoint not found.')
