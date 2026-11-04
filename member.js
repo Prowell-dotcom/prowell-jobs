@@ -124,7 +124,7 @@ async function initDashboard(){
   const s=await session();if(!s.authenticated){location.replace('/account.html?mode=login&next=%2Fdashboard.html');return;}
   const name=qs('#dashName'),role=qs('#dashRole'),verification=qs('#emailVerifyState');
   if(name)name.textContent=s.member.fullName.split(' ')[0];
-  if(role)role.textContent=s.member.role==='employer'?'Employer dashboard':'Job seeker dashboard';
+  if(role)role.textContent=({'employer':'Employer dashboard','jobseeker':'Job seeker dashboard','client':'Writing client dashboard','writer':'Writer dashboard'})[s.member.role]||'Member dashboard';
   if(verification){verification.textContent=s.member.emailVerified?'Email verified':'Please check your email to verify your account before applying or posting.';verification.dataset.verified=String(Boolean(s.member.emailVerified));}
   const e=qs('#employerActions'),j=qs('#seekerActions');if(e)e.hidden=s.member.role!=='employer';if(j)j.hidden=s.member.role!=='jobseeker';
   try{const r=await api('/api/member/dashboard');const d=await r.json();if(!r.ok)throw Error(d.error||'Could not load your dashboard');

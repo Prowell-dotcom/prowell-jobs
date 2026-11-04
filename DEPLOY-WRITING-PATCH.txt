@@ -1,0 +1,15 @@
+Prowell Writing Marketplace update — GitHub upload checklist
+
+Upload the extracted files and folders, NOT the ZIP file.
+Keep the exact filenames and directories. DO NOT reupload or delete .github.
+Do not replace notifications.py (the working Resend HTTP-header fix remains installed).
+Do not delete or reset the existing SQLite database, Railway volume, ADMIN_KEY, or email variables.
+
+Commit message:
+Add Prowell Writing marketplace with bids and admin-reviewed delivery
+
+After Railway Active:
+https://prowelljobs.com/writing.html
+https://prowelljobs.com/writing-admin.html
+
+See DEPLOY-WRITING.md for detailed instructions and security caveats.

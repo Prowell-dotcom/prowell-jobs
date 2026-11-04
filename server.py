@@ -25,6 +25,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from notifications import email_configured, sms_configured, send_notification, NotificationDeliveryError
 from accounts import password_hash, verify_password, SESSION_SECONDS, COOKIE_NAME
+from writing_marketplace import Marketplace, init_db as init_writing_db
 
 ROOT = Path(__file__).resolve().parent
 DATABASE_PATH = Path(os.getenv('DATABASE_PATH', str(ROOT / 'prowell-jobs.sqlite3'))).resolve()
@@ -41,6 +42,9 @@ ADMIN_SESSION_SECONDS = 7 * 24 * 60 * 60
 ADMIN_SESSION_COOKIE = "prowell_admin_session"
 ADMIN_KEY_FINGERPRINT = hashlib.sha256(ADMIN_KEY.encode()).hexdigest()
 MEMBER_LOGIN_REQUIRED = os.getenv('MEMBER_LOGIN_REQUIRED', '1') != '0'
+WRITING_UPLOAD_ROOT = Path(os.getenv('WRITING_UPLOAD_DIR', str(DATABASE_PATH.parent / 'writing-private-files' if DATABASE_PATH.parent != ROOT else ROOT.parent / 'prowell-private-writing-files'))).resolve()
+if WRITING_UPLOAD_ROOT == ROOT or ROOT in WRITING_UPLOAD_ROOT.parents:
+    raise RuntimeError('WRITING_UPLOAD_DIR must be outside the public site directory.')
 MEMBER_EMAIL_VERIFICATION_REQUIRED = os.getenv('MEMBER_EMAIL_VERIFICATION_REQUIRED', '1') == '1'
 
 # Moderation badges indicate unseen submissions, not pending or total records.
@@ -173,6 +177,7 @@ def initialize_db():
             if 'memberId' not in cols:
                 db.execute(f'ALTER TABLE {table} ADD COLUMN memberId TEXT')
             db.execute(f'CREATE INDEX IF NOT EXISTS idx_{table}_member ON {table}(memberId)')
+        init_writing_db(db)
 
 
 
@@ -842,8 +847,8 @@ class Handler(SimpleHTTPRequestHandler):
             role=field(data,'role',30,True)
             phone=field(data,'phone',45)
             password=data.get('password')
-            if role not in ('jobseeker','employer'):
-                raise ValueError('Choose Job seeker or Employer.')
+            if role not in ('jobseeker','employer','client','writer'):
+                raise ValueError('Choose Job seeker, Employer, Writing client or Writer.')
             if not isinstance(password,str) or len(password)<12 or len(password)>128:
                 raise ValueError('Use a password of 12–128 characters.')
             if data.get('consent') is not True:
@@ -996,6 +1001,8 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
+        if path.startswith('/api/writing/') or path.startswith('/api/admin/writing/'):
+            return Marketplace(self, db_connection, deliver_notification_event, notification_wake, check_rate, WRITING_UPLOAD_ROOT).handle('GET')
         if path == '/api/member/me':
             return self.send_json(200,self._member_public(self._member_session()))
         if path == '/api/member/verify':
@@ -1046,7 +1053,7 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path.startswith('/api/'):
             return self.send_json(404,{'error':'Unknown endpoint.'})
-        allowed = {'/','/index.html','/jobs.html','/account.html','/dashboard.html','/membership.css','/member.js','/styles.css','/app.js','/admin.html','/admin.js','/favicon.svg','/robots.txt','/sitemap.xml'}
+        allowed = {'/','/index.html','/jobs.html','/account.html','/dashboard.html','/writing.html','/writing-admin.html','/writing.css','/writing.js','/writing-admin.js','/membership.css','/member.js','/styles.css','/app.js','/admin.html','/admin.js','/favicon.svg','/robots.txt','/sitemap.xml'}
         if path not in allowed and not (path.startswith('/assets/') and path.endswith(('.svg','.png','.jpg','.webp')) and '..' not in path):
             return self.send_json(404,{'error':'File not found.'})
         if path == '/':
@@ -1055,6 +1062,8 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = urlsplit(self.path).path
+        if path.startswith('/api/writing/') or path.startswith('/api/admin/writing/'):
+            return Marketplace(self, db_connection, deliver_notification_event, notification_wake, check_rate, WRITING_UPLOAD_ROOT).handle('POST')
         if path == '/api/member/signup':
             return self._create_member()
         if path == '/api/member/login':
