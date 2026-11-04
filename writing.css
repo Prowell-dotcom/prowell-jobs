@@ -10,3 +10,5 @@
 #adminAssignments .panel .secondary{color:#304bd3;background:#eff3ff;border-color:#b7c7ea}
 #adminAssignments select{max-width:100%;font-size:13px}
 #adminAssignments .panel{min-width:0}
+
+.project-conversation{margin:12px 0;padding:18px;border:1px solid #ccdeec;border-radius:12px;background:#f7fbff}.project-message{border-bottom:1px solid #d9e5ef;padding:10px 0}.project-message strong{color:#16364e}.project-message small{color:#718299;font-size:11px}.project-message p{margin:5px 0;white-space:pre-wrap;overflow-wrap:anywhere}.project-conversation form{margin-top:18px}.project-conversation textarea{display:block;width:100%;min-height:90px;margin:8px 0 12px;padding:12px;border:1px solid #b8cbdc;border-radius:8px}button[data-cancel-order]{margin-left:8px;background:#c24b4b;color:white;border:0;border-radius:8px;padding:9px 14px}

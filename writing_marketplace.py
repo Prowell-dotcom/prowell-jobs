@@ -77,6 +77,10 @@ def init_db(db):
     db.execute('CREATE INDEX IF NOT EXISTS idx_writing_bids_order ON writing_bids(orderId)')
     db.execute('CREATE INDEX IF NOT EXISTS idx_writing_deliverables_order ON writing_deliverables(orderId,createdAt)')
     db.execute('CREATE INDEX IF NOT EXISTS idx_writing_orders_client ON writing_orders(clientId)')
+    db.execute('''CREATE TABLE IF NOT EXISTS writing_messages (
+        id TEXT PRIMARY KEY, orderId TEXT NOT NULL, senderId TEXT NOT NULL,
+        body TEXT NOT NULL, createdAt TEXT NOT NULL)''')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_writing_messages_order ON writing_messages(orderId,createdAt)')
 
 
 def parse_text(payload, key, maximum, required=True):
@@ -251,6 +255,66 @@ class Marketplace:
             bids=db.execute('''SELECT b.id,b.amountKES,b.days,b.proposal,b.status,b.createdAt,m.fullName AS writerName
                 FROM writing_bids b JOIN members m ON m.id=b.writerId WHERE b.orderId=? ORDER BY b.amountKES ASC''', (order_id,)).fetchall()
         return self.h.send_json(200,{'bids':[dict(x) for x in bids]})
+
+    def _cancel_order(self,order_id):
+        sess,err=self._get_session(write=True)
+        if err:return self.error(401 if not sess else 403,err)
+        if not self.rate(self.h.client_address[0],'writing-cancel',15):return self.error(429,'Too many attempts.')
+        events=[]
+        with self.db() as db:
+            order=db.execute('SELECT clientId,title,status FROM writing_orders WHERE id=?',(order_id,)).fetchone()
+            if not order:return self.error(404,'Writing order not found.')
+            if order['clientId']!=sess['id']:return self.error(403,'Only the customer can cancel their own open order.')
+            if order['status']!='open':return self.error(409,'Assigned or completed projects cannot be cancelled here. Contact support.')
+            done=db.execute("UPDATE writing_orders SET status='cancelled',updatedAt=? WHERE id=? AND status='open'",(utc(),order_id))
+            if not done.rowcount:return self.error(409,'This order is no longer open.')
+            bidders=db.execute('SELECT DISTINCT m.email FROM writing_bids b JOIN members m ON m.id=b.writerId WHERE b.orderId=?',(order_id,)).fetchall()
+            for writer in bidders:
+                self._notify(db,writer['email'],'Writing request cancelled — Prowell Jobs',
+                    f'The customer cancelled the open request "{order["title"]}". No writer was assigned.',
+                    'writing_order_cancelled',order_id,events)
+        self._dispatch_emails(events)
+        return self.h.send_json(200,{'message':'Order cancelled. It is no longer open for bids.'})
+
+    def _messages(self,order_id,posting=False,admin=False):
+        sess=None if admin else self.h._member_session()
+        if admin:
+            if not self.h.authorized():return self.error(401,'Administrator sign-in required.')
+        elif not sess:return self.error(401,'Please sign in.')
+        if posting:
+            if not self.h._member_write_ok(sess):return self.error(403,'Invalid session token.')
+            if not sess['emailVerified']:return self.error(403,'Verify your email before sending messages.')
+            if not self.rate(self.h.client_address[0],'writing-message',40):return self.error(429,'Too many messages. Please try later.')
+            try:
+                data=self.h.json_body()
+                body=parse_text(data,'body',2500)
+                if len(body)<2:raise ValueError('Enter a message of at least two characters.')
+            except ValueError as exc:return self.error(400,str(exc))
+        events=[]
+        with self.db() as db:
+            order=db.execute('''SELECT o.id,o.title,o.clientId,o.status,b.writerId AS chosenWriter
+                FROM writing_orders o LEFT JOIN writing_bids b ON b.id=o.chosenBidId WHERE o.id=?''',(order_id,)).fetchone()
+            if not order:return self.error(404,'Writing order not found.')
+            if order['status'] not in ('assigned','submitted','delivered'):
+                return self.error(409,'Messages are available once a writer is selected.')
+            if not admin and sess['id'] not in (order['clientId'],order['chosenWriter']):
+                return self.error(403,'Only the customer and selected writer can read this conversation.')
+            if posting:
+                mid=str(uuid.uuid4())
+                db.execute('INSERT INTO writing_messages(id,orderId,senderId,body,createdAt) VALUES(?,?,?,?,?)',
+                    (mid,order_id,sess['id'],body,utc()))
+                receiver_id=order['chosenWriter'] if sess['id']==order['clientId'] else order['clientId']
+                receiver=db.execute('SELECT email FROM members WHERE id=?',(receiver_id,)).fetchone()
+                if receiver:
+                    self._notify(db,receiver['email'],'New private project message — Prowell Jobs',
+                       f'There is a new message on project "{order["title"]}". Sign in to read it securely: https://prowelljobs.com/writing.html',
+                       'writing_message',order_id,events)
+            rows=db.execute('''SELECT m.id,m.body,m.createdAt,m.senderId,a.fullName AS senderName
+                FROM writing_messages m JOIN members a ON a.id=m.senderId
+                WHERE m.orderId=? ORDER BY m.createdAt ASC,m.id ASC LIMIT 300''',(order_id,)).fetchall()
+        self._dispatch_emails(events)
+        return self.h.send_json(201 if posting else 200,{'messages':[dict(row) for row in rows],
+            'message':'Private project message sent.' if posting else 'Private project conversation.'})
 
     def _create_order(self):
         sess,err=self._get_session(write=True)
@@ -548,12 +612,17 @@ class Marketplace:
         if path=='/api/writing/my' and method=='GET':return self._my()
         if path=='/api/admin/writing/orders' and method=='GET':return self._admin_orders()
         if path=='/api/admin/writing/writers' and method=='GET':return self._admin_writers()
+        if len(parts)==6 and parts[:4]==['api','admin','writing','orders'] and parts[5]=='messages' and method=='GET':
+            return self._messages(parts[4],admin=True)
         if len(parts)==5 and parts[:3]==['api','writing','orders']:
             oid=parts[3]
             if parts[4]=='bids' and method=='GET':return self._bids(oid)
             if parts[4]=='bids' and method=='POST':return self._bid(oid)
             if parts[4]=='choose' and method=='POST':return self._choose(oid)
             if parts[4]=='deliver' and method=='POST':return self._upload(oid)
+            if parts[4]=='cancel' and method=='POST':return self._cancel_order(oid)
+            if parts[4]=='messages' and method=='GET':return self._messages(oid)
+            if parts[4]=='messages' and method=='POST':return self._messages(oid,posting=True)
         if path=='/api/writing/orders' and method=='POST':return self._create_order()
         if len(parts)==4 and parts[:3]==['api','writing','attachments'] and method=='GET':return self._instruction_file_download(parts[3])
         if len(parts)==5 and parts[:4]==['api','admin','writing','attachments'] and method=='GET':return self._instruction_file_download(parts[4],True)

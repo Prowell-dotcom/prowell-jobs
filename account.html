@@ -11,8 +11,8 @@
   </title>
   <meta content="Create a free Prowell Jobs account to apply for work or post job opportunities." name="description"/>
   <link href="/favicon.svg" rel="icon"/>
-  <link href="/membership.css?v=signup-20261104-2" rel="stylesheet"/>
-  <script defer src="/member.js?v=writing1"></script><script defer src="/admin-account.js?v=owner2"></script>
+  <link href="/membership.css?v=security1" rel="stylesheet"/>
+  <script defer src="/member.js?v=security1"></script><script defer src="/admin-account.js?v=security1"></script>
  </head>
  <body class="auth-page" data-page="account">
   <header class="m-header">
@@ -239,6 +239,7 @@
        New password
        <input autocomplete="new-password" maxlength="128" minlength="12" name="password" placeholder="At least 12 characters" required="" type="password"/>
       </label>
+      <label>Confirm new password<input autocomplete="new-password" name="confirmPassword" type="password" minlength="12" maxlength="128" placeholder="Repeat new password" required></label>
       <button class="m-btn m-submit" type="submit">
        Set new password
        <span>
@@ -255,6 +256,7 @@
        <label>Administrator email <input name="email" type="email" autocomplete="username" required></label>
        <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
        <button type="submit" class="m-btn m-submit">Sign in as Administrator →</button>
+       <button class="inline-link" id="adminForgotLink" type="button">Forgot administrator password?</button>
        <p class="auth-footnote">Administrator registration is permanently disabled once the owner account has been created.</p>
       </form>
       <form id="adminOwnerSetup" class="auth-form" hidden>
@@ -266,6 +268,19 @@
        <label>Confirm password <input name="confirmPassword" minlength="12" maxlength="128" type="password" autocomplete="new-password" required></label>
        <button type="submit" class="m-btn m-submit">Create sole administrator account →</button>
        <p class="auth-footnote">Never send your setup key to another person. Store your login securely.</p>
+      </form>
+      <form id="adminRecoveryEmail" class="auth-form" hidden>
+       <p class="auth-subtitle">Enter the registered owner email address. A one-time recovery link expires after 30 minutes.</p>
+       <label>Owner email address<input name="email" type="email" autocomplete="email" placeholder="owner@example.com" required></label>
+       <button class="m-btn m-submit" type="submit">Email recovery link →</button>
+       <button class="inline-link" data-admin-back type="button">Back to administrator login</button>
+      </form>
+      <form id="adminRecoveryReset" class="auth-form" hidden>
+       <p class="auth-subtitle">Choose a new administrator password. Existing admin sessions will be signed out.</p>
+       <label>New password<input name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label>
+       <label>Confirm new password<input name="confirmPassword" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label>
+       <button class="m-btn m-submit" type="submit">Reset administrator password →</button>
+       <button class="inline-link" data-admin-back type="button">Back to administrator login</button>
       </form>
      </section>
      <p class="auth-bottom">

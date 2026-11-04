@@ -69,7 +69,7 @@ function switchMode(mode){
 function initAccount(){
   const params=new URLSearchParams(location.search);
   if(params.get('verified')){setMsg(params.get('verified')==='1'?'Email verified. You can sign in and start using Prowell Jobs.':'Verification link invalid or expired. Please contact support.','info');}
-  const mode=params.has('reset')?'reset':(params.get('mode')==='signup'?'signup':'login');switchMode(mode);
+  const mode=params.has('reset')?'reset':(['login','signup','forgot'].includes(params.get('mode'))?params.get('mode'):'login');switchMode(mode);
   if(params.get('verified'))setMsg(params.get('verified')==='1'?'Your email is verified. Welcome to Prowell Jobs.':'The verification link was invalid or expired. Please contact support.',params.get('verified')==='1'?'success':'error');
   if(params.get('role')&&qs('#signupRole'))qs('#signupRole').value=params.get('role');
   document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>{
@@ -117,7 +117,7 @@ function initAccount(){
     return {fullName:f.get('fullName'),email:f.get('email'),role:f.get('role'),phone:f.get('phone'),password:f.get('password'),consent:f.get('consent')==='on'};
   },()=>location.assign('/dashboard.html?welcome=1'));
   bind('forgotForm','/api/member/forgot',f=>({email:f.get('email')}),r=>setMsg(r.message,'success'));
-  bind('resetForm','/api/member/reset',f=>({token:params.get('reset'),password:f.get('password')}),r=>{switchMode('login');setMsg(r.message,'success');history.replaceState(null,'','/account.html');});
+  bind('resetForm','/api/member/reset',f=>({token:params.get('reset'),password:f.get('password'),confirmPassword:f.get('confirmPassword')}),r=>{switchMode('login');setMsg(r.message,'success');history.replaceState(null,'','/account.html');});
   session().then(s=>{if(s.authenticated){const p=qs('#alreadySignedIn');if(p){p.hidden=false;p.innerHTML='Signed in as <strong>'+safe(s.member.fullName)+'</strong>. <a href="/dashboard.html">Open your dashboard →</a>';}}});
 }
 async function initDashboard(){
@@ -126,6 +126,14 @@ async function initDashboard(){
   if(name)name.textContent=s.member.fullName.split(' ')[0];
   if(role)role.textContent=({'employer':'Employer dashboard','jobseeker':'Job seeker dashboard','client':'Writing client dashboard','writer':'Writer dashboard'})[s.member.role]||'Member dashboard';
   if(verification){verification.textContent=s.member.emailVerified?'Email verified':'Please check your email to verify your account before applying or posting.';verification.dataset.verified=String(Boolean(s.member.emailVerified));}
+  // Verified member profile and password controls.
+  const profile=qs('#profileForm');if(profile){profile.elements.fullName.value=s.member.fullName||'';profile.elements.phone.value=s.member.phone||'';qs('#profileEmail').value=s.member.email||'';
+    profile.addEventListener('submit',async ev=>{ev.preventDefault();const button=profile.querySelector('[type=submit]');button.disabled=true;try{const r=await json('/api/member/profile/update',{fullName:profile.elements.fullName.value,phone:profile.elements.phone.value});s.member.fullName=r.fullName;s.member.phone=r.phone;qs('#dashName').textContent=r.fullName.split(' ')[0];const n=qs('#profileStatus');n.textContent=r.message;n.classList.remove('error');}catch(err){const n=qs('#profileStatus');n.textContent=err.message;n.classList.add('error')}finally{button.disabled=false}});
+  }
+  const cp=qs('#changePasswordForm');if(cp)cp.addEventListener('submit',async ev=>{ev.preventDefault();const b=cp.querySelector('[type=submit]');const f=new FormData(cp);b.disabled=true;try{const r=await json('/api/member/password/change',{currentPassword:f.get('currentPassword'),newPassword:f.get('newPassword'),confirmPassword:f.get('confirmPassword')});qs('#passwordStatus').textContent=r.message;location.assign('/account.html?mode=login');}catch(err){qs('#passwordStatus').textContent=err.message;qs('#passwordStatus').classList.add('error')}finally{b.disabled=false}});
+  const verifyActions=qs('#verifyEmailActions');if(verifyActions && !s.member.emailVerified){verifyActions.hidden=false;qs('#resendVerificationBtn').addEventListener('click',async ev=>{const b=ev.currentTarget;b.disabled=true;try{const r=await json('/api/member/verification/resend',{});qs('#verifyFeedback').textContent=r.message;qs('#verifyFeedback').classList.remove('error')}catch(err){qs('#verifyFeedback').textContent=err.message;qs('#verifyFeedback').classList.add('error')}finally{b.disabled=false}})}
+  const inbox=qs('#employerInboxSection');if(inbox && s.member.role==='employer'){inbox.hidden=false;
+    try{const r=await api('/api/member/employer/applications');const d=await r.json();if(!r.ok)throw Error(d.error||'Unable to load employer applications');const n=qs('#employerInbox');n.innerHTML=d.applications.length?d.applications.map(a=>'<article class="applicant-card"><h3>'+safe(a.fullName)+' · '+safe(a.jobTitle)+'</h3><p>'+safe(a.country||'')+' · '+safe(a.experience||'')+' · '+safe(a.status)+'</p><p>'+safe(a.message||'')+'</p><p>Email: <a href="mailto:'+encodeURIComponent(a.email||'')+'">'+safe(a.email||'Not provided')+'</a>'+ (a.phone?' · Phone: '+safe(a.phone):'')+'</p></article>').join(''):'<p class="empty-list">No reviewed applications for your jobs yet. Applications appear once moderation is complete.</p>'}catch(err){qs('#employerInboxStatus').textContent=err.message;qs('#employerInboxStatus').classList.add('error')}}
   const e=qs('#employerActions'),j=qs('#seekerActions');if(e)e.hidden=s.member.role!=='employer';if(j)j.hidden=s.member.role!=='jobseeker';
   try{const r=await api('/api/member/dashboard');const d=await r.json();if(!r.ok)throw Error(d.error||'Could not load your dashboard');
     [['jobs','jobsList','jobTitle'],['applications','applicationsList','jobTitle'],['candidates','profilesList','alias']].forEach(([key,id,fallback])=>{

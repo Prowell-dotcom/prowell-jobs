@@ -125,6 +125,11 @@ def initialize_db():
             id INTEGER PRIMARY KEY CHECK (id=1), email TEXT COLLATE NOCASE NOT NULL UNIQUE,
             fullName TEXT NOT NULL, passwordSalt TEXT NOT NULL,
             passwordHash TEXT NOT NULL, createdAt TEXT NOT NULL)''')
+        # Password recovery for the existing sole administrator. This never creates another owner.
+        owner_cols = {r['name'] for r in db.execute('PRAGMA table_info(admin_owner)')}
+        for col, kind in (('recoveryHash','TEXT'), ('recoveryExpires','REAL'), ('recoveryRequestedAt','REAL')):
+            if col not in owner_cols:
+                db.execute(f'ALTER TABLE admin_owner ADD COLUMN {col} {kind}')
         db.execute('CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON admin_sessions(expiresAt)')
         db.execute('CREATE INDEX IF NOT EXISTS idx_notifications_retry ON notification_outbox(status,nextAttemptAt)')
         db.execute('CREATE INDEX IF NOT EXISTS idx_jobs_status_created ON jobs(status, createdAt DESC)')
@@ -777,6 +782,63 @@ class Handler(SimpleHTTPRequestHandler):
         return self.send_json(200, {'authenticated': False, 'message': 'Signed out.'},
                               {'Set-Cookie': self.session_cookie(clear=True)})
 
+    def admin_recovery_start(self):
+        # Password recovery by pre-existing owner email only; no second admin setup.
+        if not check_rate(self.client_address[0], 'admin-recovery-request', 5):
+            return self.send_json(429, {'error': 'Too many recovery attempts. Please try later.'})
+        try:
+            data = self.json_body()
+            email = checked_email(field(data, 'email', 180, True), True).lower()
+        except ValueError as exc:
+            return self.send_json(400, {'error': str(exc)})
+        event_id = None
+        if email_configured():
+            with db_connection() as db:
+                owner = db.execute('SELECT email,recoveryRequestedAt FROM admin_owner WHERE id=1').fetchone()
+                if (owner and hmac.compare_digest(owner['email'].lower(), email)
+                        and (not owner['recoveryRequestedAt'] or owner['recoveryRequestedAt'] < time.time()-300)):
+                    token = secrets.token_urlsafe(32)
+                    db.execute('UPDATE admin_owner SET recoveryHash=?,recoveryExpires=?,recoveryRequestedAt=? WHERE id=1',
+                               (hashlib.sha256(token.encode()).hexdigest(),time.time()+1800,time.time()))
+                    event_id = 'admin:owner:recovery:'+uuid.uuid4().hex
+                    url = 'https://prowelljobs.com/account.html?mode=admin&adminReset='+token
+                    db.execute('''INSERT INTO notification_outbox(eventId,jobId,kind,channel,recipient,subject,body,status,createdAt)
+                        VALUES(?,?,?,?,?,?,?,'pending',?)''',
+                        (event_id,'admin-owner','admin_recovery','email',owner['email'],
+                         'Reset your Prowell Jobs administrator password',
+                         'If you requested an administrator password reset, use this one-time link within 30 minutes:\n'+url+
+                         '\nIf you did not request it, ignore this message.',timestamp()))
+        if event_id:
+            deliver_notification_event(event_id)
+            notification_wake.set()
+        return self.send_json(200, {'message':'If the owner email matches an existing account, a 30-minute reset link will be sent.'})
+
+    def admin_recovery_complete(self):
+        if not check_rate(self.client_address[0], 'admin-recovery-complete', 12):
+            return self.send_json(429, {'error': 'Too many reset attempts.'})
+        try:
+            data = self.json_body()
+            token = field(data,'token',180,True)
+            password = data.get('password')
+            if len(token)<25 or not isinstance(password,str) or not 12<=len(password)<=128:
+                raise ValueError('Invalid reset link or password. Use at least 12 characters.')
+            if password != data.get('confirmPassword'):
+                raise ValueError('Passwords do not match.')
+        except ValueError as exc:
+            return self.send_json(400,{'error':str(exc)})
+        salt,digest=password_hash(password)
+        with db_connection() as db:
+            owner=db.execute('SELECT recoveryHash,recoveryExpires FROM admin_owner WHERE id=1').fetchone()
+            if (not owner or not owner['recoveryHash'] or not owner['recoveryExpires']
+                    or owner['recoveryExpires']<=time.time()
+                    or not hmac.compare_digest(owner['recoveryHash'],hashlib.sha256(token.encode()).hexdigest())):
+                return self.send_json(400,{'error':'This password-reset link is invalid or expired.'})
+            db.execute('''UPDATE admin_owner SET passwordSalt=?,passwordHash=?,recoveryHash=NULL,recoveryExpires=NULL
+                WHERE id=1''',(salt,digest))
+            db.execute('DELETE FROM admin_sessions')
+        return self.send_json(200,{'message':'Administrator password updated. Sign in with your new password.'},
+                              {'Set-Cookie':self.session_cookie(clear=True)})
+
     def admin_unread_counts(self):
         # These counts are private. Each section has an independent, persistent last-viewed time.
         # An existing pending record is not "new" again simply because it wasn't approved.
@@ -991,6 +1053,89 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header('Cache-Control','no-store')
         self.end_headers()
 
+    def _member_resend_verification(self):
+        session=self._member_session()
+        if not session:return self.send_json(401,{'error':'Please sign in.'})
+        if not self._member_write_ok(session):return self.send_json(403,{'error':'Invalid session validation token.'})
+        if session['emailVerified']:
+            return self.send_json(200,{'message':'Your email is already verified.'})
+        if not check_rate(self.client_address[0], 'member-resend-verification', 5):
+            return self.send_json(429,{'error':'Too many verification requests. Please try later.'})
+        if not email_configured():
+            return self.send_json(503,{'error':'Verification email is temporarily unavailable. Please contact support.'})
+        token=secrets.token_urlsafe(32)
+        event_id='member:'+session['id']+':verify-resend:'+uuid.uuid4().hex
+        url='https://prowelljobs.com/api/member/verify?token='+token
+        with db_connection() as db:
+            db.execute('UPDATE members SET verificationHash=?,verificationExpires=? WHERE id=? AND emailVerified=0',
+                (hashlib.sha256(token.encode()).hexdigest(),time.time()+86400,session['id']))
+            db.execute('''INSERT INTO notification_outbox(eventId,jobId,kind,channel,recipient,subject,body,status,createdAt)
+                VALUES(?,?,?,?,?,?,?,'pending',?)''',
+                (event_id,session['id'],'member_verification_resend','email',session['email'],
+                 'Verify your Prowell Jobs email address',
+                 'Confirm your Prowell Jobs account using this link within 24 hours:\n'+url,timestamp()))
+        deliver_notification_event(event_id)
+        notification_wake.set()
+        return self.send_json(200,{'message':'Verification email requested. Check your inbox and spam folder.'})
+
+    def _member_change_password(self):
+        session=self._member_session()
+        if not session:return self.send_json(401,{'error':'Please sign in.'})
+        if not self._member_write_ok(session):return self.send_json(403,{'error':'Invalid session validation token.'})
+        if not check_rate(self.client_address[0],'member-change-password',10):
+            return self.send_json(429,{'error':'Too many attempts. Please try again later.'})
+        try:
+            data=self.json_body()
+            old=data.get('currentPassword')
+            password=data.get('newPassword')
+            if not isinstance(old,str) or not isinstance(password,str) or not 12<=len(password)<=128:
+                raise ValueError('Enter your current password and a new password of at least 12 characters.')
+            if password!=data.get('confirmPassword'):
+                raise ValueError('New passwords do not match.')
+        except ValueError as exc:return self.send_json(400,{'error':str(exc)})
+        with db_connection() as db:
+            account=db.execute('SELECT passwordSalt,passwordHash FROM members WHERE id=?',(session['id'],)).fetchone()
+            if not account or not verify_password(old,account['passwordSalt'],account['passwordHash']):
+                return self.send_json(401,{'error':'Current password is incorrect.'})
+            if verify_password(password,account['passwordSalt'],account['passwordHash']):
+                return self.send_json(400,{'error':'Choose a different new password.'})
+            salt,digest=password_hash(password)
+            db.execute('UPDATE members SET passwordSalt=?,passwordHash=? WHERE id=?',(salt,digest,session['id']))
+            db.execute('DELETE FROM member_sessions WHERE memberId=?',(session['id'],))
+        return self.send_json(200,{'message':'Password changed. Please sign in again with your new password.'},
+                              {'Set-Cookie':self._member_cookie(clear=True)})
+
+    def _member_profile_update(self):
+        session=self._member_session()
+        if not session:return self.send_json(401,{'error':'Please sign in.'})
+        if not self._member_write_ok(session):return self.send_json(403,{'error':'Invalid session validation token.'})
+        if not check_rate(self.client_address[0],'member-profile-update',30):
+            return self.send_json(429,{'error':'Too many updates. Please try later.'})
+        try:
+            data=self.json_body()
+            name=field(data,'fullName',120,True)
+            phone=field(data,'phone',45)
+            if len(name)<2:raise ValueError('Enter a name of at least two characters.')
+            if phone and not re.fullmatch(r'\+?[0-9 ()-]{7,24}',phone):
+                raise ValueError('Enter a valid phone number.')
+        except ValueError as exc:return self.send_json(400,{'error':str(exc)})
+        with db_connection() as db:
+            db.execute('UPDATE members SET fullName=?,phone=? WHERE id=?',(name,phone,session['id']))
+        return self.send_json(200,{'message':'Profile updated.', 'fullName':name,'phone':phone})
+
+    def _employer_applications(self):
+        session=self._member_session()
+        if not session:return self.send_json(401,{'error':'Please sign in.'})
+        if session['role']!='employer' or not session['emailVerified']:
+            return self.send_json(403,{'error':'Only a verified employer can view reviewed applications for their jobs.'})
+        with db_connection() as db:
+            rows=db.execute('''SELECT a.id,a.jobId,a.jobTitle,a.fullName,a.email,a.phone,
+                a.country,a.city,a.experience,a.message,a.status,a.createdAt
+                FROM applications a JOIN jobs j ON a.jobId=j.id
+                WHERE j.memberId=? AND a.status IN ('reviewed','closed')
+                ORDER BY a.createdAt DESC LIMIT 150''',(session['id'],)).fetchall()
+        return self.send_json(200,{'applications':[dict(r) for r in rows]})
+
     def _member_dashboard(self):
         session=self._member_session()
         if not session:
@@ -1040,6 +1185,8 @@ class Handler(SimpleHTTPRequestHandler):
             data=self.json_body()
             token=field(data,'token',150,True)
             password=data.get('password')
+            if data.get('confirmPassword',password)!=password:
+                raise ValueError('Passwords do not match.')
             if len(token)<25 or not isinstance(password,str) or not 12<=len(password)<=128:
                 raise ValueError('Invalid or expired reset link, or password too short.')
         except ValueError as exc:
@@ -1074,6 +1221,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._verify_member_email()
         if path == '/api/member/dashboard':
             return self._member_dashboard()
+        if path == '/api/member/employer/applications':
+            return self._employer_applications()
         if path == '/api/admin/bootstrap/status':
             return self.send_json(200, {'registrationOpen': not self.admin_owner_exists()})
         if path == '/api/admin/session':
@@ -1157,6 +1306,16 @@ class Handler(SimpleHTTPRequestHandler):
             return self._member_forgot()
         if path == '/api/member/reset':
             return self._member_reset()
+        if path == '/api/member/verification/resend':
+            return self._member_resend_verification()
+        if path == '/api/member/password/change':
+            return self._member_change_password()
+        if path == '/api/member/profile/update':
+            return self._member_profile_update()
+        if path == '/api/admin/recovery/start':
+            return self.admin_recovery_start()
+        if path == '/api/admin/recovery/complete':
+            return self.admin_recovery_complete()
         if path == '/api/admin/bootstrap':
             return self.admin_bootstrap()
         if path == '/api/admin/login':
