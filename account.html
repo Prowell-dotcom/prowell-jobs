@@ -12,8 +12,7 @@
   <meta content="Create a free Prowell Jobs account to apply for work or post job opportunities." name="description"/>
   <link href="/favicon.svg" rel="icon"/>
   <link href="/membership.css?v=signup-20261104-2" rel="stylesheet"/>
-  <script defer="" src="/member.js?v=writing1">
-  </script>
+  <script defer src="/member.js?v=writing1"></script><script defer src="/admin-account.js?v=owner1"></script>
  </head>
  <body class="auth-page" data-page="account">
   <header class="m-header">
@@ -110,6 +109,7 @@
       <button aria-pressed="false" data-mode="signup" type="button">
        Create account
       </button>
+      <button aria-pressed="false" data-admin-entry type="button">Administrator</button>
      </div>
      <div aria-live="polite" class="auth-status" hidden="" id="authStatus" role="status">
      </div>
@@ -246,6 +246,28 @@
        </span>
       </button>
      </form>
+     <section id="adminOwnerSection" hidden class="admin-owner-section" aria-label="Administrator access">
+      <div class="admin-owner-label">PROWELL JOBS · PRIVATE ADMINISTRATION</div>
+      <h3>Administrator access</h3>
+      <p class="auth-subtitle">A single authorized owner controls job reviews, writing assignments, delivery approval, and platform safety.</p>
+      <p id="adminOwnerMsg" role="status" class="auth-status" hidden></p>
+      <form id="adminOwnerLogin" class="auth-form" hidden>
+       <label>Administrator email <input name="email" type="email" autocomplete="username" required></label>
+       <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+       <button type="submit" class="m-btn m-submit">Sign in as Administrator →</button>
+       <p class="auth-footnote">Administrator registration is permanently disabled once the owner account has been created.</p>
+      </form>
+      <form id="adminOwnerSetup" class="auth-form" hidden>
+       <p class="auth-hint">One-time setup. Only the owner who knows the private Railway ADMIN_KEY can register this account. The setup form disappears permanently after completion.</p>
+       <label>Private Railway setup key <input name="setupKey" type="password" autocomplete="off" required></label>
+       <label>Administrator full name <input name="fullName" minlength="2" maxlength="120" autocomplete="name" required></label>
+       <label>Administrator email <input name="email" type="email" autocomplete="username" required></label>
+       <label>Create a secure password <input name="password" minlength="12" maxlength="128" type="password" autocomplete="new-password" required></label>
+       <label>Confirm password <input name="confirmPassword" minlength="12" maxlength="128" type="password" autocomplete="new-password" required></label>
+       <button type="submit" class="m-btn m-submit">Create sole administrator account →</button>
+       <p class="auth-footnote">Never send your setup key to another person. Store your login securely.</p>
+      </form>
+     </section>
      <p class="auth-bottom">
       Need help?
       <a href="mailto:prowellofficial@gmail.com">

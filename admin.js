@@ -39,7 +39,7 @@ async function markSectionViewed(section){
  renderUnreadBadges();
 }
 function showSignedIn(){signedIn=true;renderUnreadBadges();$('#keyForm').hidden=true;$('#sessionPanel').hidden=false;$('#notificationDiagnostics').hidden=activeTab!=='notification_outbox';}
-function showSignedOut(message='Signed out. Enter your key to sign in again.'){
+function showSignedOut(message='Signed out. Use your administrator account to sign in again.'){
  signedIn=false;csrfToken='';unreadCounts={};renderUnreadBadges();dataset={jobs:[],applications:[],candidates:[],reviews:[],reports:[],alerts:[],notification_outbox:[]};
  $('#sessionPanel').hidden=true;$('#keyForm').hidden=false;$('#adminKey').value='';
  $('#adminStatus').textContent=message;$('#notificationDiagnostics').hidden=true;render();
@@ -100,14 +100,7 @@ function recordMarkup(r){let title='',desc='',full='';
  return `<article class="admin-item"><div><h3>${title} ${r.status?`<span class="admin-pill ${esc(r.status)}">${esc(r.status)}</span>`:''}</h3><p>${desc} · ${esc(new Date(r.createdAt).toLocaleDateString())}</p><details><summary>View details${activeTab==='candidates'?' (private contact included)':''}</summary><div>${full}</div></details></div>${actions(r)}</article>`;
 }
 function render(){if(!signedIn){$('#adminTotal').textContent='(—)';$('#adminRecords').innerHTML='<p class="admin-empty">Sign in to review records.</p>';return;}const rows=dataset[activeTab]||[];const filter=$('#adminFilter').value;const shown=rows.filter(x=>filter==='all'||!x.status||x.status===filter);$('#adminHeading').textContent=headings[activeTab];$('#adminTotal').textContent=`(${shown.length})`;$('#adminRecords').innerHTML=shown.length?shown.map(recordMarkup).join(''):'<p class="admin-empty">No records in this view.</p>';$('#adminFilter').disabled=activeTab==='alerts';}
-$('#keyForm').addEventListener('submit',async e=>{
- e.preventDefault();const key=$('#adminKey').value;
- try{
-   const session=await api('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adminKey:key})});
-   csrfToken=session.csrfToken;$('#adminKey').value='';showSignedIn();await refresh();
-   $('#adminStatus').textContent='Signed in. Your records remain unlocked until you log out or the 7-day session expires.';
- }catch(err){$('#adminKey').value='';showSignedOut('Sign in failed: '+err.message);}
-});
+$('#keyForm').addEventListener('submit',e=>{e.preventDefault();location.assign('/account.html?mode=admin');});
 $('#logoutButton').addEventListener('click',async()=>{
  try{await api('/api/admin/logout',{method:'POST'});}catch(err){$('#adminStatus').textContent='Unable to end session: '+err.message;return;}
  showSignedOut('Signed out successfully.');
@@ -123,7 +116,7 @@ $('#testEmailButton').addEventListener('click',async()=>{
 (async()=>{try{
  const session=await api('/api/admin/session');
  if(session.authenticated&&session.csrfToken){csrfToken=session.csrfToken;showSignedIn();await refresh();$('#adminStatus').textContent='Welcome back. Your administrator session was restored.';}
- else showSignedOut('Sign in with your private administrator key.');
+ else showSignedOut('Please sign in with your administrator account.');
 }catch(err){showSignedOut('Unable to check your session: '+err.message);}})();
 $('#adminTabs').addEventListener('click',async e=>{
  const btn=e.target.closest('[data-tab]');if(!btn)return;

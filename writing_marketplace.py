@@ -37,6 +37,20 @@ def init_db(db):
         category TEXT NOT NULL, brief TEXT NOT NULL, deadline TEXT NOT NULL,
         budgetKES INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'open',
         chosenBidId TEXT, createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL)''')
+    # Additive migration: preserve existing live orders and uploaded deliverables.
+    columns={r[1] for r in db.execute('PRAGMA table_info(writing_orders)').fetchall()}
+    if 'publicSummary' not in columns:
+        db.execute('ALTER TABLE writing_orders ADD COLUMN publicSummary TEXT')
+    db.execute('''CREATE TABLE IF NOT EXISTS writing_order_files (
+        id TEXT PRIMARY KEY, orderId TEXT NOT NULL, uploadedBy TEXT NOT NULL,
+        storedName TEXT NOT NULL, originalName TEXT NOT NULL, mimeType TEXT NOT NULL,
+        fileSize INTEGER NOT NULL, createdAt TEXT NOT NULL)''')
+    if 'assignedBy' not in columns:
+        db.execute('ALTER TABLE writing_orders ADD COLUMN assignedBy TEXT')
+    db.execute('''CREATE TABLE IF NOT EXISTS writing_assignment_audit (
+        id TEXT PRIMARY KEY, orderId TEXT NOT NULL, bidId TEXT NOT NULL,
+        assignedBy TEXT NOT NULL, createdAt TEXT NOT NULL)''')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_writing_order_files_order ON writing_order_files(orderId)')
     db.execute('''CREATE TABLE IF NOT EXISTS writing_bids (
         id TEXT PRIMARY KEY, orderId TEXT NOT NULL, writerId TEXT NOT NULL,
         amountKES INTEGER NOT NULL, days INTEGER NOT NULL, proposal TEXT NOT NULL,
@@ -133,10 +147,49 @@ class Marketplace:
         if events:self.wake.set()
 
     def _orders_public(self):
+        sess,err=self._get_session()
+        if err:return self.error(401,err)
         with self.db() as db:
-            rows=db.execute('''SELECT id,title,category,brief,deadline,budgetKES,createdAt
+            rows=db.execute('''SELECT id,title,category,COALESCE(publicSummary,'') AS publicSummary,deadline,budgetKES,createdAt
                 FROM writing_orders WHERE status='open' ORDER BY createdAt DESC LIMIT 100''').fetchall()
         return self.h.send_json(200,{'orders':[dict(r) for r in rows], 'categories':CATEGORIES})
+
+    def _order_detail(self,order_id):
+        """Full private instructions are visible only to the client or selected writer."""
+        sess,err=self._get_session()
+        if err:return self.error(401,err)
+        with self.db() as db:
+            row=db.execute('''SELECT o.*,b.writerId AS selectedWriterId FROM writing_orders o
+                LEFT JOIN writing_bids b ON b.id=o.chosenBidId WHERE o.id=?''',(order_id,)).fetchone()
+            if not row:return self.error(404,'Order not found.')
+            if sess['id'] not in (row['clientId'],row['selectedWriterId']):
+                return self.error(403,'Instructions unlock only for the client and the selected writer.')
+            files=db.execute('SELECT id,originalName,fileSize FROM writing_order_files WHERE orderId=? ORDER BY createdAt',(order_id,)).fetchall()
+            return self.h.send_json(200,{'order':{k:row[k] for k in ('id','title','category','brief','deadline','budgetKES','status','publicSummary')},'attachments':[dict(f) for f in files]})
+
+    def _instruction_file_download(self,file_id,admin=False):
+        sess=None if admin else self.h._member_session()
+        if admin:
+            if not self.h.authorized():return self.error(401,'Admin access required.')
+        elif not sess:return self.error(401,'Sign in to access project instructions.')
+        with self.db() as db:
+            file=db.execute('''SELECT f.*,o.clientId,b.writerId AS selectedWriterId FROM writing_order_files f
+                JOIN writing_orders o ON o.id=f.orderId
+                LEFT JOIN writing_bids b ON b.id=o.chosenBidId WHERE f.id=?''',(file_id,)).fetchone()
+        if not file:return self.error(404,'Attachment not found.')
+        if not admin and sess['id'] not in (file['clientId'],file['selectedWriterId']):
+            return self.error(403,'Only the project owner and chosen writer can download instructions.')
+        target=_private_root(self.h)/file['storedName']
+        if not target.is_file():return self.error(404,'Attachment unavailable.')
+        blob=target.read_bytes()
+        safe_name=re.sub('[^A-Za-z0-9._-]','_',file['originalName'])
+        self.h.send_response(200)
+        self.h.send_header('Content-Type',file['mimeType'])
+        self.h.send_header('Content-Disposition',f'attachment; filename="{safe_name}"')
+        self.h.send_header('Content-Length',str(len(blob)))
+        self.h.send_header('Cache-Control','private, no-store')
+        self.h.send_header('X-Content-Type-Options','nosniff')
+        self.h.end_headers();self.h.wfile.write(blob)
 
     def _my(self):
         s,err=self._get_session()
@@ -167,37 +220,71 @@ class Marketplace:
         return self.h.send_json(200,{'bids':[dict(x) for x in bids]})
 
     def _create_order(self):
-        s,err=self._get_session({'client','employer'},True)
-        if err:return self.error(401 if not s else 403,err)
+        sess,err=self._get_session(write=True)
+        if err:return self.error(401 if not sess else 403,err)
         if not self.rate(self.h.client_address[0],'writing-order',7):return self.error(429,'Too many orders; try again later.')
         try:
-            data=self.h.json_body()
-            title=parse_text(data,'title',150);category=parse_text(data,'category',80)
-            brief=parse_text(data,'brief',4000);deadline=parse_text(data,'deadline',10)
+            # A normal JSON form is too small for file uploads: bounded envelope, maximum 3 documents.
+            length=int(self.h.headers.get('Content-Length','0'))
+            if not 0<length<=13_000_000:return self.error(413,'Order upload exceeds the 9 MB combined document limit.')
+            data=json.loads(self.h.rfile.read(length))
+            title=parse_text(data,'title',150)
+            category=parse_text(data,'category',80)
+            public_summary=parse_text(data,'publicSummary',600,False) or (title+' — details shared privately after writer selection.')
+            brief=parse_text(data,'brief',8000)
+            deadline=parse_text(data,'deadline',10)
             budget=int(data.get('budgetKES',0))
             if category not in CATEGORIES:raise ValueError('Choose a valid writing service.')
-            if len(brief)<25:raise ValueError('Provide at least 25 characters describing the work.')
-            if budget<0 or budget>10000000:raise ValueError('Enter a reasonable budget or zero for discussion.')
+            if len(public_summary)<25 or len(brief)<25:raise ValueError('Describe the public summary and full instructions.')
+            if not 0<=budget<=10000000:raise ValueError('Enter a valid budget.')
             datetime.strptime(deadline,'%Y-%m-%d')
             if deadline < datetime.now(timezone.utc).strftime('%Y-%m-%d'):raise ValueError('Deadline must be today or later.')
             if data.get('integrityConsent') is not True:
-                raise ValueError('Confirm this order is for permitted support, not someone completing graded academic work in your name.')
-        except (ValueError,TypeError):return self.error(400,'Check title, service, brief, deadline, budget and integrity agreement.')
-        oid=str(uuid.uuid4());now=utc(); events=[]
-        with self.db() as db:
-            db.execute('''INSERT INTO writing_orders(id,clientId,title,category,brief,deadline,budgetKES,status,createdAt,updatedAt)
-                VALUES(?,?,?,?,?,?,?,'open',?,?)''',(oid,s['id'],title,category,brief,deadline,budget,now,now))
-            self._notify(db,s['email'],'Prowell Writing — request received',
-                 f'Your request "{title}" was posted for writers to bid. Track proposals in your Writing dashboard.\nhttps://prowelljobs.com/writing.html',
-                 'writing_order_receipt',oid,events)
-            admin=os.getenv('ADMIN_NOTIFICATION_EMAIL','prowellofficial@gmail.com')
-            self._notify(db,admin,'New Prowell Writing order',f'A new permitted writing support request is open: {title}. Review at https://prowelljobs.com/writing-admin.html',
-                 'writing_order_admin',oid,events)
+                raise ValueError('Confirm that this work is permitted writing support.')
+            attachments=data.get('attachments',[])
+            if not isinstance(attachments,list) or len(attachments)>3:raise ValueError('Up to three supporting documents are allowed.')
+            prepared=[]
+            for raw in attachments:
+                if not isinstance(raw,dict):raise ValueError('Invalid attachment metadata.')
+                prepared.append(validate_file(raw.get('filename',''),raw.get('contentBase64','')))
+            if sum(len(f[2]) for f in prepared)>9*1024*1024:
+                raise ValueError('Combined attachments must be under 9 MB.')
+        except (ValueError,TypeError,json.JSONDecodeError,UnicodeDecodeError) as exc:
+            return self.error(400,str(exc))
+        oid=str(uuid.uuid4());now=utc(); events=[];saved=[]
+        try:
+            with self.db() as db:
+                db.execute('''INSERT INTO writing_orders(id,clientId,title,category,brief,deadline,
+                    budgetKES,status,createdAt,updatedAt,publicSummary)
+                    VALUES(?,?,?,?,?,?,?,'open',?,?,?)''',
+                    (oid,sess['id'],title,category,brief,deadline,budget,now,now,public_summary))
+                if prepared:
+                    root=_private_root(self.h)
+                    for name,mime,blob in prepared:
+                        fid=str(uuid.uuid4());storage=fid+Path(name).suffix.lower()
+                        target=root/storage
+                        with open(target,'xb') as out:out.write(blob)
+                        os.chmod(target,0o600)
+                        saved.append(target)
+                        db.execute('''INSERT INTO writing_order_files
+                            (id,orderId,uploadedBy,storedName,originalName,mimeType,fileSize,createdAt)
+                            VALUES(?,?,?,?,?,?,?,?)''',
+                            (fid,oid,sess['id'],storage,name,mime,len(blob),now))
+                self._notify(db,sess['email'],'Prowell Writing — order submitted',
+                    f'Your request "{title}" is available for writer bidding. The full instructions and uploaded files remain private until you select a writer.\nhttps://prowelljobs.com/dashboard.html',
+                    'writing_order_receipt',oid,events)
+                self._notify(db,os.getenv('ADMIN_NOTIFICATION_EMAIL','prowellofficial@gmail.com'),
+                    'New writing request — Prowell Jobs',
+                    f'A writing support project "{title}" is open for bids. Review from the private admin page.',
+                    'writing_order_admin',oid,events)
+        except Exception:
+            for file in saved:file.unlink(missing_ok=True)
+            raise
         self._dispatch_emails(events)
-        return self.h.send_json(201,{'message':'Request posted; writers can bid.','id':oid})
+        return self.h.send_json(201,{'message':'Order posted for members to bid. Private instructions are locked until you choose a writer.','id':oid})
 
     def _bid(self,order_id):
-        s,err=self._get_session({'writer','jobseeker'},True)
+        s,err=self._get_session(write=True)
         if err:return self.error(401 if not s else 403,err)
         if not self.rate(self.h.client_address[0],'writing-bid',15):return self.error(429,'Too many bids; try again later.')
         try:
@@ -221,31 +308,62 @@ class Marketplace:
         self._dispatch_emails(events)
         return self.h.send_json(201,{'message':'Your proposal was submitted to the client.','id':bid_id})
 
+    def _assign_bid(self,order_id,bid_id,actor):
+        # Centralized assignment guarantees that client/admin cannot choose two writers.
+        events=[]
+        with self.db() as db:
+            order=db.execute('SELECT * FROM writing_orders WHERE id=?',(order_id,)).fetchone()
+            if not order:return self.error(404,'Request not found.')
+            if actor!='administrator' and order['clientId']!=actor:
+                return self.error(403,'Only the client or administrator can select a writer.')
+            if order['status']!='open':return self.error(409,'This request already has a selected writer.')
+            bid=db.execute('''SELECT b.*,m.email,m.fullName FROM writing_bids b
+                JOIN members m ON m.id=b.writerId WHERE b.id=? AND b.orderId=?''',(bid_id,order_id)).fetchone()
+            if not bid:return self.error(404,'That writer has not bid on this request.')
+            update=db.execute("UPDATE writing_orders SET status='assigned',chosenBidId=?,assignedBy=?,updatedAt=? WHERE id=? AND status='open'",(bid_id,actor,utc(),order_id))
+            if not update.rowcount:return self.error(409,'A writer has already been assigned.')
+            db.execute("UPDATE writing_bids SET status=CASE WHEN id=? THEN 'selected' ELSE 'not_selected' END WHERE orderId=?",
+                       (bid_id,order_id))
+            db.execute('INSERT INTO writing_assignment_audit VALUES (?,?,?,?,?)',
+                       (str(uuid.uuid4()),order_id,bid_id,actor,utc()))
+            client=db.execute('SELECT email FROM members WHERE id=?',(order['clientId'],)).fetchone()
+            self._notify(db,bid['email'],'You were selected — Prowell Writing',
+                f'You have been selected for "{order["title"]}". Log in to access the private instructions and supporting files.\nhttps://prowelljobs.com/writing.html',
+                'writing_bid_selected',order_id,events)
+            if client:
+                selection=('Prowell Jobs administration' if actor=='administrator' else 'You')
+                self._notify(db,client['email'],'Writer selected for your Prowell Writing project',
+                    f'{selection} selected {bid["fullName"]} for "{order["title"]}". The selected writer can now access your private instructions and start work.\nhttps://prowelljobs.com/writing.html',
+                    'writing_writer_assigned',order_id,events)
+        self._dispatch_emails(events)
+        return self.h.send_json(200,{'message':'Writer assigned. Only this writer can now view the instructions and upload work for administrator approval.'})
+
     def _choose(self,order_id):
         s,err=self._get_session({'client','employer'},True)
         if err:return self.error(401 if not s else 403,err)
         try:data=self.h.json_body();bid_id=parse_text(data,'bidId',70)
         except ValueError as exc:return self.error(400,str(exc))
-        events=[]
+        return self._assign_bid(order_id,bid_id,s['id'])
+
+    def _admin_bids(self,order_id):
+        if not self.h.authorized():return self.error(401,'Admin access required.')
         with self.db() as db:
-            order=db.execute('SELECT * FROM writing_orders WHERE id=?',(order_id,)).fetchone()
-            if not order:return self.error(404,'Request not found.')
-            if order['clientId']!=s['id']:return self.error(403,'Only the client can select a writer.')
-            if order['status']!='open':return self.error(409,'The writer has already been selected.')
-            bid=db.execute('''SELECT b.*,m.email FROM writing_bids b JOIN members m ON m.id=b.writerId
-                WHERE b.id=? AND b.orderId=?''',(bid_id,order_id)).fetchone()
-            if not bid:return self.error(404,'Proposal not found for this request.')
-            updated=db.execute("UPDATE writing_orders SET status='assigned',chosenBidId=?,updatedAt=? WHERE id=? AND status='open'",(bid_id,utc(),order_id))
-            if not updated.rowcount:return self.error(409,'Another writer has already been selected.')
-            db.execute("UPDATE writing_bids SET status=CASE WHEN id=? THEN 'selected' ELSE 'not_selected' END WHERE orderId=?",(bid_id,order_id))
-            self._notify(db,bid['email'],'You were selected — Prowell Writing',
-                f'Your proposal was selected for "{order["title"]}". Sign in to upload the permitted deliverable by the agreed deadline.\nhttps://prowelljobs.com/writing.html',
-                'writing_bid_selected',order_id,events)
-        self._dispatch_emails(events)
-        return self.h.send_json(200,{'message':'Writer selected. They may now upload a deliverable for review.'})
+            row=db.execute('SELECT id,title,status FROM writing_orders WHERE id=?',(order_id,)).fetchone()
+            if not row:return self.error(404,'Request not found.')
+            bids=db.execute('''SELECT b.id,b.orderId,b.amountKES,b.days,b.proposal,b.status,b.createdAt,
+                m.fullName AS writerName,m.email AS writerEmail FROM writing_bids b
+                JOIN members m ON m.id=b.writerId WHERE b.orderId=? ORDER BY b.createdAt''',(order_id,)).fetchall()
+        return self.h.send_json(200,{'order':dict(row),'bids':[dict(x) for x in bids]})
+
+    def _admin_choose(self,order_id):
+        if not self.h.authorized():return self.error(401,'Admin access required.')
+        if not self.h.admin_write_authorized():return self.error(403,'Invalid admin session validation token.')
+        try:data=self.h.json_body();bid_id=parse_text(data,'bidId',70)
+        except ValueError as exc:return self.error(400,str(exc))
+        return self._assign_bid(order_id,bid_id,'administrator')
 
     def _upload(self,order_id):
-        s,err=self._get_session({'writer','jobseeker'},True)
+        s,err=self._get_session(write=True)
         if err:return self.error(401 if not s else 403,err)
         if not self.rate(self.h.client_address[0],'writing-upload',12):return self.error(429,'Too many uploads; try again later.')
         try:
@@ -316,7 +434,9 @@ class Marketplace:
                 FROM writing_orders o JOIN members m ON m.id=o.clientId ORDER BY o.createdAt DESC LIMIT 250''').fetchall()
             files=db.execute('''SELECT id,orderId,originalName,fileSize,status,createdAt FROM writing_deliverables
               ORDER BY createdAt DESC LIMIT 250''').fetchall()
-        return self.h.send_json(200,{'orders':[dict(x) for x in rows], 'files':[dict(x) for x in files]})
+            attachments=db.execute('''SELECT id,orderId,originalName,fileSize,createdAt FROM writing_order_files
+              ORDER BY createdAt DESC LIMIT 250''').fetchall()
+        return self.h.send_json(200,{'orders':[dict(x) for x in rows], 'files':[dict(x) for x in files], 'attachments':[dict(x) for x in attachments]})
 
     def _review(self,order_id):
         if not self.h.authorized():return self.error(401,'Admin access required.')
@@ -359,6 +479,7 @@ class Marketplace:
         path=urlsplit(self.h.path).path
         parts=path.strip('/').split('/')
         if path=='/api/writing/orders' and method=='GET':return self._orders_public()
+        if len(parts)==5 and parts[:3]==['api','writing','orders'] and parts[4]=='instructions' and method=='GET':return self._order_detail(parts[3])
         if path=='/api/writing/my' and method=='GET':return self._my()
         if path=='/api/admin/writing/orders' and method=='GET':return self._admin_orders()
         if len(parts)==5 and parts[:3]==['api','writing','orders']:
@@ -368,7 +489,12 @@ class Marketplace:
             if parts[4]=='choose' and method=='POST':return self._choose(oid)
             if parts[4]=='deliver' and method=='POST':return self._upload(oid)
         if path=='/api/writing/orders' and method=='POST':return self._create_order()
+        if len(parts)==4 and parts[:3]==['api','writing','attachments'] and method=='GET':return self._instruction_file_download(parts[3])
+        if len(parts)==5 and parts[:4]==['api','admin','writing','attachments'] and method=='GET':return self._instruction_file_download(parts[4],True)
         if len(parts)==4 and parts[:3]==['api','writing','files'] and method=='GET':return self._file_download(parts[3])
         if len(parts)==5 and parts[:4]==['api','admin','writing','files'] and method=='GET':return self._file_download(parts[4],True)
+        if len(parts)==6 and parts[:4]==['api','admin','writing','orders']:
+            if parts[5]=='bids' and method=='GET':return self._admin_bids(parts[4])
+            if parts[5]=='choose' and method=='POST':return self._admin_choose(parts[4])
         if len(parts)==5 and parts[:4]==['api','admin','writing','orders'] and method=='POST':return self._review(parts[4])
         return self.error(404,'Writing endpoint not found.')

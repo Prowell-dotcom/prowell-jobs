@@ -119,6 +119,11 @@ def initialize_db():
             keyFingerprint TEXT NOT NULL)''')
         db.execute('''CREATE TABLE IF NOT EXISTS admin_tab_views (
             section TEXT PRIMARY KEY, seenAt TEXT NOT NULL)''')
+        # Singleton owner: unique fixed primary key makes administrator setup one-time.
+        db.execute('''CREATE TABLE IF NOT EXISTS admin_owner (
+            id INTEGER PRIMARY KEY CHECK (id=1), email TEXT COLLATE NOCASE NOT NULL UNIQUE,
+            fullName TEXT NOT NULL, passwordSalt TEXT NOT NULL,
+            passwordHash TEXT NOT NULL, createdAt TEXT NOT NULL)''')
         db.execute('CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON admin_sessions(expiresAt)')
         db.execute('CREATE INDEX IF NOT EXISTS idx_notifications_retry ON notification_outbox(status,nextAttemptAt)')
         db.execute('CREATE INDEX IF NOT EXISTS idx_jobs_status_created ON jobs(status, createdAt DESC)')
@@ -638,9 +643,15 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def admin_owner_exists(self):
+        with db_connection() as db:
+            return db.execute('SELECT 1 FROM admin_owner WHERE id=1').fetchone() is not None
+
     def _bearer_authorized(self):
-        # Existing admin API clients continue to work, but the browser no longer stores the key.
-        return hmac.compare_digest(self.headers.get('Authorization', ''), f'Bearer {ADMIN_KEY}')
+        # Legacy Railway ADMIN_KEY access works only before the sole owner is created.
+        # After bootstrap, use the owner's password-authenticated cookie session.
+        return (not self.admin_owner_exists() and
+                hmac.compare_digest(self.headers.get('Authorization', ''), f'Bearer {ADMIN_KEY}'))
 
     def admin_session(self):
         try:
@@ -682,25 +693,78 @@ class Handler(SimpleHTTPRequestHandler):
             value += f'; Max-Age={ADMIN_SESSION_SECONDS}'
         return value
 
-    def admin_login(self):
-        if not check_rate(self.client_address[0], 'admin-login', 12):
-            return self.send_json(429, {'error': 'Too many login attempts; try again later.'})
-        try:
-            payload = self.json_body()
-            key = payload.get('adminKey') if isinstance(payload, dict) else None
-        except ValueError as error:
-            return self.send_json(400, {'error': str(error)})
-        if not isinstance(key, str) or not hmac.compare_digest(key, ADMIN_KEY):
-            return self.send_json(401, {'error': 'Invalid administrator key.'})
+    def _issue_admin_session(self):
         token = secrets.token_urlsafe(32)
         csrf = secrets.token_urlsafe(32)
         expiry = time.time() + ADMIN_SESSION_SECONDS
         with db_connection() as db:
-            db.execute('DELETE FROM admin_sessions WHERE expiresAt < ? OR keyFingerprint != ?', (time.time(), ADMIN_KEY_FINGERPRINT))
+            db.execute('DELETE FROM admin_sessions WHERE expiresAt < ? OR keyFingerprint != ?',
+                       (time.time(), ADMIN_KEY_FINGERPRINT))
             db.execute('''INSERT INTO admin_sessions(tokenHash,csrfToken,createdAt,expiresAt,keyFingerprint)
-                VALUES (?,?,?,?,?)''', (hashlib.sha256(token.encode()).hexdigest(), csrf, timestamp(), expiry, ADMIN_KEY_FINGERPRINT))
+                VALUES (?,?,?,?,?)''', (hashlib.sha256(token.encode()).hexdigest(),
+                                        csrf, timestamp(), expiry, ADMIN_KEY_FINGERPRINT))
         return self.send_json(200, {'authenticated': True, 'csrfToken': csrf, 'expiresAt': expiry},
                               {'Set-Cookie': self.session_cookie(token)})
+
+    def admin_bootstrap(self):
+        # Private, one-time owner provisioning. Nothing in member signup can create admins.
+        if not check_rate(self.client_address[0], 'admin-owner-setup', 5):
+            return self.send_json(429, {'error': 'Too many administrator setup attempts.'})
+        if self.admin_owner_exists():
+            return self.send_json(409, {'error': 'Administrator registration is permanently closed. Please sign in.'})
+        try:
+            payload = self.json_body()
+            setup_key = payload.get('setupKey', '')
+            email = checked_email(field(payload, 'email', 180, True), True).lower()
+            name = field(payload, 'fullName', 120, True)
+            password = payload.get('password')
+            confirm = payload.get('confirmPassword')
+            if not isinstance(setup_key, str) or not hmac.compare_digest(setup_key, ADMIN_KEY):
+                return self.send_json(401, {'error': 'Administrator setup authorization failed.'})
+            if not isinstance(password, str) or not 12 <= len(password) <= 128:
+                raise ValueError('Administrator password must contain 12–128 characters.')
+            if password != confirm:
+                raise ValueError('Administrator passwords do not match.')
+            if len(name) < 2:
+                raise ValueError('Enter the administrator account name.')
+        except ValueError as exc:
+            return self.send_json(400, {'error': str(exc)})
+        salt, digest = password_hash(password)
+        try:
+            with db_connection() as db:
+                db.execute('''INSERT INTO admin_owner
+                    (id,email,fullName,passwordSalt,passwordHash,createdAt)
+                    VALUES (1,?,?,?,?,?)''', (email,name,salt,digest,timestamp()))
+                # Any previously issued setup-key admin cookies are invalidated.
+                db.execute('DELETE FROM admin_sessions')
+        except sqlite3.IntegrityError:
+            return self.send_json(409, {'error': 'Administrator account already created.'})
+        return self._issue_admin_session()
+
+    def admin_login(self):
+        if not check_rate(self.client_address[0], 'admin-login', 8):
+            return self.send_json(429, {'error': 'Too many login attempts; try again later.'})
+        try:
+            payload = self.json_body()
+            if not isinstance(payload, dict):
+                raise ValueError('Invalid sign-in request.')
+        except ValueError as error:
+            return self.send_json(400, {'error': str(error)})
+        with db_connection() as db:
+            owner = db.execute('SELECT email,passwordSalt,passwordHash FROM admin_owner WHERE id=1').fetchone()
+        if owner:
+            email = payload.get('email', '')
+            password = payload.get('password', '')
+            if (not isinstance(email, str) or not isinstance(password, str) or
+                not hmac.compare_digest(email.strip().lower(), owner['email'].lower()) or
+                not verify_password(password, owner['passwordSalt'], owner['passwordHash'])):
+                return self.send_json(401, {'error': 'Incorrect administrator credentials.'})
+        else:
+            # Existing Railway ADMIN_KEY remains a setup-time fallback only.
+            key = payload.get('adminKey', '')
+            if not isinstance(key, str) or not hmac.compare_digest(key, ADMIN_KEY):
+                return self.send_json(401, {'error': 'Set up the owner account with your private ADMIN_KEY first.'})
+        return self._issue_admin_session()
 
     def admin_logout(self):
         session = self.admin_session()
@@ -1009,9 +1073,12 @@ class Handler(SimpleHTTPRequestHandler):
             return self._verify_member_email()
         if path == '/api/member/dashboard':
             return self._member_dashboard()
+        if path == '/api/admin/bootstrap/status':
+            return self.send_json(200, {'registrationOpen': not self.admin_owner_exists()})
         if path == '/api/admin/session':
             session = self.admin_session()
             return self.send_json(200, {'authenticated': bool(session),
+                'ownerConfigured': self.admin_owner_exists(),
                 'csrfToken': session['csrfToken'] if session else None,
                 'expiresAt': session['expiresAt'] if session else None})
         if path == '/api/health':
@@ -1056,6 +1123,13 @@ class Handler(SimpleHTTPRequestHandler):
         allowed = {'/','/index.html','/jobs.html','/account.html','/dashboard.html','/writing.html','/writing-admin.html','/writing.css','/writing.js','/writing-admin.js','/membership.css','/member.js','/styles.css','/app.js','/admin.html','/admin.js','/favicon.svg','/robots.txt','/sitemap.xml'}
         if path not in allowed and not (path.startswith('/assets/') and path.endswith(('.svg','.png','.jpg','.webp')) and '..' not in path):
             return self.send_json(404,{'error':'File not found.'})
+        if path in ('/jobs.html','/writing.html','/dashboard.html') and not self._member_session():
+            from urllib.parse import quote
+            self.send_response(302)
+            self.send_header('Location','/account.html?mode=login&next='+quote(path,safe=''))
+            self.send_header('Cache-Control','no-store')
+            self.end_headers()
+            return
         if path == '/':
             self.path = '/index.html'
         super().do_GET()
@@ -1074,6 +1148,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._member_forgot()
         if path == '/api/member/reset':
             return self._member_reset()
+        if path == '/api/admin/bootstrap':
+            return self.admin_bootstrap()
         if path == '/api/admin/login':
             return self.admin_login()
         if path == '/api/admin/logout':

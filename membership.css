@@ -25,3 +25,13 @@
 .auth-new-user {margin:0;text-align:center;color:#738299;font-size:12px}
 .auth-new-user a {color:#245d9e;font-weight:800;text-decoration:underline;text-underline-offset:3px}
 .auth-form label:focus-within {color:#1a4a7b}
+
+/* Owner portal, deliberately never included as a public member signup role */
+.auth-switch [data-admin-entry]{font-weight:800}
+.admin-owner-section h3{font-size:1.5rem;margin:8px 0}
+.admin-owner-section .auth-form{margin-top:20px}
+.admin-owner-label{font-size:.73rem;font-weight:900;letter-spacing:.12em;color:#5157d9;margin:16px 0 8px}
+.admin-owner-section .auth-status{display:block;margin:12px 0}
+.admin-owner-section .auth-status[hidden]{display:none}
+
+.dashboard-workspace-panel{background:#fff;border:1px solid #dce7f5;border-radius:22px;padding:24px;margin:24px 0;box-shadow:0 10px 30px #13254a0b}.dashboard-workspace-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:18px}.workspace-link{display:flex;flex-direction:column;gap:6px;padding:22px;border:1px solid #dce6f5;background:linear-gradient(160deg,#edf9ff,#fff);border-radius:15px;color:#12284b;text-decoration:none;min-height:112px}.workspace-link:hover{border-color:#5056e8;transform:translateY(-2px)}.workspace-link strong{font-size:1rem}.workspace-link span{font-size:.78rem;color:#516584}@media(max-width:800px){.dashboard-workspace-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:470px){.dashboard-workspace-grid{grid-template-columns:1fr}}
