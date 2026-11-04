@@ -4,6 +4,12 @@ import json
 import os
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError
+import re
+
+
+class NotificationDeliveryError(RuntimeError):
+    """Sanitized provider error for private admin diagnostics."""
 
 
 def email_configured():
@@ -19,7 +25,7 @@ def send_notification(channel, recipient, subject, body, idempotency_key):
     """Send one notice; caller handles retries. Never log secrets or provider response bodies."""
     if channel == 'email':
         if not email_configured():
-            raise RuntimeError('Email provider is not configured')
+            raise NotificationDeliveryError('Email provider not configured (check RESEND_API_KEY and NOTIFY_FROM_EMAIL)')
         sender=os.environ['NOTIFY_FROM_EMAIL']
         data=json.dumps({'from':f'Prowell Jobs <{sender}>','to':[recipient],
                          'subject':subject,'text':body,'reply_to':['prowellofficial@gmail.com']}).encode()
@@ -28,7 +34,7 @@ def send_notification(channel, recipient, subject, body, idempotency_key):
             'Content-Type':'application/json','Idempotency-Key':idempotency_key[:256]})
     elif channel == 'sms':
         if not sms_configured():
-            raise RuntimeError('SMS provider is not configured')
+            raise NotificationDeliveryError('SMS provider not configured')
         sid=os.environ['TWILIO_ACCOUNT_SID']
         params={'To':recipient,'Body':body[:500]}
         if os.getenv('TWILIO_MESSAGING_SERVICE_SID'):
@@ -42,6 +48,20 @@ def send_notification(channel, recipient, subject, body, idempotency_key):
                             'Content-Type':'application/x-www-form-urlencoded'})
     else:
         raise ValueError('Unsupported notification channel')
-    with urlopen(request,timeout=8) as reply:
-        if not 200 <= reply.status < 300:
-            raise RuntimeError('Provider returned non-success status')
+    try:
+        with urlopen(request,timeout=6) as reply:
+            if not 200 <= reply.status < 300:
+                raise NotificationDeliveryError(f'{channel.upper()} HTTP {reply.status}')
+    except HTTPError as exc:
+        # Expose only status and sanitized error category, never response text
+        # containing private sender or recipient information.
+        label = ''
+        try:
+            response = json.loads(exc.read(2048).decode('utf-8','replace'))
+            if isinstance(response,dict):
+                label = re.sub(r'[^A-Za-z0-9_-]', '', str(response.get('name','')))[:48]
+        except (ValueError,UnicodeError):
+            pass
+        raise NotificationDeliveryError(
+            f'{channel.upper()} HTTP {exc.code}' + (f' {label}' if label else '')
+        ) from None

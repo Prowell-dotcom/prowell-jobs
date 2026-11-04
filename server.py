@@ -23,7 +23,7 @@ from http.cookies import SimpleCookie, CookieError
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
-from notifications import email_configured, sms_configured, send_notification
+from notifications import email_configured, sms_configured, send_notification, NotificationDeliveryError
 
 ROOT = Path(__file__).resolve().parent
 DATABASE_PATH = Path(os.getenv('DATABASE_PATH', str(ROOT / 'prowell-jobs.sqlite3'))).resolve()
@@ -376,12 +376,15 @@ def queue_job_notices(db, job, event):
     if event == 'submitted':
         admin_email = os.getenv('ADMIN_NOTIFICATION_EMAIL', 'prowellofficial@gmail.com').strip()
         admin_sms = os.getenv('ADMIN_NOTIFICATION_PHONE','').strip()
-        admin_subject = f'Prowell Jobs: new vacancy requires review ({ref})'
+        admin_subject = f'Action required: new Prowell Jobs vacancy - {title} ({ref})'
         admin_body = (f'New vacancy awaiting administrator review: {title} for {company}.\n'
                       f'Reference: {ref}\nReview securely at https://prowelljobs.com/admin.html\n'
                       'Do not disclose your administrator key.')
-        if email_configured() and email_valid(admin_email):
-            items.append(('admin','email',admin_email,admin_subject,admin_body))
+        # Preserve an admin alert even while Resend is unavailable.
+        if not email_valid(admin_email):
+            print('[Prowell notifications] Invalid ADMIN_NOTIFICATION_EMAIL; using Prowell official inbox.',flush=True)
+            admin_email='prowellofficial@gmail.com'
+        items.append(('admin','email',admin_email,admin_subject,admin_body))
         if sms_configured() and re.fullmatch(r'\+[1-9]\d{7,14}',admin_sms):
             items.append(('admin','sms',admin_sms,admin_subject,admin_body))
 
@@ -403,31 +406,48 @@ def queue_job_notices(db, job, event):
     return len(items)
 
 
-def process_notification_outbox(max_batch=10):
-    processed=0
+def deliver_notification_event(event_id):
+    """Claim and attempt an alert immediately; failed attempts remain queued."""
+    now = time.time()
     with db_connection() as db:
-        rows=db.execute('''SELECT * FROM notification_outbox
-            WHERE status IN ('pending','retry') AND attempts < 4 AND nextAttemptAt <= ?
-            ORDER BY createdAt LIMIT ?''',(time.time(),max_batch)).fetchall()
-    for item in rows:
-        # Provider errors are never returned to the visitor. Only status codes are logged.
-        try:
-            send_notification(item['channel'],item['recipient'],item['subject'],item['body'],item['eventId'])
-            status='sent'; failure=None; sent=timestamp(); retry=0
-        except Exception as exc:
-            attempts=item['attempts']+1
-            status='failed' if attempts >= 4 else 'retry'
-            failure=type(exc).__name__
-            retry=time.time()+min(3600,60*2**attempts)
-            sent=None
-            print(f'[Prowell notifications] {item["channel"]}: {failure} (attempt {attempts})',flush=True)
-        with db_connection() as db:
-            db.execute('''UPDATE notification_outbox SET status=?,attempts=attempts+1,
-                          nextAttemptAt=?,lastError=?,sentAt=? WHERE eventId=?''',
-                       (status,retry,failure,sent,item['eventId']))
-        processed+=1
-    return processed
+        row = db.execute('''SELECT * FROM notification_outbox WHERE eventId=?
+            AND attempts<4 AND nextAttemptAt<=?
+            AND status IN ('pending','retry','sending')''', (event_id, now)).fetchone()
+        if row is None:
+            return None
+        claim = db.execute('''UPDATE notification_outbox
+            SET status='sending',nextAttemptAt=?
+            WHERE eventId=? AND attempts<4 AND nextAttemptAt<=?
+            AND status IN ('pending','retry','sending')''', (now+90, event_id, now))
+        if claim.rowcount != 1:
+            return None
+    try:
+        send_notification(row['channel'],row['recipient'],row['subject'],row['body'],row['eventId'])
+        status='sent'; last_error=None; sent_at=timestamp(); retry_at=0
+    except Exception as exc:
+        attempts=row['attempts']+1
+        status='failed' if attempts >= 4 else 'retry'
+        # Never expose the provider response body, addresses, or API secrets.
+        last_error=(str(exc) if isinstance(exc, NotificationDeliveryError) else type(exc).__name__)[:130]
+        retry_at=time.time()+min(900,30*2**(attempts-1))
+        sent_at=None
+        print(f'[Prowell notifications] {row["kind"]} {row["channel"]}: '
+              f'{last_error} (attempt {attempts}; {status})',flush=True)
+    with db_connection() as db:
+        db.execute('''UPDATE notification_outbox SET status=?,attempts=attempts+1,
+            nextAttemptAt=?,lastError=?,sentAt=?
+            WHERE eventId=? AND status='sending' ''',
+            (status,retry_at,last_error,sent_at,event_id))
+    return status
 
+
+def process_notification_outbox(max_batch=10):
+    """Retry queued messages and recover interrupted delivery attempts."""
+    with db_connection() as db:
+        event_ids=[r['eventId'] for r in db.execute('''SELECT eventId FROM notification_outbox
+            WHERE status IN ('pending','retry','sending') AND attempts<4 AND nextAttemptAt<=?
+            ORDER BY createdAt LIMIT ?''',(time.time(),max_batch))]
+    return sum(deliver_notification_event(event_id) is not None for event_id in event_ids)
 
 def notification_loop():
     while True:
@@ -594,15 +614,20 @@ class Handler(SimpleHTTPRequestHandler):
             recent = db.execute("SELECT COUNT(*) AS n FROM notification_outbox WHERE kind='admin_test' AND createdAt>=?", (recent_cutoff,)).fetchone()['n']
             if recent:
                 return self.send_json(429, {'error': 'A test was queued recently. Check delivery history before trying again.'})
+            event_id = 'admin-test:' + str(uuid.uuid4())
             db.execute('''INSERT INTO notification_outbox
                 (eventId,jobId,kind,channel,recipient,subject,body,status,createdAt)
                 VALUES (?,?,?,?,?,?,?,'pending',?)''',
-                ('admin-test:'+str(uuid.uuid4()), 'admin-test', 'admin_test', 'email', recipient,
+                (event_id, 'admin-test', 'admin_test', 'email', recipient,
                  'Prowell Jobs — Email configuration test',
                  'This is a test email from the Prowell Jobs administrator dashboard. No job application data is included.',
                  timestamp()))
-        notification_wake.set()
-        return self.send_json(202, {'message': 'Test email queued for delivery. Refresh notifications to check its status.'})
+        status=deliver_notification_event(event_id)
+        notification_wake.set()  # Retry a failure automatically.
+        message=('Resend accepted the test email; check Resend Emails and your inbox.'
+                 if status=='sent' else
+                 'Email not yet accepted. View Notifications for the error and retry status.')
+        return self.send_json(202,{'message':message,'status':status or 'sending'})
 
     def json_body(self):
         try:
@@ -698,6 +723,11 @@ class Handler(SimpleHTTPRequestHandler):
         with db_connection() as db:
             db.execute(f'INSERT INTO {table} ({",".join(cols)}) VALUES ({",".join("?" for _ in cols)})',list(obj.values()))
             queued = queue_job_notices(db,obj,'submitted') if table == 'jobs' else 0
+        if queued and table == 'jobs':
+            # Make a bounded provider attempt immediately after DB commit.
+            # If delivery fails the application still saves the vacancy and
+            # automatic retries continue in the background.
+            deliver_notification_event(f'job:{obj["id"]}:submitted:admin:email')
         if queued: notification_wake.set()
         response = {'message':'Submitted for review. It will not appear publicly until approved.','id':obj['id']}
         if withdrawal:
