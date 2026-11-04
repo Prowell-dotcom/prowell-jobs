@@ -2,15 +2,48 @@
 (()=>{'use strict';
 const $=x=>document.querySelector(x),e=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const state={session:null,orders:[],mine:null};
+const queuedOrderFiles=[];
+const ORDER_MAX_FILES=5,ORDER_MAX_FILE_BYTES=20*1024*1024,ORDER_MAX_TOTAL_BYTES=60*1024*1024;
 async function req(path,method='GET',data){const o={credentials:'same-origin',method,headers:{Accept:'application/json'}};if(data!==undefined){o.headers['Content-Type']='application/json';o.body=JSON.stringify(data)}if(method!=='GET'&&state.session?.csrfToken)o.headers['X-Member-CSRF']=state.session.csrfToken;const res=await fetch(path,o);const j=await res.json();if(!res.ok)throw Error(j.error||'Unable to complete request');return j}
 function msg(id,t,bad=false){const n=$(id);if(n){n.textContent=t;n.classList.toggle('error',bad)}}
 function human(s){return {'open':'Open for bids','assigned':'Writer selected','submitted':'Awaiting admin approval','delivered':'File ready','pending':'Awaiting review','approved':'Approved','rejected':'Needs revision','selected':'Selected','not_selected':'Not selected','cancelled':'Cancelled by client'}[s]||s}
+function orderQueueBytes(){return queuedOrderFiles.reduce((sum,f)=>sum+f.size,0)}
+function formatMB(size){return (size/(1024*1024)).toFixed(2)+' MB'}
+function renderOrderFiles(){
+ const node=$('#orderAttachmentsList');if(!node)return;node.replaceChildren();
+ if(!queuedOrderFiles.length){node.textContent='No supporting files selected.';return;}
+ const summary=document.createElement('p');summary.className='upload-summary';
+ summary.textContent=queuedOrderFiles.length+' of '+ORDER_MAX_FILES+' attachments · '+formatMB(orderQueueBytes())+' of '+formatMB(ORDER_MAX_TOTAL_BYTES);
+ node.appendChild(summary);
+ queuedOrderFiles.forEach((file,index)=>{
+  const line=document.createElement('div');line.className='upload-file-row';
+  const label=document.createElement('span');label.textContent=file.name+' · '+formatMB(file.size);
+  const remove=document.createElement('button');remove.type='button';remove.textContent='Remove';
+  remove.addEventListener('click',()=>{queuedOrderFiles.splice(index,1);renderOrderFiles()});
+  line.append(label,remove);node.appendChild(line);
+ });
+}
+function queueOrderFiles(files){
+ let warning='';
+ for(const f of files){
+  if(!f.size||f.size>ORDER_MAX_FILE_BYTES){warning='Each file must be between 1 byte and 20 MB: '+f.name;continue;}
+  if(queuedOrderFiles.some(old=>old.name===f.name&&old.size===f.size&&old.lastModified===f.lastModified))continue;
+  if(queuedOrderFiles.length>=ORDER_MAX_FILES){warning='Maximum five supporting files per writing order.';break;}
+  if(orderQueueBytes()+f.size>ORDER_MAX_TOTAL_BYTES){warning='Combined files must stay within 60 MB.';continue;}
+  queuedOrderFiles.push(f);
+ }
+ renderOrderFiles();if(warning)msg('#orderMsg',warning,true);
+}
+function setupOrderFiles(){const input=$('#orderAttachments');if(!input)return;
+ input.addEventListener('change',()=>{queueOrderFiles(Array.from(input.files||[]));input.value=''});
+ renderOrderFiles();
+}
 async function init(){try{state.session=await req('/api/member/me')}catch{state.session={authenticated:false}}
   const cat=$('#orderCategory');if(cat){const result=await req('/api/writing/orders');state.orders=result.orders;cat.innerHTML='<option value="">Choose a service</option>'+result.categories.map(x=>`<option>${e(x)}</option>`).join('');renderOrders()}else{const result=await req('/api/writing/orders');state.orders=result.orders;renderOrders()}
   const role=state.session.member?.role;
   if(['client','employer'].includes(role)&&state.session.member.emailVerified){$('#orderForm').hidden=false;$('#clientLogin').hidden=true}
   if(state.session.authenticated)await refreshMine();else $('#workspaceContent').innerHTML='<p>Already registered? <a href="/account.html?mode=login&next=%2Fwriting.html">Log in</a> or <a href="/account.html?mode=signup&role=writer&next=%2Fwriting.html">create a free account</a>.</p>';
-  if($('#orderForm'))$('#orderForm').addEventListener('submit',postOrder);
+  if($('#orderForm')){$('#orderForm').addEventListener('submit',postOrder);setupOrderFiles();}
   if($('#orders')){$('#orders').addEventListener('submit',bid);$('#orders').addEventListener('click',ev=>{const b=ev.target.closest('[data-open-bid]');if(!b)return;const f=$('#orders').querySelector('[data-bid="'+b.dataset.openBid+'"]');if(!f)return;f.hidden=!f.hidden;b.setAttribute('aria-expanded',String(!f.hidden));if(!f.hidden)f.querySelector('input')?.focus()})}
   if($('#workspaceContent')){$('#workspaceContent').addEventListener('click',clickWorkspace);$('#workspaceContent').addEventListener('submit',submitUpload);$('#workspaceContent').addEventListener('submit',submitMessage)}
 }
@@ -33,12 +66,12 @@ n.innerHTML=state.orders.map(o=>{
 
 async function postOrder(ev){ev.preventDefault();const f=ev.currentTarget,submit=f.querySelector('[type="submit"]');submit.disabled=true;
 const d=Object.fromEntries(new FormData(f));delete d.attachments;d.budgetKES=Number(d.budgetKES);d.integrityConsent=Boolean(f.elements.integrityConsent.checked);
-try{const files=Array.from(f.elements.attachments.files||[]);if(files.length>5)throw Error('Upload up to five supporting documents.');
+try{const files=queuedOrderFiles.slice();if(files.length>5)throw Error('Upload up to five supporting documents.');
 if(files.reduce((total,file)=>total+file.size,0)>60*1024*1024)throw Error('Combined attachments must be 60 MB or smaller.');
 d.attachments=await Promise.all(files.map(async file=>{if(file.size>20*1024*1024)throw Error('Each attachment must be 20 MB or smaller.');
 const contentBase64=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(Error('Could not read file.'));reader.readAsDataURL(file)});
 return {filename:file.name,contentBase64}}));
-const r=await req('/api/writing/orders','POST',d);msg('#orderMsg',r.message);f.reset();await reload()}catch(x){msg('#orderMsg',x.message,true)}finally{submit.disabled=false}}
+const r=await req('/api/writing/orders','POST',d);msg('#orderMsg',r.message);f.reset();queuedOrderFiles.length=0;renderOrderFiles();await reload()}catch(x){msg('#orderMsg',x.message,true)}finally{submit.disabled=false}}
 async function bid(ev){const f=ev.target;if(!f.matches('[data-bid]'))return;ev.preventDefault();const d=Object.fromEntries(new FormData(f));d.amountKES=Number(d.amountKES);d.days=Number(d.days);try{await req('/api/writing/orders/'+encodeURIComponent(f.dataset.bid)+'/bids','POST',d);msg('#bidMsg','Proposal submitted successfully.');f.reset();await refreshMine()}catch(x){msg('#bidMsg',x.message,true)}}
 async function reload(){const d=await req('/api/writing/orders');state.orders=d.orders;renderOrders();await refreshMine()}
 async function refreshMine(){if(!state.session.authenticated)return;try{state.mine=await req('/api/writing/my');renderMine();renderOrders()}catch(x){msg('#workMsg',x.message,true)}}

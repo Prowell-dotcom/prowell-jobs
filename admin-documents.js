@@ -1,25 +1,53 @@
-/* Admin-only document sender: upload one file and email using the existing Resend setup. */
+/* Administrator-only, multi-attachment Resend sender; bounded in memory. */
 (()=>{'use strict';
 const $=s=>document.querySelector(s);
 let csrf='';
 let requestId=crypto.randomUUID();
-const MAX_BYTES=7*1024*1024;
+const selectedFiles=[];
+const MAX_FILES=5, MAX_BYTES=7*1024*1024, MAX_TOTAL_BYTES=15*1024*1024;
 const allowed=new Set(['pdf','doc','docx','xls','xlsx','ppt','pptx','txt','rtf','csv','odt','ods','odp','jpg','jpeg','png']);
 function alertStatus(message,type='info'){
  const el=$('#sendStatus');el.textContent=message;el.className='notice visible '+type;
 }
 function readable(n){return (n/(1024*1024)).toFixed(2)+' MB';}
-function validateFile(){
- const f=$('#documentFile').files[0];
- if(!f){$('#fileDetail').textContent='No file selected';return false;}
- const ext=f.name.split('.').pop().toLowerCase();
- $('#fileDetail').textContent=f.name+' · '+readable(f.size);
- if(!allowed.has(ext)){alertStatus('Please choose a supported document or image file.','error');return false;}
- if(!f.size||f.size>MAX_BYTES){alertStatus('The document must be larger than 0 bytes and no more than 7 MB.','error');return false;}
- $('#sendStatus').className='notice info';return true;
+function totalBytes(){return selectedFiles.reduce((n,f)=>n+f.size,0);}
+function renderFiles(){
+ const node=$('#fileDetail');node.replaceChildren();
+ if(!selectedFiles.length){node.textContent='No files selected';return;}
+ const summary=document.createElement('div');summary.className='file-count';
+ summary.textContent=selectedFiles.length+' of '+MAX_FILES+' files · '+readable(totalBytes())+' of '+readable(MAX_TOTAL_BYTES)+' total';
+ node.appendChild(summary);
+ selectedFiles.forEach((file,index)=>{
+  const row=document.createElement('div');row.className='file-row';
+  const label=document.createElement('span');label.textContent=file.name+' · '+readable(file.size);
+  const remove=document.createElement('button');remove.type='button';remove.textContent='Remove';
+  remove.setAttribute('aria-label','Remove '+file.name);
+  remove.addEventListener('click',()=>{selectedFiles.splice(index,1);renderFiles();});
+  row.append(label,remove);node.appendChild(row);
+ });
 }
-function arrayBufferToBase64(file){
- return new Promise((resolve,reject)=>{const r=new FileReader();r.onerror=()=>reject(new Error('Could not read the file.'));r.onload=()=>resolve(String(r.result).split(',')[1]);r.readAsDataURL(file);});
+function addFiles(files){
+ let problem='';
+ for(const file of files){
+  const ext=file.name.split('.').pop().toLowerCase();
+  if(!allowed.has(ext)){problem='Unsupported file type: '+file.name;continue;}
+  if(!file.size || file.size>MAX_BYTES){problem='Each file must be between 1 byte and 7 MB: '+file.name;continue;}
+  if(selectedFiles.some(f=>f.name===file.name && f.size===file.size && f.lastModified===file.lastModified))continue;
+  if(selectedFiles.length>=MAX_FILES){problem='You can attach up to five documents per email.';break;}
+  if(totalBytes()+file.size>MAX_TOTAL_BYTES){problem='Combined attachment size cannot exceed 15 MB.';continue;}
+  selectedFiles.push(file);
+ }
+ renderFiles();
+ if(problem)alertStatus(problem,'error');
+ else $('#sendStatus').className='notice info';
+}
+function validateFiles(){
+ if(!selectedFiles.length){alertStatus('Add at least one document before sending.','error');return false;}
+ if(selectedFiles.length>MAX_FILES||totalBytes()>MAX_TOTAL_BYTES){alertStatus('Attachment limit exceeded.','error');return false;}
+ return true;
+}
+function fileToBase64(file){
+ return new Promise((resolve,reject)=>{const r=new FileReader();r.onerror=()=>reject(new Error('Could not read '+file.name));r.onload=()=>resolve(String(r.result).split(',')[1]);r.readAsDataURL(file);});
 }
 async function history(){
  const list=$('#historyList');
@@ -46,24 +74,27 @@ async function init(){
   csrf=data.csrfToken;$('#sendButton').disabled=false;await history();
  }catch(e){alertStatus('Could not verify administrator session: '+e.message,'error');}
 }
-$('#documentFile').addEventListener('change',validateFile);
+$('#documentFile').addEventListener('change',ev=>{
+ addFiles(Array.from(ev.target.files||[]));ev.target.value=''; // Allow adding more files on later selections.
+});
 $('#senderForm').addEventListener('submit',async event=>{
- event.preventDefault();if(!csrf||!validateFile())return;
- const recipient=$('#recipient').value.trim();const subject=$('#subject').value.trim();
- const file=$('#documentFile').files[0];
+ event.preventDefault();if(!csrf||!validateFiles())return;
+ const recipient=$('#recipient').value.trim(),subject=$('#subject').value.trim();
  if(!$('#confirmSend').checked)return;
- if(!window.confirm('Send "'+file.name+'" to '+recipient+'?\n\nPlease verify the email address and document before confirming.'))return;
- const button=$('#sendButton');button.disabled=true;button.textContent='Sending document…';alertStatus('Uploading securely to Resend. Please keep this page open.');
+ const summary=selectedFiles.map(f=>f.name).join('\n');
+ if(!window.confirm('Send '+selectedFiles.length+' document(s) to '+recipient+'?\n\n'+summary+'\n\nPlease verify the address and files.'))return;
+ const button=$('#sendButton');button.disabled=true;button.textContent='Sending '+selectedFiles.length+' documents…';
+ alertStatus('Uploading attachments securely to Resend. Please keep this page open.');
  try{
-  const content=await arrayBufferToBase64(file);
+  const attachments=await Promise.all(selectedFiles.map(async f=>({filename:f.name,contentBase64:await fileToBase64(f)})));
   const res=await fetch('/api/admin/documents/send',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{
     'Content-Type':'application/json','Accept':'application/json','X-Admin-CSRF':csrf
-  },body:JSON.stringify({recipient,subject,message:$('#message').value,filename:file.name,fileBase64:content,requestId,confirmed:true})});
+  },body:JSON.stringify({recipient,subject,message:$('#message').value,attachments,requestId,confirmed:true})});
   const data=await res.json();if(!res.ok)throw Error(data.error||'Could not send email.');
   alertStatus(data.message+' Reference: '+data.emailId,'ok');requestId=crypto.randomUUID();
-  $('#senderForm').reset();$('#fileDetail').textContent='No file selected';await history();
+  selectedFiles.length=0;$('#senderForm').reset();renderFiles();await history();
  }catch(e){alertStatus('Not confirmed sent: '+e.message+'. Check your Resend dashboard before trying again.','error');}
- finally{button.disabled=false;button.textContent='Send Document by Email';}
+ finally{button.disabled=false;button.textContent='Send Documents by Email';}
 });
-init();
+renderFiles();init();
 })();

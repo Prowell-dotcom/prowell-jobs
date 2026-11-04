@@ -17,8 +17,10 @@ from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-MAX_DOCUMENT_BYTES = 7 * 1024 * 1024  # Leaves room under provider/email body limits.
-MAX_REQUEST_BYTES = 10 * 1024 * 1024
+MAX_DOCUMENT_BYTES = 7 * 1024 * 1024  # Each attachment.
+MAX_ATTACHMENTS = 5
+MAX_TOTAL_DOCUMENT_BYTES = 15 * 1024 * 1024  # Combined attachment bytes.
+MAX_REQUEST_BYTES = 22 * 1024 * 1024  # Base64 JSON overhead; remains bounded.
 ACCEPTED_EXTENSIONS = frozenset({
     '.pdf', '.doc', '.docx', '.txt', '.rtf', '.odt', '.ods', '.odp',
     '.xls', '.xlsx', '.ppt', '.pptx', '.csv', '.jpg', '.jpeg', '.png',
@@ -61,37 +63,52 @@ def validate_document(payload):
     message = _clean_text(payload.get('message', ''), 'Message', 3000, required=False)
     if not message:
         message = 'Please find the attached document.'
-    filename = _clean_text(payload.get('filename'), 'Filename', 120)
-    if any(c in filename for c in '/\\\r\n\0') or filename in ('.', '..'):
-        raise ValueError('Invalid attachment filename.')
-    ext = '.' + filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
-    if ext not in ACCEPTED_EXTENSIONS:
-        raise ValueError('Unsupported file type. Use PDF, Office documents, text, image, or OpenDocument files.')
-    encoded = payload.get('fileBase64')
-    if not isinstance(encoded, str) or len(encoded) > ((MAX_DOCUMENT_BYTES + 2) // 3) * 4 + 16:
-        raise ValueError('Attachment exceeds the 7 MB limit.')
-    try:
-        raw = base64.b64decode(encoded, validate=True)
-    except (ValueError, binascii.Error):
-        raise ValueError('The uploaded file could not be read.') from None
-    if not raw or len(raw) > MAX_DOCUMENT_BYTES:
-        raise ValueError('Choose a nonempty attachment under 7 MB.')
-    # Minimal magic checks to avoid accidentally mislabelled files.
-    if ext == '.pdf' and not raw.startswith(b'%PDF-'):
-        raise ValueError('The selected file is not a valid PDF.')
-    if ext == '.png' and not raw.startswith(b'\x89PNG\r\n\x1a\n'):
-        raise ValueError('The selected file is not a PNG image.')
-    if ext in ('.jpg', '.jpeg') and not raw.startswith(b'\xff\xd8\xff'):
-        raise ValueError('The selected file is not a JPEG image.')
-    if ext in ('.docx','.xlsx','.pptx','.odt','.ods','.odp') and not raw.startswith(b'PK'):
-        raise ValueError('The selected file does not match its document extension.')
+    uploads = payload.get('attachments')
+    # Continue accepting the old single-file payload from previously cached pages.
+    if uploads is None:
+        uploads = [{'filename': payload.get('filename'), 'contentBase64': payload.get('fileBase64')}]
+    if not isinstance(uploads, list) or not 1 <= len(uploads) <= MAX_ATTACHMENTS:
+        raise ValueError('Choose between one and five attachments.')
+    attachments = []
+    total_size = 0
+    for upload in uploads:
+        if not isinstance(upload, dict):
+            raise ValueError('Invalid attachment details.')
+        filename = _clean_text(upload.get('filename'), 'Filename', 120)
+        if any(c in filename for c in '/\\\r\n\0') or filename in ('.', '..'):
+            raise ValueError('Invalid attachment filename.')
+        ext = '.' + filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+        if ext not in ACCEPTED_EXTENSIONS:
+            raise ValueError('Unsupported file type. Use PDF, Office documents, text, image, or OpenDocument files.')
+        encoded = upload.get('contentBase64')
+        if not isinstance(encoded, str) or len(encoded) > ((MAX_DOCUMENT_BYTES + 2) // 3) * 4 + 16:
+            raise ValueError('Each attachment must be 7 MB or smaller.')
+        try:
+            raw = base64.b64decode(encoded, validate=True)
+        except (ValueError, binascii.Error):
+            raise ValueError('An uploaded file could not be read.') from None
+        if not raw or len(raw) > MAX_DOCUMENT_BYTES:
+            raise ValueError('Each attachment must be nonempty and at most 7 MB.')
+        total_size += len(raw)
+        if total_size > MAX_TOTAL_DOCUMENT_BYTES:
+            raise ValueError('Combined attachments must be 15 MB or smaller.')
+        if ext == '.pdf' and not raw.startswith(b'%PDF-'):
+            raise ValueError('A selected file is not a valid PDF.')
+        if ext == '.png' and not raw.startswith(b'\x89PNG\r\n\x1a\n'):
+            raise ValueError('A selected file is not a PNG image.')
+        if ext in ('.jpg', '.jpeg') and not raw.startswith(b'\xff\xd8\xff'):
+            raise ValueError('A selected file is not a JPEG image.')
+        if ext in ('.docx','.xlsx','.pptx','.odt','.ods','.odp') and not raw.startswith(b'PK'):
+            raise ValueError('A selected file does not match its document extension.')
+        attachments.append({'filename': filename, 'content': encoded, 'fileBytes': len(raw)})
+    filenames = ', '.join(item['filename'] for item in attachments)
     request_id = payload.get('requestId')
     if not isinstance(request_id, str) or not re.fullmatch(r'[a-f0-9-]{36}', request_id):
         raise ValueError('Refresh the page and try sending again.')
     if payload.get('confirmed') is not True:
         raise ValueError('Confirm that the recipient and attachment are correct before sending.')
     return {'recipient':recipient, 'subject':subject, 'message':message,
-            'filename':filename, 'fileBase64':encoded, 'fileBytes':len(raw), 'requestId':request_id}
+            'filename':filenames, 'attachments':attachments, 'fileBytes':total_size, 'requestId':request_id}
 
 
 def send_via_resend(data):
@@ -106,7 +123,7 @@ def send_via_resend(data):
         'subject':data['subject'],
         'text':data['message'] + '\n\n— Prowell Jobs\nhttps://prowelljobs.com',
         'reply_to':['prowellofficial@gmail.com'],
-        'attachments':[{'filename':data['filename'],'content':data['fileBase64']}],
+        'attachments':[{'filename':f['filename'],'content':f['content']} for f in data['attachments']],
     }
     request = Request('https://api.resend.com/emails',
         data=json.dumps(body,ensure_ascii=False).encode('utf-8'),method='POST',headers={
@@ -143,7 +160,8 @@ def handle_get(handler, db_connection):
     with db_connection() as db:
         records = [dict(row) for row in db.execute('''SELECT id,recipient,subject,filename,fileBytes,
             providerEmailId,sentAt FROM admin_document_sends ORDER BY sentAt DESC LIMIT 30''').fetchall()]
-    handler.send_json(200,{'records':records, 'maxFileBytes':MAX_DOCUMENT_BYTES})
+    handler.send_json(200,{'records':records, 'maxFileBytes':MAX_DOCUMENT_BYTES,
+                           'maxTotalBytes':MAX_TOTAL_DOCUMENT_BYTES, 'maxAttachments':MAX_ATTACHMENTS})
 
 
 def handle_post(handler,db_connection,check_rate):
@@ -154,7 +172,7 @@ def handle_post(handler,db_connection,check_rate):
     try:
         length = int(handler.headers.get('Content-Length', '0'))
         if length < 1 or length > MAX_REQUEST_BYTES:
-            return handler.send_json(413,{'error':'Upload too large. Maximum file size is 7 MB.'})
+            return handler.send_json(413,{'error':'Upload too large. Maximum combined attachments: 15 MB.'})
         payload = json.loads(handler.rfile.read(length).decode('utf-8'))
         data = validate_document(payload)
     except (ValueError,TypeError,UnicodeDecodeError,json.JSONDecodeError) as exc:
@@ -179,5 +197,5 @@ def handle_post(handler,db_connection,check_rate):
             (id,recipient,subject,filename,fileBytes,providerEmailId,sentAt) VALUES (?,?,?,?,?,?,?)''',
            (data['requestId'],data['recipient'],data['subject'],data['filename'],data['fileBytes'],
             email_id,datetime.now(timezone.utc).isoformat()))
-    handler.send_json(200,{'message':'Document email accepted by Resend. Inbox delivery is not yet confirmed.',
+    handler.send_json(200,{'message':'Email with attachments accepted by Resend. Inbox delivery is not yet confirmed.',
                            'emailId':email_id})

@@ -12,3 +12,9 @@
 #adminAssignments .panel{min-width:0}
 
 .project-conversation{margin:12px 0;padding:18px;border:1px solid #ccdeec;border-radius:12px;background:#f7fbff}.project-message{border-bottom:1px solid #d9e5ef;padding:10px 0}.project-message strong{color:#16364e}.project-message small{color:#718299;font-size:11px}.project-message p{margin:5px 0;white-space:pre-wrap;overflow-wrap:anywhere}.project-conversation form{margin-top:18px}.project-conversation textarea{display:block;width:100%;min-height:90px;margin:8px 0 12px;padding:12px;border:1px solid #b8cbdc;border-radius:8px}button[data-cancel-order]{margin-left:8px;background:#c24b4b;color:white;border:0;border-radius:8px;padding:9px 14px}
+
+/* Additive multi-round instruction uploads (one order, up to five files). */
+.upload-attachments{margin:9px 0 18px;padding:11px 14px;border:1px solid #d4dfef;border-radius:12px;background:#f8fbff;color:#4a6079;font-size:13px;overflow-wrap:anywhere}
+.upload-summary{font-weight:750;color:#26528f;margin:4px 0 8px}
+.upload-file-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 2px;border-top:1px solid #e2eaf5}
+.upload-file-row button{background:#fff;border:1px solid #cbd7ed;border-radius:7px;color:#a42d3b;padding:6px 11px;cursor:pointer;font-weight:700;font-size:12px;flex-shrink:0}
