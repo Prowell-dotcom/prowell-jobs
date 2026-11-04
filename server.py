@@ -26,6 +26,7 @@ from urllib.parse import urlsplit
 from notifications import email_configured, sms_configured, send_notification, NotificationDeliveryError
 from accounts import password_hash, verify_password, SESSION_SECONDS, COOKIE_NAME
 from writing_marketplace import Marketplace, init_db as init_writing_db
+import admin_document_sender as admin_docs
 
 ROOT = Path(__file__).resolve().parent
 DATABASE_PATH = Path(os.getenv('DATABASE_PATH', str(ROOT / 'prowell-jobs.sqlite3'))).resolve()
@@ -1094,6 +1095,8 @@ class Handler(SimpleHTTPRequestHandler):
             if table == 'jobs':
                 output = [r for r in output if not r.get('deadline') or r['deadline'] >= datetime.now(timezone.utc).strftime('%Y-%m-%d')]
             return self.send_json(200,{table:output})
+        if path == '/api/admin/documents/history':
+            return admin_docs.handle_get(self, db_connection)
         if path.startswith('/api/admin/'):
             if not self.authorized():
                 return self.send_json(401,{'error':'Invalid administrator key.'})
@@ -1120,9 +1123,15 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path.startswith('/api/'):
             return self.send_json(404,{'error':'Unknown endpoint.'})
-        allowed = {'/','/index.html','/jobs.html','/account.html','/dashboard.html','/writing.html','/writing-admin.html','/writing.css','/writing.js','/writing-admin.js','/membership.css','/member.js','/admin-account.js','/styles.css','/app.js','/admin.html','/admin.js','/favicon.svg','/robots.txt','/sitemap.xml'}
+        allowed = {'/','/index.html','/jobs.html','/account.html','/dashboard.html','/writing.html','/writing-admin.html','/writing.css','/writing.js','/writing-admin.js','/membership.css','/member.js','/admin-account.js','/styles.css','/app.js','/admin.html','/admin.js','/admin-documents.html','/admin-documents.js','/favicon.svg','/robots.txt','/sitemap.xml'}
         if path not in allowed and not (path.startswith('/assets/') and path.endswith(('.svg','.png','.jpg','.webp')) and '..' not in path):
             return self.send_json(404,{'error':'File not found.'})
+        if path == '/admin-documents.html' and not self.admin_session():
+            self.send_response(302)
+            self.send_header('Location','/account.html?mode=admin')
+            self.send_header('Cache-Control','no-store')
+            self.end_headers()
+            return
         if path in ('/jobs.html','/writing.html','/dashboard.html') and not self._member_session():
             from urllib.parse import quote
             self.send_response(302)
@@ -1156,6 +1165,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.admin_logout()
         if path == '/api/admin/tab-viewed':
             return self.mark_admin_tab_viewed()
+        if path == '/api/admin/documents/send':
+            return admin_docs.handle_post(self, db_connection, check_rate)
         if path == '/api/admin/notifications/test':
             if not self.authorized():
                 return self.send_json(401, {'error': 'Sign in as administrator.'})
