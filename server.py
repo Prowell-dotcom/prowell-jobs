@@ -19,6 +19,7 @@ import time
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from http.cookies import SimpleCookie, CookieError
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -35,6 +36,11 @@ if not os.getenv('ADMIN_KEY'):
     print('[Prowell Jobs] Temporary admin key (changes at restart):', ADMIN_KEY, flush=True)
 rate_lock = threading.Lock()
 submission_times: dict[str, list[float]] = {}
+ADMIN_SESSION_SECONDS = 7 * 24 * 60 * 60
+ADMIN_SESSION_COOKIE = "prowell_admin_session"
+ADMIN_KEY_FINGERPRINT = hashlib.sha256(ADMIN_KEY.encode()).hexdigest()
+# Moderation badges indicate unseen submissions, not pending or total records.
+ADMIN_TABS = ('jobs', 'applications', 'candidates', 'reviews', 'reports', 'alerts', 'notification_outbox')
 
 CATEGORIES = {
     'Technology', 'Healthcare', 'Finance', 'Marketing', 'Operations', 'Customer Support',
@@ -99,6 +105,13 @@ def initialize_db():
             body TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
             attempts INTEGER NOT NULL DEFAULT 0, nextAttemptAt REAL NOT NULL DEFAULT 0,
             lastError TEXT, createdAt TEXT NOT NULL, sentAt TEXT)''')
+        db.execute('''CREATE TABLE IF NOT EXISTS admin_sessions (
+            tokenHash TEXT PRIMARY KEY, csrfToken TEXT NOT NULL,
+            createdAt TEXT NOT NULL, expiresAt REAL NOT NULL,
+            keyFingerprint TEXT NOT NULL)''')
+        db.execute('''CREATE TABLE IF NOT EXISTS admin_tab_views (
+            section TEXT PRIMARY KEY, seenAt TEXT NOT NULL)''')
+        db.execute('CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON admin_sessions(expiresAt)')
         db.execute('CREATE INDEX IF NOT EXISTS idx_notifications_retry ON notification_outbox(status,nextAttemptAt)')
         db.execute('CREATE INDEX IF NOT EXISTS idx_jobs_status_created ON jobs(status, createdAt DESC)')
         db.execute('''CREATE TABLE IF NOT EXISTS candidates (
@@ -436,17 +449,160 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header('Permissions-Policy','camera=(), microphone=(), geolocation=()')
         super().end_headers()
 
-    def send_json(self,status,payload):
+    def send_json(self,status,payload,extra_headers=None):
         data = json.dumps(payload,ensure_ascii=False).encode('utf-8')
         self.send_response(status)
         self.send_header('Content-Type','application/json; charset=utf-8')
         self.send_header('Content-Length',str(len(data)))
         self.send_header('Cache-Control','no-store')
+        for name, value in (extra_headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(data)
 
+    def _bearer_authorized(self):
+        # Existing admin API clients continue to work, but the browser no longer stores the key.
+        return hmac.compare_digest(self.headers.get('Authorization', ''), f'Bearer {ADMIN_KEY}')
+
+    def admin_session(self):
+        try:
+            cookies = SimpleCookie()
+            cookies.load(self.headers.get('Cookie', ''))
+            session_cookie = cookies.get(ADMIN_SESSION_COOKIE)
+            token = session_cookie.value if session_cookie else ''
+        except (CookieError, ValueError):
+            return None
+        if not token or len(token) > 150:
+            return None
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        with db_connection() as db:
+            row = db.execute('''SELECT csrfToken,expiresAt,keyFingerprint
+                FROM admin_sessions WHERE tokenHash=?''', (token_hash,)).fetchone()
+        if not row or row['expiresAt'] <= time.time() or not hmac.compare_digest(row['keyFingerprint'], ADMIN_KEY_FINGERPRINT):
+            return None
+        return {'tokenHash': token_hash, 'csrfToken': row['csrfToken'], 'expiresAt': row['expiresAt']}
+
     def authorized(self):
-        return hmac.compare_digest(self.headers.get('Authorization',''), f'Bearer {ADMIN_KEY}')
+        return self._bearer_authorized() or self.admin_session() is not None
+
+    def admin_write_authorized(self):
+        if self._bearer_authorized():
+            return True
+        session = self.admin_session()
+        csrf = self.headers.get('X-Admin-CSRF', '')
+        return bool(session and csrf and hmac.compare_digest(csrf, session['csrfToken']))
+
+    def session_cookie(self, token='', clear=False):
+        # Use Secure cookies behind Railway's HTTPS reverse proxy. Local HTTP tests stay usable.
+        secure = bool(os.getenv('RAILWAY_ENVIRONMENT') or self.headers.get('X-Forwarded-Proto', '').lower() == 'https')
+        value = f'{ADMIN_SESSION_COOKIE}={token}; Path=/api/admin; HttpOnly; SameSite=Strict'
+        if secure:
+            value += '; Secure'
+        if clear:
+            value += '; Max-Age=0'
+        else:
+            value += f'; Max-Age={ADMIN_SESSION_SECONDS}'
+        return value
+
+    def admin_login(self):
+        if not check_rate(self.client_address[0], 'admin-login', 12):
+            return self.send_json(429, {'error': 'Too many login attempts; try again later.'})
+        try:
+            payload = self.json_body()
+            key = payload.get('adminKey') if isinstance(payload, dict) else None
+        except ValueError as error:
+            return self.send_json(400, {'error': str(error)})
+        if not isinstance(key, str) or not hmac.compare_digest(key, ADMIN_KEY):
+            return self.send_json(401, {'error': 'Invalid administrator key.'})
+        token = secrets.token_urlsafe(32)
+        csrf = secrets.token_urlsafe(32)
+        expiry = time.time() + ADMIN_SESSION_SECONDS
+        with db_connection() as db:
+            db.execute('DELETE FROM admin_sessions WHERE expiresAt < ? OR keyFingerprint != ?', (time.time(), ADMIN_KEY_FINGERPRINT))
+            db.execute('''INSERT INTO admin_sessions(tokenHash,csrfToken,createdAt,expiresAt,keyFingerprint)
+                VALUES (?,?,?,?,?)''', (hashlib.sha256(token.encode()).hexdigest(), csrf, timestamp(), expiry, ADMIN_KEY_FINGERPRINT))
+        return self.send_json(200, {'authenticated': True, 'csrfToken': csrf, 'expiresAt': expiry},
+                              {'Set-Cookie': self.session_cookie(token)})
+
+    def admin_logout(self):
+        session = self.admin_session()
+        if session and not self.admin_write_authorized():
+            return self.send_json(403, {'error': 'Session validation failed.'})
+        if session:
+            with db_connection() as db:
+                db.execute('DELETE FROM admin_sessions WHERE tokenHash=?', (session['tokenHash'],))
+        return self.send_json(200, {'authenticated': False, 'message': 'Signed out.'},
+                              {'Set-Cookie': self.session_cookie(clear=True)})
+
+    def admin_unread_counts(self):
+        # These counts are private. Each section has an independent, persistent last-viewed time.
+        # An existing pending record is not "new" again simply because it wasn't approved.
+        with db_connection() as db:
+            views = {r['section']: r['seenAt'] for r in db.execute(
+                'SELECT section,seenAt FROM admin_tab_views')}
+            totals = {}
+            for section in ADMIN_TABS:
+                cutoff = views.get(section, '')
+                totals[section] = db.execute(
+                    f'SELECT COUNT(*) FROM {section} WHERE createdAt > ?',
+                    (cutoff,)).fetchone()[0]
+        return {'unread': totals}
+
+    def mark_admin_tab_viewed(self):
+        if not self.authorized():
+            return self.send_json(401, {'error': 'Sign in as administrator.'})
+        if not self.admin_write_authorized():
+            return self.send_json(403, {'error': 'Invalid session validation token.'})
+        try:
+            body = self.json_body()
+            section = body.get('section') if isinstance(body, dict) else None
+            if section not in ADMIN_TABS:
+                raise ValueError('Invalid moderation section.')
+        except ValueError as exc:
+            return self.send_json(400, {'error': str(exc)})
+        viewed_at = timestamp()
+        with db_connection() as db:
+            db.execute('''INSERT INTO admin_tab_views(section,seenAt) VALUES (?,?)
+                ON CONFLICT(section) DO UPDATE SET seenAt =
+                CASE WHEN admin_tab_views.seenAt < excluded.seenAt
+                THEN excluded.seenAt ELSE admin_tab_views.seenAt END''',
+                (section, viewed_at))
+        return self.send_json(200, {'section': section, 'unread': 0})
+
+    def notification_diagnostics(self):
+        recipient = os.getenv('ADMIN_NOTIFICATION_EMAIL', 'prowellofficial@gmail.com').strip()
+        sender = os.getenv('NOTIFY_FROM_EMAIL', '').strip()
+        with db_connection() as db:
+            total_jobs = db.execute('SELECT COUNT(*) AS n FROM jobs').fetchone()['n']
+            last_job = db.execute('SELECT createdAt FROM jobs ORDER BY createdAt DESC LIMIT 1').fetchone()
+            totals = {r['status']: r['n'] for r in db.execute('''SELECT status,COUNT(*) AS n
+                FROM notification_outbox GROUP BY status''')}
+        return {'emailConfigured': email_configured(),
+                'senderConfigured': email_valid(sender),
+                'adminRecipientConfigured': email_valid(recipient),
+                'adminRecipient': recipient if email_valid(recipient) else 'Invalid or missing',
+                'jobCount': total_jobs, 'lastJobCreatedAt': last_job['createdAt'] if last_job else None,
+                'notificationCounts': totals,
+                'note': 'Emails are queued for new vacancies submitted after Resend configuration. Existing vacancies are not automatically backfilled.'}
+
+    def queue_test_notification(self):
+        recipient = os.getenv('ADMIN_NOTIFICATION_EMAIL', 'prowellofficial@gmail.com').strip()
+        if not email_configured() or not email_valid(recipient):
+            return self.send_json(503, {'error': 'Resend is not configured, or the administrator email is invalid.'})
+        recent_cutoff = datetime.fromtimestamp(time.time()-120, tz=timezone.utc).isoformat()
+        with db_connection() as db:
+            recent = db.execute("SELECT COUNT(*) AS n FROM notification_outbox WHERE kind='admin_test' AND createdAt>=?", (recent_cutoff,)).fetchone()['n']
+            if recent:
+                return self.send_json(429, {'error': 'A test was queued recently. Check delivery history before trying again.'})
+            db.execute('''INSERT INTO notification_outbox
+                (eventId,jobId,kind,channel,recipient,subject,body,status,createdAt)
+                VALUES (?,?,?,?,?,?,?,'pending',?)''',
+                ('admin-test:'+str(uuid.uuid4()), 'admin-test', 'admin_test', 'email', recipient,
+                 'Prowell Jobs — Email configuration test',
+                 'This is a test email from the Prowell Jobs administrator dashboard. No job application data is included.',
+                 timestamp()))
+        notification_wake.set()
+        return self.send_json(202, {'message': 'Test email queued for delivery. Refresh notifications to check its status.'})
 
     def json_body(self):
         try:
@@ -459,6 +615,11 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
+        if path == '/api/admin/session':
+            session = self.admin_session()
+            return self.send_json(200, {'authenticated': bool(session),
+                'csrfToken': session['csrfToken'] if session else None,
+                'expiresAt': session['expiresAt'] if session else None})
         if path == '/api/health':
             return self.send_json(200,{'status':'ok','app':'Prowell Jobs'})
         public = {'/api/jobs':('jobs',None), '/api/reviews':('reviews',None),
@@ -475,6 +636,10 @@ class Handler(SimpleHTTPRequestHandler):
         if path.startswith('/api/admin/'):
             if not self.authorized():
                 return self.send_json(401,{'error':'Invalid administrator key.'})
+            if path == '/api/admin/unread_counts':
+                return self.send_json(200, self.admin_unread_counts())
+            if path == '/api/admin/notification_status':
+                return self.send_json(200, self.notification_diagnostics())
             table = path.split('/')[-1]
             if table not in ('jobs','candidates','reviews','reports','alerts','applications','notification_outbox'):
                 return self.send_json(404,{'error':'Unknown endpoint.'})
@@ -503,6 +668,18 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = urlsplit(self.path).path
+        if path == '/api/admin/login':
+            return self.admin_login()
+        if path == '/api/admin/logout':
+            return self.admin_logout()
+        if path == '/api/admin/tab-viewed':
+            return self.mark_admin_tab_viewed()
+        if path == '/api/admin/notifications/test':
+            if not self.authorized():
+                return self.send_json(401, {'error': 'Sign in as administrator.'})
+            if not self.admin_write_authorized():
+                return self.send_json(403, {'error': 'Invalid session validation token.'})
+            return self.queue_test_notification()
         validators = {'/api/jobs':('jobs',validate_job),'/api/candidates':('candidates',validate_candidate),
                       '/api/reviews':('reviews',validate_review),'/api/reports':('reports',validate_report),
                       '/api/alerts':('alerts',validate_alert),'/api/applications':('applications',validate_application)}
@@ -537,7 +714,9 @@ class Handler(SimpleHTTPRequestHandler):
         if len(parts) != 5 or parts[:3] != ['','api','admin'] or parts[3] not in ('jobs','candidates','reviews','reports','applications'):
             return self.send_json(404,{'error':'Unknown endpoint.'})
         if not self.authorized():
-            return self.send_json(401,{'error':'Invalid administrator key.'})
+            return self.send_json(401, {'error': 'Sign in as administrator.'})
+        if not self.admin_write_authorized():
+            return self.send_json(403, {'error': 'Invalid session validation token.'})
         try:
             uuid.UUID(parts[4])
             data = self.json_body()
