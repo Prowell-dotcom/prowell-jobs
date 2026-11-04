@@ -13,6 +13,10 @@ import notifications
 
 
 class NotificationsTests(unittest.TestCase):
+    def setUp(self):
+        with server.rate_lock:
+            server.submission_times.clear()
+
     @classmethod
     def setUpClass(cls):
         server.initialize_db()
@@ -50,19 +54,23 @@ class NotificationsTests(unittest.TestCase):
             with patch.object(server,'send_notification') as immediate_send:
                 status,res=self.api('POST','/api/jobs',job)
                 self.assertEqual(status,201,res)
-                self.assertEqual(immediate_send.call_count,1)
-                self.assertEqual(immediate_send.call_args.args[0],'email')
-                self.assertEqual(immediate_send.call_args.args[1],'prowellofficial@gmail.com')
+                self.assertEqual(immediate_send.call_count,2)
+                recipients=[c.args[1] for c in immediate_send.call_args_list]
+                self.assertCountEqual(recipients,['prowellofficial@gmail.com','private.employer@example.test'])
             jid=res['id']
             status,admin=self.api('GET','/api/admin/notification_outbox',admin=True)
             self.assertEqual(status,200)
             sent=[r for r in admin['notification_outbox'] if r['jobId']==jid]
             self.assertEqual(len(sent),3)
             self.assertEqual({x['channel'] for x in sent},{'email','sms'})
-            self.assertEqual([x['status'] for x in sent if x['kind']=='submitted'].count('sent'),1)
-            self.assertEqual([x['status'] for x in sent if x['kind']=='submitted'].count('pending'),2)
-            status,_=self.api('PATCH','/api/admin/jobs/'+jid,{'status':'approved'},admin=True)
+            self.assertEqual([x['status'] for x in sent if x['kind']=='submitted'].count('sent'),2)
+            self.assertEqual([x['status'] for x in sent if x['kind']=='submitted'].count('pending'),1)
+            with patch.object(server,'send_notification') as approval_send:
+                status,_=self.api('PATCH','/api/admin/jobs/'+jid,{'status':'approved'},admin=True)
             self.assertEqual(status,200)
+            self.assertEqual(approval_send.call_count,1)
+            self.assertEqual(approval_send.call_args.args[1], 'private.employer@example.test')
+            self.assertIn('approved', approval_send.call_args.args[2])
             status,public=self.api('GET','/api/jobs')
             saved=next(r for r in public['jobs'] if r['id']==jid)
             self.assertNotIn('notifyEmail',saved)
@@ -81,6 +89,36 @@ class NotificationsTests(unittest.TestCase):
                 self.assertGreaterEqual(send.call_count,4)
             status,admin=self.api('GET','/api/admin/notification_outbox',admin=True)
             self.assertTrue(all(r['status']=='sent' for r in admin['notification_outbox'] if r['jobId']==jid))
+
+    def test_no_employer_email_when_consent_off_even_if_address_given(self):
+        with patch.dict(os.environ,{'RESEND_API_KEY':'test-nonlive','NOTIFY_FROM_EMAIL':'notifications@prowelljobs.com'}):
+            job=self.example()
+            job['notifyConsent']=False
+            with patch.object(server,'send_notification') as sender:
+                status, result = self.api('POST','/api/jobs',job)
+                self.assertEqual(status,201,result)
+                self.assertFalse(result['employerEmailQueued'])
+                self.assertEqual(sender.call_count,1)
+                self.assertEqual(sender.call_args.args[1],'prowellofficial@gmail.com')
+            status, data = self.api('GET','/api/admin/notification_outbox',admin=True)
+            events=[r for r in data['notification_outbox'] if r['jobId']==result['id']]
+            self.assertEqual(len(events),1)
+
+    def test_employer_email_attempt_failure_does_not_reject_job_submission(self):
+        with patch.dict(os.environ,{'RESEND_API_KEY':'test-nonlive','NOTIFY_FROM_EMAIL':'notifications@prowelljobs.com'}):
+            job=self.example()
+            job['notifyPhone']=''
+            def provider(channel, recipient, subject, body, key):
+                if recipient != 'prowellofficial@gmail.com':
+                    raise notifications.NotificationDeliveryError('EMAIL HTTP 503')
+            with patch.object(server,'send_notification',side_effect=provider):
+                status, result = self.api('POST','/api/jobs',job)
+            self.assertEqual(status,201,result)
+            self.assertTrue(result['employerEmailQueued'])
+            with server.db_connection() as db:
+                rows=db.execute('SELECT status,recipient FROM notification_outbox WHERE jobId=?', (result['id'],)).fetchall()
+            self.assertEqual({r['recipient']:r['status'] for r in rows}, {
+                'prowellofficial@gmail.com':'sent', 'private.employer@example.test':'retry'})
 
     def test_without_opt_in_does_not_notify_employer(self):
         with patch.dict(os.environ,{'RESEND_API_KEY':'test-nonlive','NOTIFY_FROM_EMAIL':'notifications@prowelljobs.com'}):

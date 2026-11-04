@@ -16,6 +16,10 @@ import server  # noqa: E402  (environment must be configured before import)
 
 
 class JobBoardTests(unittest.TestCase):
+    def setUp(self):
+        with server.rate_lock:
+            server.submission_times.clear()
+
     @classmethod
     def setUpClass(cls):
         server.initialize_db()

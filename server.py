@@ -134,6 +134,14 @@ def initialize_db():
             id TEXT PRIMARY KEY,name TEXT NOT NULL,relationship TEXT NOT NULL,kind TEXT NOT NULL,
             rating INTEGER,comment TEXT NOT NULL,createdAt TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'pending')''')
+        # Additive migration: contact details for private feedback receipts must never be public.
+        review_columns = {r['name'] for r in db.execute('PRAGMA table_info(reviews)')}
+        for name, field_type in (
+            ('notifyEmail', 'TEXT'),
+            ('notifyConsent', 'INTEGER NOT NULL DEFAULT 0'),
+        ):
+            if name not in review_columns:
+                db.execute(f'ALTER TABLE reviews ADD COLUMN {name} {field_type}')
         db.execute('''CREATE TABLE IF NOT EXISTS reports (
             id TEXT PRIMARY KEY,subject TEXT NOT NULL,details TEXT NOT NULL,email TEXT,
             createdAt TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending')''')
@@ -317,6 +325,10 @@ def validate_review(payload):
         obj['rating'] = None
     if len(obj['comment']) < 15:
         raise ValueError('Please write at least 15 characters.')
+    obj['notifyConsent'] = int(payload.get('notifyConsent') is True)
+    obj['notifyEmail'] = checked_email(field(payload, 'notifyEmail', 180)) if obj['notifyConsent'] else ''
+    if obj['notifyConsent'] and not obj['notifyEmail']:
+        raise ValueError('Enter an email address to receive a feedback confirmation.')
     obj.update(id=str(uuid.uuid4()),createdAt=timestamp(),status='pending')
     return obj
 
@@ -348,6 +360,7 @@ def validate_alert(payload):
 
 PUBLIC_CANDIDATE_FIELDS = ('id','alias','category','country','city','skills','experience',
                            'availability','summary','currency','payExpectation','createdAt')
+PUBLIC_REVIEW_FIELDS = ('id','name','relationship','kind','rating','comment','createdAt')
 
 
 # Transactional notices are saved to SQLite first. A worker retries temporary provider failures.
@@ -389,7 +402,9 @@ def queue_job_notices(db, job, event):
             items.append(('admin','sms',admin_sms,admin_subject,admin_body))
 
     if job['notifyConsent']:
-        if email_configured() and job['notifyEmail']:
+        if job['notifyEmail']:
+            # Save the acknowledgment even if Resend is temporarily unavailable.
+            # The private outbox can retry after configuration is restored.
             items.append(('employer','email',job['notifyEmail'],subject,body))
         if sms_configured() and job['notifyPhone']:
             items.append(('employer','sms',job['notifyPhone'],subject,body))
@@ -404,6 +419,117 @@ def queue_job_notices(db, job, event):
             VALUES (?,?,?,?,?,?,?,'pending',?)''',
             (event_id,job['id'],event,channel,recipient,subj,msg,timestamp()))
     return len(items)
+
+
+def deliver_job_emails_now(job_id, event):
+    """Attempt queued job emails before returning; leave failures for retry.
+
+    An administrator alert and an opted-in employer acknowledgment are separate
+    outbox items. Their stable IDs prevent repeated sends on re-submission.
+    """
+    audiences = ('admin', 'employer') if event == 'submitted' else ('employer',)
+    for audience in audiences:
+        # If no employer email was supplied/consented to, no such row exists.
+        deliver_notification_event(f'job:{job_id}:{event}:{audience}:email')
+
+
+
+def queue_request_notices(db, table, record, event='submitted'):
+    """Queue private transactional receipts + admin alerts for existing website forms.
+
+    These are acknowledgements, not hiring offers or promises of publication.
+    Never email withdrawal codes, jobseeker contact details, or report narratives.
+    """
+    reference = record['id'][:8]
+    kinds = {
+        'applications': 'job application',
+        'candidates': 'candidate profile',
+        'reviews': 'review or comment',
+        'reports': 'confidential safety report',
+        'alerts': 'job-alert interest',
+    }
+    if table not in kinds:
+        return []
+    label = kinds[table]
+    email = ''
+    if table in ('applications', 'candidates', 'reports', 'alerts'):
+        email = (record['email'] or '').strip()
+    elif table == 'reviews' and record['notifyConsent']:
+        email = (record['notifyEmail'] or '').strip()
+    if not email_valid(email):
+        email = ''
+
+    if event == 'submitted':
+        admin_subject = f'Prowell Jobs: new {label} requires review ({reference})'
+        admin_body = (f'A new {label} was submitted to Prowell Jobs.\n'
+                      f'Reference: {reference}\n'
+                      'Review it securely at https://prowelljobs.com/admin.html\n'
+                      "Do not send applicants' private information to unverified employers.")
+        if table == 'applications':
+            context = f' for the job "{record["jobTitle"]}"'
+            subject = f'Prowell Jobs: application received ({reference})'
+            receipt = (f'We received your application{context}.\n'
+                       'It is in private review by the Prowell Jobs team, not automatically sent to an employer.\n'
+                       'This is not a job offer or confirmation of selection.')
+        elif table == 'candidates':
+            subject = f'Prowell Jobs: skills profile received ({reference})'
+            receipt = ('We received your candidate skills profile for moderation.\n'
+                       'It is not public until approved; your email and phone are not published.')
+        elif table == 'reviews':
+            subject = f'Prowell Jobs: feedback received ({reference})'
+            receipt = 'Thank you for sending feedback. Your review or comment awaits moderation before publication.'
+        elif table == 'reports':
+            subject = f'Prowell Jobs: confidential report received ({reference})'
+            receipt = ('Thank you for raising a concern. The Prowell Jobs team has received it for private review.\n'
+                       'We may contact you for additional details; no specific outcome is guaranteed.')
+        else:  # alerts
+            subject = f'Prowell Jobs: alert interest registered ({reference})'
+            receipt = ('We have recorded your interest in future job email alerts.\n'
+                       'Automated vacancy-alert subscriptions are not active yet.\n'
+                       'You can currently follow https://prowelljobs.com/jobs.rss')
+        receipt += (f'\nReference: {reference}\n'
+                    'Keep your private withdrawal code from the website safe, if one was provided.\n'
+                    'Questions? Contact prowellofficial@gmail.com')
+        recipients = [('admin', os.getenv('ADMIN_NOTIFICATION_EMAIL', 'prowellofficial@gmail.com').strip(),
+                       admin_subject, admin_body)]
+        if email:
+            recipients.append(('submitter', email, subject, receipt))
+    else:
+        if not email:
+            return []
+        if table == 'applications' and event in ('reviewed', 'closed'):
+            subject = f'Prowell Jobs: application status updated ({reference})'
+            text = ('Our team has marked your application as reviewed.' if event == 'reviewed' else
+                    'Our team has closed the application review record.')
+            text += (' This does not mean an employer has hired or rejected you. Contact Prowell Jobs for more information.')
+        elif table == 'candidates' and event in ('approved', 'rejected'):
+            subject = f'Prowell Jobs: candidate profile update ({reference})'
+            text = ('Your candidate preview has been approved for public display.' if event == 'approved' else
+                    'Your candidate preview was not approved for public display.')
+            text += ' Your private contact details remain hidden from the public.'
+        elif table == 'reviews' and event in ('approved', 'rejected'):
+            subject = f'Prowell Jobs: feedback moderation update ({reference})'
+            text = ('Your review or comment has been approved for publication.' if event == 'approved' else
+                    'Your review or comment was not approved for public display.')
+        elif table == 'reports' and event in ('approved', 'rejected'):
+            subject = f'Prowell Jobs: safety report update ({reference})'
+            text = ('The team has reviewed your confidential safety report. This status is not a guarantee that '
+                    'an investigation or enforcement action has been completed.')
+        else:
+            return []
+        recipients = [('submitter', email, subject, text + f'\nReference: {reference}\nContact prowellofficial@gmail.com')]
+
+    ids = []
+    for audience, recipient, subject, body in recipients:
+        if not email_valid(recipient):
+            continue
+        event_id = f'{table}:{record["id"]}:{event}:{audience}:email'
+        db.execute("INSERT OR IGNORE INTO notification_outbox "
+                   "(eventId,jobId,kind,channel,recipient,subject,body,status,createdAt) "
+                   "VALUES (?,?,?,?,?,?,?,'pending',?)",
+            (event_id,record['id'],f'{table}_{event}_{audience}','email',recipient,subject,body,timestamp()))
+        ids.append(event_id)
+    return ids
 
 
 def deliver_notification_event(event_id):
@@ -647,7 +773,7 @@ class Handler(SimpleHTTPRequestHandler):
                 'expiresAt': session['expiresAt'] if session else None})
         if path == '/api/health':
             return self.send_json(200,{'status':'ok','app':'Prowell Jobs'})
-        public = {'/api/jobs':('jobs',None), '/api/reviews':('reviews',None),
+        public = {'/api/jobs':('jobs',None), '/api/reviews':('reviews',PUBLIC_REVIEW_FIELDS),
                   '/api/candidates':('candidates',PUBLIC_CANDIDATE_FIELDS)}
         if path in public:
             table, allowed = public[path]
@@ -723,19 +849,24 @@ class Handler(SimpleHTTPRequestHandler):
         with db_connection() as db:
             db.execute(f'INSERT INTO {table} ({",".join(cols)}) VALUES ({",".join("?" for _ in cols)})',list(obj.values()))
             queued = queue_job_notices(db,obj,'submitted') if table == 'jobs' else 0
+            other_events = queue_request_notices(db, table, obj) if table != 'jobs' else []
         if queued and table == 'jobs':
-            # Make a bounded provider attempt immediately after DB commit.
-            # If delivery fails the application still saves the vacancy and
-            # automatic retries continue in the background.
-            deliver_notification_event(f'job:{obj["id"]}:submitted:admin:email')
-        if queued: notification_wake.set()
+            # Attempt both the admin alert and the employer acknowledgment now.
+            # Employer email is sent only when explicit consent + address exist.
+            # Failed sends remain queued for background retries.
+            deliver_job_emails_now(obj['id'], 'submitted')
+        if queued or other_events: notification_wake.set()
         response = {'message':'Submitted for review. It will not appear publicly until approved.','id':obj['id']}
+        if table != 'jobs':
+            response['confirmationEmailQueued'] = any(x.endswith(':submitter:email') for x in other_events)
+        if table == 'jobs':
+            response['employerEmailQueued'] = bool(obj['notifyConsent'] and obj['notifyEmail'])
         if withdrawal:
             response['withdrawalCode'] = withdrawal
             response['message'] = ('Application received by Prowell Jobs for manual review; not sent to the employer automatically. Save your withdrawal code.'
                                    if table == 'applications' else 'Candidate profile received for review. Save your private withdrawal code.')
         if table == 'alerts':
-            response['message'] = 'Saved your interest in future email alerts. Automated email delivery is not enabled yet; use RSS for live alerts.'
+            response['message'] = 'Saved your interest in future job alerts. We will email a registration receipt. Actual job-alert emails are not enabled; use RSS for live listings.'
         return self.send_json(201,response)
 
     def do_PATCH(self):
@@ -759,15 +890,24 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(400,{'error':str(exc)})
         with db_connection() as db:
             old_job = db.execute('SELECT * FROM jobs WHERE id=?',(parts[4],)).fetchone() if parts[3] == 'jobs' else None
+            old_request = db.execute(f'SELECT * FROM {parts[3]} WHERE id=?',(parts[4],)).fetchone() if parts[3] != 'jobs' else None
             if parts[3] == 'jobs' and 'verified' in data:
                 done = db.execute('UPDATE jobs SET status=?,verified=? WHERE id=?',
                                   (data['status'],int(data['verified']),parts[4]))
             else:
                 done = db.execute(f'UPDATE {parts[3]} SET status=? WHERE id=?',(data['status'],parts[4]))
             queued = 0
+            other_events = []
             if done.rowcount and old_job and old_job['status'] != data['status'] and data['status'] in ('approved','rejected'):
                 queued = queue_job_notices(db,old_job,data['status'])
-        if queued: notification_wake.set()
+            if done.rowcount and parts[3] != 'jobs':
+                # Status updates are notices, never hiring decisions.
+                if old_request and old_request['status'] != data['status'] and data['status'] in ('approved','rejected','reviewed','closed'):
+                    other_events = queue_request_notices(db,parts[3],old_request,data['status'])
+        if queued and old_job and data['status'] in ('approved','rejected'):
+            # Notify the consenting employer about the decision right away.
+            deliver_job_emails_now(old_job['id'], data['status'])
+        if queued or other_events: notification_wake.set()
         return self.send_json(200,{'message':'Updated.'}) if done.rowcount else self.send_json(404,{'error':'Record not found.'})
 
     def do_DELETE(self):

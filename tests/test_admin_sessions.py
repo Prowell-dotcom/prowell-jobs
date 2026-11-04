@@ -13,6 +13,10 @@ from test_smoke import server
 
 
 class AdminSessionTests(unittest.TestCase):
+    def setUp(self):
+        with server.rate_lock:
+            server.submission_times.clear()
+
     @classmethod
     def setUpClass(cls):
         server.initialize_db()
