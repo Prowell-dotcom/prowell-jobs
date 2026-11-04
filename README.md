@@ -9,6 +9,7 @@ This is an upgrade to the existing Prowell Jobs website running on Railway, with
 - **32 broad employment sectors** and 12 featured career tiles; keyword, location, country, sector, employment type, arrangement, experience, pay period, currency and min-pay filtering.
 - Employer vacancy form: job title, country, location, employer, responsibilities, required skills and qualifications, benefits, application deadline, contact methods, salary range and pay period (hour, day, week, month, year, trip, task, or negotiable).
 - **Moderated job postings** (submitted as pending; published only after administrator approval). Separate manual `Verified` badge for employer identities independently checked.
+- **On-site job applications**: applicants can apply to approved vacancies via a private form, receive a one-time withdrawal code, and administrators can review the new Applications inbox. External employer application links are also displayed when provided. Applicants are not forwarded automatically to employers.
 - Candidate profile submissions: nickname, sector, country, city, skills, summary, availability, experience, pay expectation, private email and phone. Profiles do **not** appear until admin approval. Public candidate profile API excludes private email and phone.
 - Candidate withdrawal and deletion with a one-time private code shown upon submission.
 - Moderated visitor reviews and comments with optional 1–5 star ratings (no invented testimonials).
@@ -20,7 +21,7 @@ This is an upgrade to the existing Prowell Jobs website running on Railway, with
 
 ### What is NOT implemented yet
 
-This version does **not** include password-protected employer/job-seeker accounts, direct candidate/employer messaging, CV uploads, automatic candidate matching, automatic employer identity verification, CAPTCHA, automated email alerts, SMS, payments or completed international regulatory compliance reviews. Employers request candidate introductions manually via the Prowell Jobs team. Candidate contacts must not be shared without further explicit permission. Do not claim any official affiliation with ride-hailing services; job titles are descriptive only.
+This version does **not** include password-protected employer/job-seeker accounts, direct candidate/employer messaging, automatic forwarding of applications to employers, CV uploads, automatic candidate matching, automatic employer identity verification, CAPTCHA, automated email alerts, SMS, payments or completed international regulatory compliance reviews. Employers request candidate introductions manually via the Prowell Jobs team. Candidate contacts must not be shared without further explicit permission. Do not claim any official affiliation with ride-hailing services; job titles are descriptive only.
 
 ### Production caution
 
@@ -55,7 +56,7 @@ Open `http://localhost:8000`, then `http://localhost:8000/admin.html`. For an of
 python -m unittest discover -s tests -v
 ```
 
-The tests cover the old vacancy workflow, broader casual listings, moderation, candidate privacy, withdrawal and deletion, reviews, alerts and reports.
+The tests cover the vacancy workflow, applications, private applicant data, withdrawals, broader casual listings, moderation, candidate privacy, reviews, alerts and reports.
 
 ## Updating your existing live site
 

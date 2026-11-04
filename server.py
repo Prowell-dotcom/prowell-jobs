@@ -99,6 +99,14 @@ def initialize_db():
             email TEXT NOT NULL,phone TEXT,consent INTEGER NOT NULL,
             withdrawalHash TEXT NOT NULL,createdAt TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'pending')''')
+        db.execute('''CREATE TABLE IF NOT EXISTS applications (
+            id TEXT PRIMARY KEY,jobId TEXT NOT NULL,jobTitle TEXT NOT NULL,
+            employerName TEXT NOT NULL,fullName TEXT NOT NULL,email TEXT,phone TEXT,
+            country TEXT,city TEXT,experience TEXT NOT NULL,message TEXT NOT NULL,
+            consent INTEGER NOT NULL,withdrawalHash TEXT NOT NULL,
+            createdAt TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending')''')
+        db.execute('CREATE INDEX IF NOT EXISTS idx_applications_created ON applications(createdAt DESC)')
+        db.execute('CREATE INDEX IF NOT EXISTS idx_applications_job ON applications(jobId)')
         db.execute('CREATE INDEX IF NOT EXISTS idx_candidates_status ON candidates(status, createdAt DESC)')
         db.execute('''CREATE TABLE IF NOT EXISTS reviews (
             id TEXT PRIMARY KEY,name TEXT NOT NULL,relationship TEXT NOT NULL,kind TEXT NOT NULL,
@@ -205,6 +213,36 @@ def validate_job(payload):
         raise ValueError('Maximum pay cannot be below minimum pay.')
     obj.update(id=str(uuid.uuid4()), createdAt=timestamp(), status='pending', verified=0)
     return obj
+
+
+def validate_application(payload):
+    """Validate applications against approved, unexpired vacancies only."""
+    if not isinstance(payload, dict):
+        raise ValueError('Invalid application.')
+    require_consent(payload)
+    job_id = field(payload, 'jobId', 70, True)
+    try:
+        uuid.UUID(job_id)
+    except ValueError as exc:
+        raise ValueError('Choose an active job listing before applying.') from exc
+    with db_connection() as db:
+        job = db.execute('SELECT id,title,company,deadline,status FROM jobs WHERE id=?', (job_id,)).fetchone()
+    if not job or job['status'] != 'approved' or (job['deadline'] and job['deadline'] < datetime.now(timezone.utc).strftime('%Y-%m-%d')):
+        raise ValueError('This vacancy is no longer accepting applications.')
+    obj = {name: field(payload, name, length, required) for name,length,required in (
+        ('fullName',120,True),('email',180,False),('phone',45,False),
+        ('country',90,False),('city',90,False),('experience',120,True),('message',2500,True)
+    )}
+    checked_email(obj['email'])
+    if not obj['email'] and not obj['phone']:
+        raise ValueError('Add an email address or phone number so Prowell Jobs can contact you.')
+    if len(obj['message']) < 20:
+        raise ValueError('Tell us about your relevant skills in at least 20 characters.')
+    code = secrets.token_urlsafe(24)
+    obj.update(id=str(uuid.uuid4()), jobId=job_id, jobTitle=job['title'], employerName=job['company'],
+               consent=1, withdrawalHash=hashlib.sha256(code.encode()).hexdigest(),
+               createdAt=timestamp(), status='pending')
+    return obj, code
 
 
 def validate_candidate(payload):
@@ -333,7 +371,7 @@ class Handler(SimpleHTTPRequestHandler):
             if not self.authorized():
                 return self.send_json(401,{'error':'Invalid administrator key.'})
             table = path.split('/')[-1]
-            if table not in ('jobs','candidates','reviews','reports','alerts'):
+            if table not in ('jobs','candidates','reviews','reports','alerts','applications'):
                 return self.send_json(404,{'error':'Unknown endpoint.'})
             with db_connection() as db:
                 rows = db.execute(f'SELECT * FROM {table} ORDER BY createdAt DESC LIMIT 1000').fetchall()
@@ -362,14 +400,14 @@ class Handler(SimpleHTTPRequestHandler):
         path = urlsplit(self.path).path
         validators = {'/api/jobs':('jobs',validate_job),'/api/candidates':('candidates',validate_candidate),
                       '/api/reviews':('reviews',validate_review),'/api/reports':('reports',validate_report),
-                      '/api/alerts':('alerts',validate_alert)}
+                      '/api/alerts':('alerts',validate_alert),'/api/applications':('applications',validate_application)}
         if path not in validators:
             return self.send_json(404,{'error':'Unknown endpoint.'})
         table,validate = validators[path]
         try:
             raw = self.json_body()
             result = validate(raw)
-            obj, withdrawal = result if table == 'candidates' else (result,None)
+            obj, withdrawal = result if table in ('candidates','applications') else (result,None)
         except ValueError as exc:
             return self.send_json(400,{'error':str(exc)})
         if not check_rate(self.client_address[0],table,4 if table != 'jobs' else 6):
@@ -380,7 +418,8 @@ class Handler(SimpleHTTPRequestHandler):
         response = {'message':'Submitted for review. It will not appear publicly until approved.','id':obj['id']}
         if withdrawal:
             response['withdrawalCode'] = withdrawal
-            response['message'] = 'Candidate profile received for review. Save your private withdrawal code.'
+            response['message'] = ('Application received by Prowell Jobs for manual review; not sent to the employer automatically. Save your withdrawal code.'
+                                   if table == 'applications' else 'Candidate profile received for review. Save your private withdrawal code.')
         if table == 'alerts':
             response['message'] = 'Saved your interest in future email alerts. Automated email delivery is not enabled yet; use RSS for live alerts.'
         return self.send_json(201,response)
@@ -388,15 +427,16 @@ class Handler(SimpleHTTPRequestHandler):
     def do_PATCH(self):
         path = urlsplit(self.path).path
         parts = path.split('/')
-        if len(parts) != 5 or parts[:3] != ['','api','admin'] or parts[3] not in ('jobs','candidates','reviews','reports'):
+        if len(parts) != 5 or parts[:3] != ['','api','admin'] or parts[3] not in ('jobs','candidates','reviews','reports','applications'):
             return self.send_json(404,{'error':'Unknown endpoint.'})
         if not self.authorized():
             return self.send_json(401,{'error':'Invalid administrator key.'})
         try:
             uuid.UUID(parts[4])
             data = self.json_body()
-            if not isinstance(data,dict) or data.get('status') not in STATUS_VALUES:
-                raise ValueError('Choose pending, approved, or rejected.')
+            allowed = ('pending','reviewed','closed') if parts[3] == 'applications' else STATUS_VALUES
+            if not isinstance(data,dict) or data.get('status') not in allowed:
+                raise ValueError('Choose a valid record status.')
             if 'verified' in data and (parts[3] != 'jobs' or type(data['verified']) is not bool):
                 raise ValueError('Verified may be set only for jobs.')
         except ValueError as exc:
@@ -412,7 +452,7 @@ class Handler(SimpleHTTPRequestHandler):
     def do_DELETE(self):
         path = urlsplit(self.path).path
         parts = path.split('/')
-        if len(parts) != 4 or parts[:3] != ['','api','candidates']:
+        if len(parts) != 4 or parts[:2] != ['','api'] or parts[2] not in ('candidates','applications'):
             return self.send_json(404,{'error':'Unknown endpoint.'})
         try:
             uuid.UUID(parts[3])
@@ -420,12 +460,13 @@ class Handler(SimpleHTTPRequestHandler):
             code = field(payload,'withdrawalCode',150,True)
         except ValueError as exc:
             return self.send_json(400,{'error':str(exc)})
+        table = parts[2]
         with db_connection() as db:
-            row = db.execute('SELECT withdrawalHash FROM candidates WHERE id=?',(parts[3],)).fetchone()
+            row = db.execute(f'SELECT withdrawalHash FROM {table} WHERE id=?',(parts[3],)).fetchone()
             if not row or not hmac.compare_digest(row['withdrawalHash'],hashlib.sha256(code.encode()).hexdigest()):
-                return self.send_json(403,{'error':'Invalid profile ID or withdrawal code.'})
-            db.execute('DELETE FROM candidates WHERE id=?',(parts[3],))
-        return self.send_json(200,{'message':'Your profile has been withdrawn and deleted.'})
+                return self.send_json(403,{'error':'Invalid record ID or withdrawal code.'})
+            db.execute(f'DELETE FROM {table} WHERE id=?',(parts[3],))
+        return self.send_json(200,{'message':'Your record has been withdrawn and deleted.'})
 
     def do_HEAD(self):
         if urlsplit(self.path).path in {'/','/index.html','/favicon.svg','/robots.txt','/sitemap.xml'}:
