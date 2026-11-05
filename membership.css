@@ -38,3 +38,31 @@
 
 /* Secure member controls, visible but separate from public marketing homepage. */
 .verification-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:-14px 0 22px}.form-feedback{font-size:12px;color:#385a7a;line-height:1.5;min-height:1.2em}.form-feedback.error{color:#a12e29}.settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px}.account-settings{margin:25px 0}.settings-form{display:grid;align-content:start;gap:13px;padding:20px;background:#f7faff;border:1px solid #e1e9f4;border-radius:13px}.settings-form h3{margin:0 0 5px;font-size:18px}.settings-form label{display:grid;gap:6px;color:#33465e;font-size:12px;font-weight:750}.settings-form input{width:100%;padding:11px;border:1px solid #cbd6e6;border-radius:8px;font:inherit;background:white}.settings-form input:disabled{background:#ecf0f5;color:#718094}.settings-form button{justify-self:start}.applicant-card{padding:16px;border:1px solid #dbe6f5;border-radius:13px;background:#f9fbff}.applicant-card h3{margin:0 0 6px;font-size:15px}.applicant-card p{margin:6px 0;font-size:12px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}.applicant-card a{color:#245d9e}.verification-actions[hidden],#employerInboxSection[hidden]{display:none!important}@media(max-width:760px){.settings-grid{grid-template-columns:1fr}}
+
+/* Responsive homepage: keep navigation and all services available on phones. */
+.m-mobile-menu{display:none}
+.writing-promo-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:25px;align-items:center}
+@media(max-width:1000px){
+ .m-header-inner{gap:12px}
+ .m-nav{display:none}
+ .m-mobile-menu{display:block;flex:none;position:relative}
+ .m-mobile-menu>summary{list-style:none;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid #d5e1ed;border-radius:10px;background:#f6f9fd;color:#183452;font-size:13px;font-weight:800;cursor:pointer;min-height:44px}
+ .m-mobile-menu>summary::-webkit-details-marker{display:none}
+ .m-mobile-menu>summary:focus-visible{outline:3px solid #7db1dc;outline-offset:3px}
+ .m-mobile-menu[open]>summary{background:#e7f1fb}
+ .m-mobile-menu-links{position:absolute;top:calc(100% + 12px);right:0;width:min(340px,calc(100vw - 30px));max-height:min(72vh,650px);overflow-y:auto;display:flex;flex-direction:column;padding:12px;background:#fff;border:1px solid #dce6f2;border-radius:16px;box-shadow:0 18px 40px #081b3550;z-index:50}
+ .m-mobile-menu-links a{display:block;padding:12px 14px;color:#183452;font-size:14px;font-weight:700;border-radius:9px}
+ .m-mobile-menu-links a:hover,.m-mobile-menu-links a:focus-visible{background:#edf5fb}
+ .m-mobile-menu-links a:not(:last-child){border-bottom:1px solid #edf2f7}
+}
+@media(max-width:780px){
+ .writing-promo-grid{grid-template-columns:1fr}
+}
+@media(max-width:430px){
+ .m-header-inner{gap:7px}
+ .m-header-actions .m-btn-small{display:none}
+ .m-mobile-menu>summary{padding:9px 11px}
+ .m-mobile-menu .mobile-menu-label{display:none}
+ .m-logo-type{font-size:19px}
+ .m-container{padding-left:16px;padding-right:16px}
+}
