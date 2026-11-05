@@ -66,3 +66,44 @@
  .m-logo-type{font-size:19px}
  .m-container{padding-left:16px;padding-right:16px}
 }
+
+/* CEO portrait: responsive original HTML section; no screenshot of the UI. */
+.ceo-panel{grid-template-columns:minmax(0,37%) minmax(0,63%)}
+.ceo-portrait{min-width:0;overflow:hidden;padding:30px 28px 75px;gap:12px}
+.ceo-portrait img{display:block;width:min(100%,310px);height:auto;max-height:390px;object-fit:cover;object-position:center;border-radius:22px;position:relative;box-shadow:0 22px 42px rgba(0,0,0,.25)}
+.ceo-portrait-caption{z-index:1;bottom:25px;left:32px}
+.ceo-copy{min-width:0}
+.ceo-copy h2{font-size:clamp(28px,3vw,42px);line-height:1.12;color:white;margin:17px 0 13px}
+.ceo-copy h2 em{color:var(--lime)}
+.ceo-copy blockquote{font-size:clamp(14px,1.3vw,17px);overflow-wrap:anywhere}
+@media(max-width:900px){
+ .ceo-panel{grid-template-columns:1fr}
+ .ceo-portrait{min-height:0;padding:32px 25px 85px}
+ .ceo-portrait img{width:min(100%,310px);max-height:none}
+ .ceo-copy{padding:30px 27px 42px}
+ .ceo-copy h2{font-size:32px}
+}
+@media(max-width:520px){
+ .ceo-section{padding-bottom:55px}
+ .ceo-panel{border-radius:19px}
+ .ceo-portrait{padding:24px 18px 70px}
+ .ceo-portrait img{width:min(100%,250px);border-radius:18px}
+ .ceo-portrait-caption{left:22px;bottom:17px}
+ .ceo-copy{padding:27px 23px 34px}
+ .ceo-copy h2{font-size:28px}
+ .ceo-copy blockquote{font-size:15px;line-height:1.72}
+ .dash-desktop-actions{display:none!important}
+ .dash-mobile-menu{display:block}
+ .m-header-inner{min-width:0}
+ .member-dash .dashboard-panel,.member-dash .dash-help,.member-dash .dash-tip{min-width:0}
+ .member-dash .dashboard-top h1{font-size:clamp(29px,8vw,39px);overflow-wrap:anywhere}
+ .member-dash .dashboard-panel{padding:19px}
+ .member-record{flex-wrap:wrap;gap:8px}
+}
+@media(min-width:521px) and (max-width:900px){
+ .dash-desktop-actions .m-link{display:none}
+ .dash-mobile-menu{display:block}
+ .dash-desktop-actions .m-btn-logout{display:none}
+}
+.dash-mobile-menu .m-mobile-menu-links button{display:block;text-align:left;width:100%;background:transparent;border:0;padding:12px 14px;border-radius:9px;color:#183452;font-size:14px;font-weight:700;cursor:pointer}
+.dash-mobile-menu .m-mobile-menu-links button:hover,.dash-mobile-menu .m-mobile-menu-links button:focus-visible{background:#edf5fb}

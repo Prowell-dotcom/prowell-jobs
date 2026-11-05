@@ -18,3 +18,29 @@
 .upload-summary{font-weight:750;color:#26528f;margin:4px 0 8px}
 .upload-file-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 2px;border-top:1px solid #e2eaf5}
 .upload-file-row button{background:#fff;border:1px solid #cbd7ed;border-radius:7px;color:#a42d3b;padding:6px 11px;cursor:pointer;font-weight:700;font-size:12px;flex-shrink:0}
+
+/* Consistent member navigation, including narrow phones. */
+.writing-mobile-menu{display:none;position:relative;flex:none}
+.writing-mobile-menu>summary{list-style:none;cursor:pointer;display:flex;align-items:center;min-height:44px;padding:10px 15px;border-radius:12px;border:1px solid #cad8e8;background:#f5f8ff;color:#112c50;font-size:14px;font-weight:800}
+.writing-mobile-menu>summary::-webkit-details-marker{display:none}
+.writing-mobile-menu>summary:focus-visible{outline:3px solid #92c7fc;outline-offset:2px}
+.writing-mobile-menu nav{position:absolute;top:calc(100% + 10px);right:0;display:flex;flex-direction:column;gap:0;width:min(315px,calc(100vw - 28px));max-height:70vh;overflow:auto;border:1px solid #e0e7f3;border-radius:16px;background:white;box-shadow:0 15px 40px #081b3545;padding:12px;z-index:25}
+.writing-mobile-menu nav a,.writing-mobile-menu nav button{display:block;width:100%;padding:12px 14px;border:0;border-radius:8px;text-align:left;background:transparent;color:#172d4a;font-weight:750;font-size:14px;cursor:pointer}
+.writing-mobile-menu nav a:hover,.writing-mobile-menu nav button:hover{background:#f0f5fc;text-decoration:none}
+@media(max-width:760px){
+ .writing-workspace-page .topbar .nav{flex-direction:row;align-items:center;min-height:70px;padding-top:12px;padding-bottom:12px}
+ .writing-desktop-nav{display:none!important}
+ .writing-mobile-menu{display:block}
+ .writing-workspace-page .container{padding-left:16px;padding-right:16px}
+ .writing-workspace-page .workspace-head{display:block}
+ .writing-workspace-page .workspace-status{max-width:none}
+ .writing-workspace-page .writing-primary-grid{grid-template-columns:1fr;min-width:0}
+ .writing-workspace-page .panel{min-width:0}
+ .writing-workspace-page .order,.writing-workspace-page .record{overflow-wrap:anywhere;min-width:0}
+ .writing-workspace-page input,.writing-workspace-page select,.writing-workspace-page textarea{max-width:100%;min-width:0}
+}
+@media(max-width:370px){
+ .writing-workspace-page .topbar .logo{font-size:21px}
+ .writing-workspace-page .workspace-nav{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+ .writing-workspace-page .workspace-nav a{font-size:11px;text-align:center}
+}
