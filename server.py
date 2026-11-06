@@ -27,6 +27,7 @@ from notifications import email_configured, sms_configured, send_notification, N
 from accounts import password_hash, verify_password, SESSION_SECONDS, COOKIE_NAME
 from writing_marketplace import Marketplace, init_db as init_writing_db
 import admin_document_sender as admin_docs
+import admin_extension_store as owner_extension
 
 ROOT = Path(__file__).resolve().parent
 DATABASE_PATH = Path(os.getenv('DATABASE_PATH', str(ROOT / 'prowell-jobs.sqlite3'))).resolve()
@@ -1225,6 +1226,10 @@ class Handler(SimpleHTTPRequestHandler):
             return self._employer_applications()
         if path == '/api/admin/bootstrap/status':
             return self.send_json(200, {'registrationOpen': not self.admin_owner_exists()})
+        if path == '/api/admin/extension/status':
+            return owner_extension.status(self, DATABASE_PATH, ROOT)
+        if path == '/api/admin/extension/download':
+            return owner_extension.download(self, DATABASE_PATH, ROOT)
         if path == '/api/admin/session':
             session = self.admin_session()
             return self.send_json(200, {'authenticated': bool(session),
@@ -1356,6 +1361,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.mark_admin_tab_viewed()
         if path == '/api/admin/documents/send':
             return admin_docs.handle_post(self, db_connection, check_rate)
+        if path == '/api/admin/extension/upload':
+            return owner_extension.upload(self, DATABASE_PATH, ROOT)
         if path == '/api/admin/notifications/test':
             if not self.authorized():
                 return self.send_json(401, {'error': 'Sign in as administrator.'})
