@@ -852,6 +852,11 @@ class Handler(SimpleHTTPRequestHandler):
                 totals[section] = db.execute(
                     f'SELECT COUNT(*) FROM {section} WHERE createdAt > ?',
                     (cutoff,)).fetchone()[0]
+                if section == 'notification_outbox':
+                    owner_extension.ensure_report_tables(db)
+                    totals[section] += db.execute(
+                        'SELECT COUNT(*) FROM extension_claim_events WHERE created_at > ?',
+                        (cutoff,)).fetchone()[0]
         return {'unread': totals}
 
     def mark_admin_tab_viewed(self):
