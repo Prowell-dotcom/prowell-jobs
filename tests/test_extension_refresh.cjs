@@ -27,7 +27,7 @@ async function run(){
   const window={};window.top=window;
   const ctx={window,document:doc,chrome,location:{origin:'https://4writers.net',reload(){reloadCount++;}},
     MutationObserver:class{constructor(cb){observer=cb;}observe(){}},
-    setTimeout(fn,ms){assert.equal(ms,2000);timer=fn;return ++timeoutId;},
+    setTimeout(fn,ms){assert.equal(ms,2000);timer=async()=>{timer=null;return fn();};return ++timeoutId;},
     clearTimeout(id){oldTimer=id;timer=null;},
     Date,Number,Set,RegExp,Boolean};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../extension/4writers/refresh.js'),'utf8'),ctx);
