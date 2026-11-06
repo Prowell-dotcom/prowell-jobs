@@ -167,7 +167,7 @@ async function loadActivity(){
 $('#refreshActivityButton')?.addEventListener('click',()=>loadActivity());
 
 // Lightweight live checks: show newly submitted records without page reload.
-setInterval(()=>{if(signedIn)fetchUnreadCounts().catch(()=>{});},45000);
+setInterval(()=>{if(signedIn){fetchUnreadCounts().catch(()=>{});if(activeTab==='notification_outbox')loadExtensionEvents().catch(()=>{});}},10000);
 
 
 function setExtensionStatus(message){const element=$('#ownerExtensionStatus');if(element)element.textContent=message;}
