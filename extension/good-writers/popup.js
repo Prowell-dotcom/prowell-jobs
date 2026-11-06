@@ -49,4 +49,43 @@ chrome.storage.onChanged.addListener((changes,area)=>{
  render();
 });
 
+
+async function updateGoodWritersPairingStatus(){
+ const values=await chrome.storage.local.get(['goodWritersReportCode','goodWritersReportStatus','goodWritersPending']);
+ $('gwPairStatus').textContent=(values.goodWritersReportCode?'Paired':'Not paired')+
+  ' · '+(values.goodWritersReportStatus||'No connection test yet.')+
+  ' · Pending reports: '+(values.goodWritersPending||[]).length;
+}
+$('gwPair')?.addEventListener('click',async()=>{
+ const code=$('gwReportCode').value.trim();
+ if(code.length<30||code.length>180){$('gwPairStatus').textContent='Paste the Good-Writers pairing code from the Prowell administrator dashboard.';return;}
+ $('gwPair').disabled=true;
+ $('gwPairStatus').textContent='Verifying pairing with Prowell Jobs…';
+ try{
+  const response=await chrome.runtime.sendMessage({type:'GOOD_WRITERS_VERIFY',code});
+  if(!response?.ok)throw Error(response?.error||'Pairing could not be verified.');
+  $('gwReportCode').value='';
+  await updateGoodWritersPairingStatus();
+ }catch(err){$('gwPairStatus').textContent='Connection failed: '+err.message;}
+ finally{$('gwPair').disabled=false;}
+});
+$('gwUnpair')?.addEventListener('click',async()=>{
+ if(!confirm('Disconnect Good-Writers notifications? Saved local reports will remain.'))return;
+ await chrome.runtime.sendMessage({type:'GOOD_WRITERS_DISCONNECT'});
+ $('gwReportCode').value='';
+ await updateGoodWritersPairingStatus();
+});
+$('gwRetry')?.addEventListener('click',async()=>{
+ $('gwPairStatus').textContent='Retrying pending Good-Writers reports…';
+ const result=await chrome.runtime.sendMessage({type:'GOOD_WRITERS_RETRY'});
+ await updateGoodWritersPairingStatus();
+ if(result?.error)$('gwPairStatus').textContent=result.error;
+});
+chrome.storage.onChanged.addListener((changed,area)=>{
+ if(area==='local' && ['goodWritersReportCode','goodWritersReportStatus','goodWritersPending'].some(k=>changed[k])){
+  void updateGoodWritersPairingStatus();
+ }
+});
+
 start().catch(err=>{$('notice').textContent=err.message;});
+void updateGoodWritersPairingStatus();
