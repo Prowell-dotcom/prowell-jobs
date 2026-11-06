@@ -14,7 +14,7 @@ class PrivateExtensionBundleTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         data = store.bundled_extension(root)
         self.assertLess(len(data), store.MAX_ZIP_BYTES)
-        self.assertEqual(store.validate_bundle(data), '0.4.1')
+        self.assertEqual(store.validate_bundle(data), '0.5.0')
         with zipfile.ZipFile(io.BytesIO(data)) as zipped:
             names = set(zipped.namelist())
             self.assertTrue({'manifest.json','content.js','popup.js','popup.html','background.js'} <= names)
@@ -27,7 +27,7 @@ class PrivateExtensionBundleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             data, source = store.selected_bundle(Path(tmp) / 'database.sqlite3', root)
         self.assertEqual(source, 'github-bundled')
-        self.assertEqual(store.validate_bundle(data), '0.4.1')
+        self.assertEqual(store.validate_bundle(data), '0.5.0')
 
     def test_docker_image_includes_source_files(self):
         root = Path(__file__).resolve().parents[1]
