@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Prowell Good-Writers Assistant",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Independent browser order-page monitoring and alerts for Good-Writers.",
   "permissions": [
     "storage",
@@ -9,7 +9,8 @@
   ],
   "host_permissions": [
     "https://good-writers.com/*",
-    "https://www.good-writers.com/*"
+    "https://www.good-writers.com/*",
+    "https://prowelljobs.com/*"
   ],
   "action": {
     "default_title": "Good-Writers Assistant",

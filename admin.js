@@ -38,11 +38,11 @@ async function markSectionViewed(section){
  unreadCounts[section]=0;
  renderUnreadBadges();
 }
-function showSignedIn(){signedIn=true;$('#activityPanel').hidden=false;$('#externalWriterPanel').hidden=false;$('#ownerExtensionPanel').hidden=false;loadOwnerExtensionStatus().catch(err=>setExtensionStatus(err.message));loadGoodWritersStatus().catch(err=>setGoodWritersStatus(err.message));renderUnreadBadges();$('#keyForm').hidden=true;$('#sessionPanel').hidden=false;$('#notificationDiagnostics').hidden=activeTab!=='notification_outbox';$('#extensionClaimNotifications').hidden=activeTab!=='notification_outbox';}
+function showSignedIn(){signedIn=true;$('#activityPanel').hidden=false;$('#externalWriterPanel').hidden=false;$('#ownerExtensionPanel').hidden=false;loadOwnerExtensionStatus().catch(err=>setExtensionStatus(err.message));loadGoodWritersStatus().catch(err=>setGoodWritersStatus(err.message));renderUnreadBadges();$('#keyForm').hidden=true;$('#sessionPanel').hidden=false;$('#notificationDiagnostics').hidden=activeTab!=='notification_outbox';$('#extensionClaimNotifications').hidden=activeTab!=='notification_outbox';$('#goodWritersClaimNotifications').hidden=activeTab!=='notification_outbox';}
 function showSignedOut(message='Signed out. Use your administrator account to sign in again.'){
  signedIn=false;csrfToken='';unreadCounts={};$('#activityPanel').hidden=true;$('#externalWriterPanel').hidden=true;$('#ownerExtensionPanel').hidden=true;$('#downloadOwnerExtension').disabled=true;$('#downloadGoodWritersExtension').disabled=true;renderUnreadBadges();dataset={jobs:[],applications:[],candidates:[],reviews:[],reports:[],alerts:[],notification_outbox:[]};
  $('#sessionPanel').hidden=true;$('#keyForm').hidden=false;$('#adminKey').value='';
- $('#adminStatus').textContent=message;$('#notificationDiagnostics').hidden=true;$('#extensionClaimNotifications').hidden=true;render();
+ $('#adminStatus').textContent=message;$('#notificationDiagnostics').hidden=true;$('#extensionClaimNotifications').hidden=true;$('#goodWritersClaimNotifications').hidden=true;render();
 }
 async function refresh(){if(!signedIn)return;
  for(const table of Object.keys(dataset)){const data=await api('/api/admin/'+table);dataset[table]=data[table]||[];}
@@ -128,7 +128,7 @@ $('#adminTabs').addEventListener('click',async e=>{
    b.setAttribute('aria-selected',String(b===btn));
  });
  const filter=$('#adminFilter');filter.innerHTML=activeTab==='notification_outbox'?'<option value="all">All</option><option value="pending">Pending</option><option value="sent">Sent</option><option value="retry">Retry</option><option value="failed">Failed</option>':activeTab==='applications'?'<option value="all">All records</option><option value="pending">Pending</option><option value="reviewed">Reviewed</option><option value="closed">Closed</option>':'<option value="all">All records</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option>';
- render();$('#notificationDiagnostics').hidden=!(signedIn&&activeTab==='notification_outbox');$('#extensionClaimNotifications').hidden=!(signedIn&&activeTab==='notification_outbox');
+ render();$('#notificationDiagnostics').hidden=!(signedIn&&activeTab==='notification_outbox');$('#extensionClaimNotifications').hidden=!(signedIn&&activeTab==='notification_outbox');$('#goodWritersClaimNotifications').hidden=!(signedIn&&activeTab==='notification_outbox');
  if(!signedIn)return;
  try{
    // Refresh this section first, so a new item is actually visible before marking it viewed.
@@ -137,7 +137,7 @@ $('#adminTabs').addEventListener('click',async e=>{
    if(activeTab!==section)return;
    render();
    await markSectionViewed(section);
-   if(section==='notification_outbox'){await refreshNotificationStatus();await loadExtensionEvents();}
+   if(section==='notification_outbox'){await refreshNotificationStatus();await loadExtensionEvents();await loadGoodWritersEvents();}
  }catch(err){$('#adminStatus').textContent='Could not load this section: '+err.message;}
 });
 
@@ -167,7 +167,7 @@ async function loadActivity(){
 $('#refreshActivityButton')?.addEventListener('click',()=>loadActivity());
 
 // Lightweight live checks: show newly submitted records without page reload.
-setInterval(()=>{if(signedIn){fetchUnreadCounts().catch(()=>{});if(activeTab==='notification_outbox')loadExtensionEvents().catch(()=>{});}},10000);
+setInterval(()=>{if(signedIn){fetchUnreadCounts().catch(()=>{});if(activeTab==='notification_outbox')loadExtensionEvents().catch(()=>{});loadGoodWritersEvents().catch(()=>{});}},10000);
 
 
 function setExtensionStatus(message){const element=$('#ownerExtensionStatus');if(element)element.textContent=message;}
@@ -252,6 +252,46 @@ $('#revokeOwnerExtension')?.addEventListener('click',async()=>{
  }catch(e){$('#ownerPairingStatus').textContent=e.message;}
 });
 
+
+
+async function loadGoodWritersEvents(){
+ if(!signedIn)return;
+ const data=await api('/api/admin/good-writers/events');
+ const container=$('#goodWritersClaimEvents');container.replaceChildren();
+ for(const event of (data.events||[])){
+   const row=document.createElement('article');row.className='activity-entry';
+   const details=document.createElement('div'),label=document.createElement('strong'),meta=document.createElement('div');
+   label.textContent='Good-Writers order #'+event.orderId+' — '+event.outcome.toUpperCase();
+   meta.className='activity-meta';
+   meta.textContent=event.detail+' · Stage: '+event.stage+' · '+event.elapsedMs+' ms · '+new Date(event.createdAt).toLocaleString();
+   details.append(label,meta);row.append(details);container.append(row);
+ }
+ if(!(data.events||[]).length)container.textContent='No Good-Writers result reports yet.';
+}
+$('#refreshGoodWritersEvents')?.addEventListener('click',()=>loadGoodWritersEvents().catch(err=>$('#goodWritersClaimEvents').textContent=err.message));
+$('#pairGoodWriters')?.addEventListener('click',async()=>{
+ if(!signedIn||!confirm('Generate a new Good-Writers code? This revokes only the old Good-Writers code.'))return;
+ try{
+  const data=await api('/api/admin/good-writers/pair',{method:'POST'});
+  $('#goodWritersPairValue').value=data.pairingCode;
+  $('#goodWritersPairPanel').hidden=false;
+  $('#goodWritersPairStatus').textContent='Good-Writers pairing code generated. Copy it into the Good-Writers Chrome extension.';
+ }catch(err){$('#goodWritersPairStatus').textContent=err.message;}
+});
+$('#copyGoodWritersPair')?.addEventListener('click',async()=>{
+ try{
+  await navigator.clipboard.writeText($('#goodWritersPairValue').value);
+  $('#goodWritersPairStatus').textContent='Good-Writers code copied.';
+ }catch(err){$('#goodWritersPairStatus').textContent='Select the code and copy it manually.';}
+});
+$('#revokeGoodWriters')?.addEventListener('click',async()=>{
+ if(!signedIn||!confirm('Revoke Good-Writers reporting access? 4writers remains connected.'))return;
+ try{
+  await api('/api/admin/good-writers/revoke',{method:'POST'});
+  $('#goodWritersPairValue').value='';$('#goodWritersPairPanel').hidden=true;
+  $('#goodWritersPairStatus').textContent='Good-Writers reporting code revoked.';
+ }catch(err){$('#goodWritersPairStatus').textContent=err.message;}
+});
 
 function setGoodWritersStatus(message){
  const node=$('#goodWritersExtensionStatus');

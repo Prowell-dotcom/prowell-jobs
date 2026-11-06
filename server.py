@@ -28,6 +28,7 @@ from accounts import password_hash, verify_password, SESSION_SECONDS, COOKIE_NAM
 from writing_marketplace import Marketplace, init_db as init_writing_db
 import admin_document_sender as admin_docs
 import admin_extension_store as owner_extension
+import good_writers_reporting as good_writers_reports
 
 ROOT = Path(__file__).resolve().parent
 DATABASE_PATH = Path(os.getenv('DATABASE_PATH', str(ROOT / 'prowell-jobs.sqlite3'))).resolve()
@@ -854,8 +855,12 @@ class Handler(SimpleHTTPRequestHandler):
                     (cutoff,)).fetchone()[0]
                 if section == 'notification_outbox':
                     owner_extension.ensure_report_tables(db)
+                    good_writers_reports._tables(db)
                     totals[section] += db.execute(
                         'SELECT COUNT(*) FROM extension_claim_events WHERE created_at > ?',
+                        (cutoff,)).fetchone()[0]
+                    totals[section] += db.execute(
+                        'SELECT COUNT(*) FROM good_writers_claim_events WHERE created_at > ?',
                         (cutoff,)).fetchone()[0]
         return {'unread': totals}
 
@@ -1233,6 +1238,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(200, {'registrationOpen': not self.admin_owner_exists()})
         if path == '/api/admin/extension/events':
             return owner_extension.list_report_events(self, db_connection)
+        if path == '/api/admin/good-writers/events':
+            return good_writers_reports.events(self, db_connection)
         if path == '/api/admin/good-writers/extension/status':
             return owner_extension.good_writers_status(self, ROOT)
         if path == '/api/admin/good-writers/extension/download':
@@ -1372,6 +1379,14 @@ class Handler(SimpleHTTPRequestHandler):
             return self.mark_admin_tab_viewed()
         if path == '/api/admin/documents/send':
             return admin_docs.handle_post(self, db_connection, check_rate)
+        if path == '/api/admin/good-writers/pair':
+            return good_writers_reports.pair(self, db_connection)
+        if path == '/api/admin/good-writers/revoke':
+            return good_writers_reports.revoke(self, db_connection)
+        if path == '/api/good-writers/report/verify':
+            return good_writers_reports.verify(self, db_connection)
+        if path == '/api/good-writers/report':
+            return good_writers_reports.receive(self, db_connection)
         if path == '/api/admin/extension/pair':
             return owner_extension.create_report_token(self, db_connection)
         if path == '/api/admin/extension/revoke':
