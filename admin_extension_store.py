@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import os
 import secrets
 import stat
@@ -183,3 +184,104 @@ def download(handler, database_path: Path, root: Path):
     handler.send_header('Pragma', 'no-cache')
     handler.end_headers()
     handler.wfile.write(data)
+
+
+# Scoped extension reporting: never reuse the administrator cookie in an extension.
+def ensure_report_tables(connection):
+    connection.execute("""CREATE TABLE IF NOT EXISTS extension_report_token(
+      id INTEGER PRIMARY KEY CHECK(id=1), token_hash TEXT NOT NULL,
+      created_at TEXT NOT NULL)""")
+    connection.execute("""CREATE TABLE IF NOT EXISTS extension_claim_events(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_key TEXT NOT NULL UNIQUE,
+      order_id TEXT NOT NULL,
+      outcome TEXT NOT NULL,
+      stage TEXT NOT NULL,
+      elapsed_ms INTEGER,
+      detail TEXT NOT NULL,
+      created_at TEXT NOT NULL)""")
+
+
+def create_report_token(handler, db_connection):
+    if not _owner_only(handler, write=True):
+        return
+    token = secrets.token_urlsafe(36)
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    with db_connection() as connection:
+        ensure_report_tables(connection)
+        connection.execute("DELETE FROM extension_report_token")
+        connection.execute("INSERT INTO extension_report_token(id,token_hash,created_at) VALUES(1,?,?)",
+                           (token_hash,datetime.now(timezone.utc).isoformat()))
+    return handler.send_json(200, {
+        'pairingCode': token,
+        'message': 'Paste this private pairing code into your Chrome extension. The previous code is revoked.'
+    })
+
+
+def revoke_report_token(handler, db_connection):
+    if not _owner_only(handler, write=True):
+        return
+    with db_connection() as connection:
+        ensure_report_tables(connection)
+        connection.execute("DELETE FROM extension_report_token")
+    return handler.send_json(200, {'paired': False, 'message': 'Browser extension reporting access revoked.'})
+
+
+def list_report_events(handler, db_connection):
+    if not _owner_only(handler):
+        return
+    with db_connection() as connection:
+        ensure_report_tables(connection)
+        rows = connection.execute(
+          "SELECT order_id,outcome,stage,elapsed_ms,detail,created_at FROM extension_claim_events "
+          "ORDER BY id DESC LIMIT 100").fetchall()
+        paired = connection.execute("SELECT 1 FROM extension_report_token WHERE id=1").fetchone() is not None
+    return handler.send_json(200, {'paired': paired, 'events': [
+        {'orderId': r['order_id'], 'outcome': r['outcome'], 'stage': r['stage'],
+         'elapsedMs': r['elapsed_ms'], 'detail': r['detail'], 'createdAt': r['created_at']}
+        for r in rows
+    ]})
+
+
+def receive_report(handler, db_connection):
+    """Accept only result metadata, never credentials, order text, or client details."""
+    auth = handler.headers.get('Authorization', '')
+    if not auth.startswith('Bearer '):
+        return handler.send_json(401, {'error': 'Extension pairing required.'})
+    token = auth[7:]
+    if len(token) < 30 or len(token) > 180:
+        return handler.send_json(401, {'error': 'Invalid extension pairing.'})
+    with db_connection() as connection:
+        ensure_report_tables(connection)
+        row = connection.execute("SELECT token_hash FROM extension_report_token WHERE id=1").fetchone()
+    if not row or not secrets.compare_digest(row['token_hash'], hashlib.sha256(token.encode()).hexdigest()):
+        return handler.send_json(401, {'error': 'Extension pairing was revoked or replaced.'})
+    try:
+        payload = handler.json_body()
+        if not isinstance(payload, dict):
+            raise ValueError('Invalid report body.')
+        event_key = payload.get('eventKey')
+        order_id = str(payload.get('orderId', ''))
+        outcome = payload.get('outcome')
+        stage = str(payload.get('stage', ''))[:60]
+        detail = str(payload.get('detail', ''))[:400]
+        elapsed = payload.get('elapsedMs')
+        if not isinstance(event_key, str) or not re.fullmatch(r'[A-Za-z0-9_-]{12,80}', event_key):
+            raise ValueError('Invalid event identifier.')
+        if not re.fullmatch(r'[0-9]{5,16}', order_id):
+            raise ValueError('Invalid order identifier.')
+        if outcome not in ('success', 'failure', 'uncertain'):
+            raise ValueError('Invalid order result.')
+        if not isinstance(elapsed, int) or not 0 <= elapsed <= 120000:
+            raise ValueError('Invalid elapsed time.')
+        if stage not in ('view','take','ok','acknowledge','result','timeout','security'):
+            raise ValueError('Invalid workflow stage.')
+    except ValueError as exc:
+        return handler.send_json(400, {'error': str(exc)})
+    with db_connection() as connection:
+        ensure_report_tables(connection)
+        connection.execute(
+          "INSERT OR IGNORE INTO extension_claim_events(event_key,order_id,outcome,stage,elapsed_ms,detail,created_at) "
+          "VALUES(?,?,?,?,?,?,?)",
+          (event_key,order_id,outcome,stage,elapsed,detail,datetime.now(timezone.utc).isoformat()))
+    return handler.send_json(202, {'received': True})
