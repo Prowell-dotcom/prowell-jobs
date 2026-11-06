@@ -25,7 +25,7 @@
     !el.disabled && el.getAttribute('aria-disabled')!=='true');
   const find = pattern => [...document.querySelectorAll(ACTIONS)]
     .find(el => visible(el) && pattern.test(label(el)));
-  const active = () => Boolean(state.armed && state.claimConsentVersion==='0.5.0' && tabId === state.targetTabId);
+  const active = () => Boolean(state.armed && state.claimConsentVersion==='0.5.1' && tabId === state.targetTabId);
   const pageText = () => document.body?.innerText || '';
   const orderList = () => /available orders/i.test(pageText()) &&
     /\bwritings\b/i.test(pageText()) && !/please log in/i.test(pageText());
@@ -68,14 +68,8 @@
     return hits;
   }
   function stopRefresh(){if(nextRefresh){clearTimeout(nextRefresh);nextRefresh=null;}}
-  function scheduleRefresh(){
-    stopRefresh();
-    if(!active()||state.claim||!orderList())return;
-    nextRefresh=setTimeout(()=>{
-      nextRefresh=null;
-      if(active()&&!state.claim&&orderList()&&!challenge())location.reload();
-    },Math.max(2000,Number(state.refreshMs)||2000));
-  }
+  // Refresh scheduling is controlled exclusively by refresh.js.
+  function scheduleRefresh(){}
   async function clickStage(el,stage,message){
     if(!visible(el) || busy || !active())return;
     busy=true;stopRefresh();

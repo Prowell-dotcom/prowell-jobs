@@ -13,7 +13,7 @@ label{display:block;margin-top:12px}.note{font-size:11px;color:#6b5b30;backgroun
 small{color:#5a7089}#history{font:11px/1.6 monospace;max-height:95px;overflow:auto}
 </style></head>
 <body>
-<h1>Prowell Order Watcher</h1><small>Version 0.5.0 · private browser extension</small>
+<h1>Prowell Order Watcher</h1><small>Version 0.5.1 · private browser extension</small>
 <p>Monitors the official 4writers tab, refreshes every 2 seconds, and attempts the normal order-acceptance sequence.</p>
 <div id="status" class="panel" role="status">Loading extension...</div>
 <div class="controls"><button id="arm" class="go">START AUTO-CLAIM</button><button id="stop" class="stop">STOP</button></div>
@@ -21,5 +21,5 @@ small{color:#5a7089}#history{font:11px/1.6 monospace;max-height:95px;overflow:au
 <div class="note">This version attempts View → Take it → I understand the order automatically. It does not bypass CAPTCHA or account limits. It has not been live-tested; claiming an order within one second is not guaranteed.</div>
 <div class="controls" style="margin-top:11px"><button id="reset">Reset stalled claim</button><button id="clear">Clear attempted IDs</button></div>
 <details><summary>Dashboard reporting</summary><p>Enter the reporting code from your Prowell administrator dashboard.</p><input id="reportCode" type="text" placeholder="Pairing code" style="width:95%;padding:8px"><button id="saveReportCode">Connect reporting</button><button id="removeReportCode">Disconnect</button></details><details style="margin-top:12px"><summary>Recent actions</summary><div id="history" class="panel"></div></details>
-<p id="notice" role="status"></p><script src="popup.js"></script>
+<p id="notice" role="status"></p><script src="popup.js"></script><script src="popup-refresh.js"></script>
 </body></html>

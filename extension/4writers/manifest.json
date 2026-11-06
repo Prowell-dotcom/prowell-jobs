@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Prowell 4writers Order Watcher",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Instant browser-side order detection, View highlighting and manual acceptance assistance.",
   "permissions": [
     "storage",
@@ -26,7 +26,8 @@
         "https://www.4writers.net/*"
       ],
       "js": [
-        "content.js"
+        "content.js",
+        "refresh.js"
       ],
       "run_at": "document_start"
     }
