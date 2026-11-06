@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prowell Order Watcher</title>
+<style>
+body{margin:0;padding:16px;width:330px;box-sizing:border-box;background:#f5f8fc;color:#172b48;font:13px/1.5 system-ui,Arial,sans-serif}
+h1{font-size:19px;margin:0 0 4px}p{margin:6px 0 12px;color:#52687d}
+.panel{border:1px solid #d8e0eb;border-radius:10px;background:white;padding:12px;margin:11px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.controls{display:flex;gap:8px}.controls button{flex:1}
+button{padding:11px 8px;border-radius:8px;border:1px solid #b6c7da;background:white;cursor:pointer;font-weight:700}
+button:disabled{opacity:.45}.go{background:#147b52;color:white}.stop{background:#b7303f;color:white}
+label{display:block;margin-top:12px}.note{font-size:11px;color:#6b5b30;background:#fff5da;padding:9px;border-radius:8px;margin-top:12px}
+small{color:#5a7089}#history{font:11px/1.6 monospace;max-height:95px;overflow:auto}
+</style></head>
+<body>
+<h1>Prowell Order Watcher</h1><small>Version 0.4.1 · private browser extension</small>
+<p>Instantly highlights new 4writers orders and relevant action buttons. You decide whether to accept.</p>
+<div id="status" class="panel" role="status">Loading extension...</div>
+<div class="controls"><button id="arm" class="go">Start monitoring</button><button id="stop" class="stop">STOP</button></div>
+<label><input type="checkbox" id="returnToList" checked> Return to list preference</label>
+<div class="note">This extension works only on the signed-in official 4writers page. It does not automatically accept work. Site compatibility has not been tested.</div>
+<div class="controls" style="margin-top:11px"><button id="reset">Reset status</button><button id="clear">Clear history</button></div>
+<details style="margin-top:12px"><summary>Recent actions</summary><div id="history" class="panel"></div></details>
+<p id="notice" role="status"></p><script src="popup.js"></script>
+</body></html>

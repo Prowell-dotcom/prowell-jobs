@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Prowell 4writers Order Watcher",
+  "version": "0.4.1",
+  "description": "Instant browser-side order detection, View highlighting and manual acceptance assistance.",
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://4writers.net/*",
+    "https://www.4writers.net/*"
+  ],
+  "action": {
+    "default_title": "Prowell Order Assistant",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://4writers.net/*",
+        "https://www.4writers.net/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}
