@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Prowell 4writers Order Assistant",
-  "version": "0.4.0",
-  "description": "Event-driven order detection and one-at-a-time claim workflow on 4writers. No direct polling or credentials.",
+  "name": "Prowell 4writers Order Watcher",
+  "version": "0.4.1",
+  "description": "Instant browser-side order detection, View highlighting and manual acceptance assistance.",
   "permissions": [
     "storage",
     "tabs"
