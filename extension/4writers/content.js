@@ -164,5 +164,7 @@
     if(records.every(record=>statusNode?.contains(record.target)))return;
     scheduleScan();
   }).observe(document,{childList:true,subtree:true,characterData:true});
+  // Keep checking for confirmation after a click even if the website makes no further DOM changes.
+  setInterval(()=>{if(active() && state.claim && !busy)scheduleScan();},150);
   document.addEventListener('DOMContentLoaded',scheduleScan,{once:true});
 })();
