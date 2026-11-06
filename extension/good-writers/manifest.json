@@ -25,9 +25,10 @@
         "https://www.good-writers.com/*"
       ],
       "js": [
-        "content.js"
+        "content.js",
+        "refresh.js"
       ],
-      "run_at": "document_idle"
+      "run_at": "document_start"
     }
   ]
 }
