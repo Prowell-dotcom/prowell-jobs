@@ -13,9 +13,11 @@
   const VIEW = /^view(?:\s+(?:order|details))?$/i;
   const TAKE = /^take\s*it(?:\s*now)?[.!]?$/i;
   const ACCEPT = /^i\s+understand\s+the\s+order[.!]?$/i;
+  const OK = /^(?:ok|okay|confirm|yes)$/i;
   const ACTIONS = 'a,button,input[type="button"],input[type="submit"],[role="button"]';
   let state={...DEFAULTS}, tabId=null, busy=false, pendingScan=false;
   let nextRefresh=null, statusNode=null, lastAction=0;
+  const sendResult = (payload) => chrome.runtime.sendMessage({type:'PROWELL_CLAIM_REPORT',payload},()=>void chrome.runtime.lastError);
 
   const label = el => (el?.getAttribute?.('aria-label') || el?.value ||
     el?.innerText || el?.textContent || '').trim().replace(/\s+/g,' ');
@@ -86,7 +88,12 @@
     finally{busy=false;}
     setTimeout(scheduleScan,0);
   }
-  async function finished(ok,message){
+  async function finished(ok,message,stage='result'){
+    const current=state.claim;
+    if(current){
+      const elapsedMs=Math.max(0,Date.now()-current.startedAt);
+      sendResult({eventKey:'claim_'+current.id+'_'+current.startedAt,orderId:current.id,outcome:ok?'success':'failure',stage,elapsedMs,detail:message+(ok?' · Monitor click and page load times for optimization.':' · Check order availability and selectors.')});
+    }
     const claim=state.claim;if(!claim)return;
     const array=ok?'completed':'attemptedIds';
     const ids=[...new Set([...(state[array]||[]),claim.id])].slice(-200);
@@ -104,13 +111,15 @@
     }
     if(state.claim){
       const current=state.claim;
-      if(current.stage==='confirmed' && success())return finished(true,'Order #'+current.id+' successfully claimed');
-      if(failure())return finished(false,'Order #'+current.id+' unavailable');
+      if((current.stage==='confirmed'||current.stage==='acknowledged') && success())return finished(true,'Order #'+current.id+': Now you can write the order');
+      if(failure())return finished(false,'Order #'+current.id+': already taken or unavailable');
       if(Date.now()-current.startedAt>25000){
-        stopRefresh();await report('Claim status unclear; stopped to prevent duplicate acceptance',{armed:false});return;
+        stopRefresh();sendResult({eventKey:'timeout_'+current.id+'_'+current.startedAt,orderId:current.id,outcome:'uncertain',stage:'timeout',elapsedMs:Date.now()-current.startedAt,detail:'No confirmation within 25 seconds; inspect Processing orders before retrying.'});await report('Claim status unclear; stopped to prevent duplicate acceptance',{armed:false});return;
       }
-      if(current.stage==='take-clicked' && find(ACCEPT))
-        return clickStage(find(ACCEPT),'confirmed','Acknowledged order #'+current.id);
+      if(current.stage==='take-clicked' && find(OK))
+        return clickStage(find(OK),'ok-clicked','Confirmed OK for #'+current.id);
+      if((current.stage==='ok-clicked'||current.stage==='take-clicked') && find(ACCEPT))
+        return clickStage(find(ACCEPT),'acknowledged','Acknowledged order #'+current.id);
       if((current.stage==='view-clicked'||current.stage==='take-waiting') && find(TAKE))
         return clickStage(find(TAKE),'take-clicked','Clicked Take it for #'+current.id);
       return;
