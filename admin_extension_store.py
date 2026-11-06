@@ -90,20 +90,40 @@ def _owner_only(handler, write=False):
     return True
 
 
+def bundled_extension(root: Path) -> bytes:
+    """Build an installable ZIP from GitHub-tracked extension sources."""
+    source = root / 'extension' / '4writers'
+    names = ('manifest.json', 'background.js', 'content.js', 'popup.html', 'popup.js')
+    if not all((source / name).is_file() for name in names):
+        raise FileNotFoundError('Bundled extension source is missing from the deployment.')
+    output = BytesIO()
+    with zipfile.ZipFile(output, mode='w', compression=zipfile.ZIP_DEFLATED) as bundle:
+        for name in names:
+            bundle.write(source / name, arcname=name)
+    data = output.getvalue()
+    validate_bundle(data)
+    return data
+
+
+def selected_bundle(database_path: Path, root: Path):
+    """Prefer an owner-uploaded ZIP; otherwise use the version deployed from GitHub."""
+    path = private_path(database_path, root)
+    if path.is_file():
+        return path.read_bytes(), 'owner-upload'
+    return bundled_extension(root), 'github-bundled'
+
+
 def status(handler, database_path: Path, root: Path):
     if not _owner_only(handler):
         return
-    path = private_path(database_path, root)
-    if not path.is_file():
-        return handler.send_json(200, {'available': False})
-    data = path.read_bytes()
     try:
+        data, source = selected_bundle(database_path, root)
         version = validate_bundle(data)
-    except ValueError:
-        return handler.send_json(500, {'error': 'Stored extension is invalid; upload a fresh ZIP.'})
+    except (ValueError, OSError) as exc:
+        return handler.send_json(500, {'error': str(exc)})
     return handler.send_json(200, {
         'available': True, 'version': version, 'sizeBytes': len(data),
-        'updatedAt': datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(),
+        'source': source, 'sha256': hashlib.sha256(data).hexdigest(),
     })
 
 
@@ -146,10 +166,11 @@ def upload(handler, database_path: Path, root: Path):
 def download(handler, database_path: Path, root: Path):
     if not _owner_only(handler):
         return
-    path = private_path(database_path, root)
-    if not path.is_file():
-        return handler.send_json(404, {'error': 'No extension ZIP uploaded yet.'})
-    data = path.read_bytes()
+    try:
+        data, source = selected_bundle(database_path, root)
+        validate_bundle(data)
+    except (ValueError, OSError) as exc:
+        return handler.send_json(500, {'error': str(exc)})
     handler.send_response(200)
     handler.send_header('Content-Type', 'application/zip')
     handler.send_header('Content-Disposition', 'attachment; filename="' + BUNDLE_NAME + '"')
