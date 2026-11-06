@@ -7,7 +7,7 @@
   if (window.__prowellAssistantV5) return;
   window.__prowellAssistantV5 = true;
 
-  const DEFAULTS = {armed:false,targetTabId:null,refreshMs:2000,claim:null,
+  const DEFAULTS = {armed:false,claimConsentVersion:'',targetTabId:null,refreshMs:2000,claim:null,
     attemptedIds:[],completed:[],lastResult:'Ready',log:[],returnToList:true};
   const ID = /\b(?:order\s*)?ID\s*[:#]\s*(\d{5,})\b/i;
   const VIEW = /^view(?:\s+(?:order|details))?$/i;
@@ -25,7 +25,7 @@
     !el.disabled && el.getAttribute('aria-disabled')!=='true');
   const find = pattern => [...document.querySelectorAll(ACTIONS)]
     .find(el => visible(el) && pattern.test(label(el)));
-  const active = () => Boolean(state.armed && tabId === state.targetTabId);
+  const active = () => Boolean(state.armed && state.claimConsentVersion==='0.5.0' && tabId === state.targetTabId);
   const pageText = () => document.body?.innerText || '';
   const orderList = () => /available orders/i.test(pageText()) &&
     /\bwritings\b/i.test(pageText()) && !/please log in/i.test(pageText());
