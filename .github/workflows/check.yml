@@ -26,7 +26,10 @@ jobs:
           node --check extension/4writers/content.js
           node --check extension/4writers/background.js
           node --check extension/4writers/popup.js
+          node --check extension/4writers/refresh.js
+          node --check extension/4writers/popup-refresh.js
           node tests/test_extension_flow.cjs
+          node tests/test_extension_refresh.cjs
 
       - name: Run website tests
         run: python -m unittest discover -s tests -v
