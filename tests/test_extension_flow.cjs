@@ -19,7 +19,7 @@ async function run(){
    querySelectorAll(){return buttons;},
    querySelector(){return null;},
    addEventListener(){},
-   createElement(){return {style:{},textContent:'',isConnected:true};}
+   createElement(){return {style:{},textContent:'',isConnected:true,contains(){return false;}};}
  };
  function emit(){
   setTimeout(()=>onMutation([{target:body}]),0);
