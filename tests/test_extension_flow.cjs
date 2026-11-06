@@ -57,7 +57,7 @@ async function run(){
  const location={origin:'https://4writers.net',href:'https://4writers.net/orders',reload(){},assign(){}};
  const window={};window.top=window;
  const context={chrome,location,window,document,MutationObserver:class{constructor(fn){onMutation=fn;}observe(){}},
-  setTimeout,clearTimeout,Date,URL,queueMicrotask,console};
+  setTimeout,clearTimeout,setInterval,clearInterval,Date,URL,queueMicrotask,console};
  const filename=path.join(__dirname,'../extension/4writers/content.js');
  vm.runInNewContext(fs.readFileSync(filename,'utf8'),context,{filename});
  const deadline=Date.now()+1000;
