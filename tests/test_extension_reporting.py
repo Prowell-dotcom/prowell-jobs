@@ -68,8 +68,8 @@ class ExtensionReportingTests(unittest.TestCase):
 
     def test_unpaired_and_malformed_requests_are_rejected(self):
         self.handler.authorized=False
-        code,_=store.list_report_events(self.handler,self.database)
-        self.assertEqual(code,401)
+        store.list_report_events(self.handler,self.database)
+        self.assertEqual(self.handler.response[0],401)
         self.handler.authorized=True
         secret=self.pair()
         self.handler.headers={'Authorization':'Bearer '+secret}
@@ -82,8 +82,8 @@ class ExtensionReportingTests(unittest.TestCase):
 
     def test_csrf_required_for_pairing(self):
         self.handler.csrf=False
-        code,_=store.create_report_token(self.handler,self.database)
-        self.assertEqual(code,403)
+        store.create_report_token(self.handler,self.database)
+        self.assertEqual(self.handler.response[0],403)
 
 
 if __name__=='__main__':
