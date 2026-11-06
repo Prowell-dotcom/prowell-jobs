@@ -38,9 +38,9 @@ async function markSectionViewed(section){
  unreadCounts[section]=0;
  renderUnreadBadges();
 }
-function showSignedIn(){signedIn=true;$('#activityPanel').hidden=false;$('#externalWriterPanel').hidden=false;renderUnreadBadges();$('#keyForm').hidden=true;$('#sessionPanel').hidden=false;$('#notificationDiagnostics').hidden=activeTab!=='notification_outbox';}
+function showSignedIn(){signedIn=true;$('#activityPanel').hidden=false;$('#externalWriterPanel').hidden=false;$('#ownerExtensionPanel').hidden=false;loadOwnerExtensionStatus().catch(err=>setExtensionStatus(err.message));renderUnreadBadges();$('#keyForm').hidden=true;$('#sessionPanel').hidden=false;$('#notificationDiagnostics').hidden=activeTab!=='notification_outbox';}
 function showSignedOut(message='Signed out. Use your administrator account to sign in again.'){
- signedIn=false;csrfToken='';unreadCounts={};$('#activityPanel').hidden=true;$('#externalWriterPanel').hidden=true;renderUnreadBadges();dataset={jobs:[],applications:[],candidates:[],reviews:[],reports:[],alerts:[],notification_outbox:[]};
+ signedIn=false;csrfToken='';unreadCounts={};$('#activityPanel').hidden=true;$('#externalWriterPanel').hidden=true;$('#ownerExtensionPanel').hidden=true;$('#downloadOwnerExtension').disabled=true;renderUnreadBadges();dataset={jobs:[],applications:[],candidates:[],reviews:[],reports:[],alerts:[],notification_outbox:[]};
  $('#sessionPanel').hidden=true;$('#keyForm').hidden=false;$('#adminKey').value='';
  $('#adminStatus').textContent=message;$('#notificationDiagnostics').hidden=true;render();
 }
@@ -168,6 +168,49 @@ $('#refreshActivityButton')?.addEventListener('click',()=>loadActivity());
 
 // Lightweight live checks: show newly submitted records without page reload.
 setInterval(()=>{if(signedIn)fetchUnreadCounts().catch(()=>{});},45000);
+
+
+function setExtensionStatus(message){const element=$('#ownerExtensionStatus');if(element)element.textContent=message;}
+async function loadOwnerExtensionStatus(){
+ if(!signedIn)return;
+ const data=await api('/api/admin/extension/status');
+ const button=$('#downloadOwnerExtension');
+ button.disabled=!data.available;
+ setExtensionStatus(data.available
+   ? 'Extension ready · Version '+data.version+' · '+Math.round(data.sizeBytes/1024)+' KB · Uploaded '+new Date(data.updatedAt).toLocaleString()
+   : 'No private extension ZIP has been uploaded. Use Upload or replace ZIP to publish it for your administrator account.');
+}
+$('#uploadOwnerExtension')?.addEventListener('change',async event=>{
+ const element=event.currentTarget, file=element.files?.[0];
+ if(!file||!signedIn)return;
+ if(file.size>2*1024*1024){setExtensionStatus('Please select an extension ZIP smaller than 2 MB.');element.value='';return;}
+ setExtensionStatus('Validating and saving your private extension...');
+ try{
+  const response=await fetch('/api/admin/extension/upload',{
+   method:'POST',credentials:'same-origin',cache:'no-store',
+   headers:{'Content-Type':'application/zip','X-Admin-CSRF':csrfToken},body:file
+  });
+  const result=await response.json();
+  if(!response.ok)throw Error(result.error||'Extension upload failed.');
+  await loadOwnerExtensionStatus();
+ }catch(err){setExtensionStatus('Upload failed: '+err.message)}
+ finally{element.value='';}
+});
+$('#downloadOwnerExtension')?.addEventListener('click',async()=>{
+ if(!signedIn)return;
+ const button=$('#downloadOwnerExtension');button.disabled=true;
+ setExtensionStatus('Preparing your private download...');
+ try{
+  const response=await fetch('/api/admin/extension/download',{credentials:'same-origin',cache:'no-store'});
+  if(!response.ok){const error=await response.json();throw Error(error.error||'Download failed.');}
+  const blob=await response.blob();const url=URL.createObjectURL(blob);
+  const anchor=document.createElement('a');anchor.href=url;anchor.download='prowell-4writers-assistant.zip';
+  document.body.appendChild(anchor);anchor.click();anchor.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
+  setExtensionStatus('ZIP downloaded. Extract it before selecting Load unpacked in your browser.');
+ }catch(err){setExtensionStatus('Download failed: '+err.message)}
+ finally{button.disabled=false;}
+});
 
 $('#adminFilter').addEventListener('change',render);
 $('#adminRecords').addEventListener('click',async e=>{const btn=e.target.closest('[data-id]');if(!btn||!signedIn)return;const id=btn.dataset.id;const current=dataset[activeTab].find(r=>r.id===id);if(!current)return;const verification=btn.dataset.verified;
