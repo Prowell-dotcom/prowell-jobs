@@ -229,6 +229,29 @@ async function loadExtensionEvents(){
 }
 $('#refreshExtensionEvents')?.addEventListener('click',()=>loadExtensionEvents().catch(e=>$('#extensionClaimEvents').textContent=e.message));
 
+
+$('#pairOwnerExtension')?.addEventListener('click',async()=>{
+ if(!signedIn||!confirm('Generate a new pairing code? Previous codes stop working.'))return;
+ try{
+  const data=await api('/api/admin/extension/pair',{method:'POST'});
+  $('#ownerPairingCodeValue').value=data.pairingCode;
+  $('#ownerPairingCode').hidden=false;
+  $('#ownerPairingStatus').textContent='Code created. Copy it into the extension settings.';
+ }catch(e){$('#ownerPairingStatus').textContent=e.message;}
+});
+$('#copyOwnerPairingCode')?.addEventListener('click',async()=>{
+ try{await navigator.clipboard.writeText($('#ownerPairingCodeValue').value);$('#ownerPairingStatus').textContent='Pairing code copied.';}
+ catch(e){$('#ownerPairingStatus').textContent='Select and copy the code manually.';}
+});
+$('#revokeOwnerExtension')?.addEventListener('click',async()=>{
+ if(!signedIn||!confirm('Revoke the paired extension reporting code?'))return;
+ try{
+  await api('/api/admin/extension/revoke',{method:'POST'});
+  $('#ownerPairingCode').hidden=true;$('#ownerPairingCodeValue').value='';
+  $('#ownerPairingStatus').textContent='Reporting code revoked.';
+ }catch(e){$('#ownerPairingStatus').textContent=e.message;}
+});
+
 $('#adminFilter').addEventListener('change',render);
 $('#adminRecords').addEventListener('click',async e=>{const btn=e.target.closest('[data-id]');if(!btn||!signedIn)return;const id=btn.dataset.id;const current=dataset[activeTab].find(r=>r.id===id);if(!current)return;const verification=btn.dataset.verified;
  if((btn.dataset.status==='approved'||verification==='true')&&!confirm('Confirm that the content or employer has been checked and may be published / verified.'))return;
