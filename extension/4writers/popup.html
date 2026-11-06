@@ -20,6 +20,6 @@ small{color:#5a7089}#history{font:11px/1.6 monospace;max-height:95px;overflow:au
 <label><input type="checkbox" id="returnToList" checked> Return to available orders after confirmed success</label>
 <div class="note">This version attempts View → Take it → I understand the order automatically. It does not bypass CAPTCHA or account limits. It has not been live-tested; claiming an order within one second is not guaranteed.</div>
 <div class="controls" style="margin-top:11px"><button id="reset">Reset stalled claim</button><button id="clear">Clear attempted IDs</button></div>
-<details style="margin-top:12px"><summary>Recent actions</summary><div id="history" class="panel"></div></details>
+<details><summary>Dashboard reporting</summary><p>Enter the reporting code from your Prowell administrator dashboard.</p><input id="reportCode" type="text" placeholder="Pairing code" style="width:95%;padding:8px"><button id="saveReportCode">Connect reporting</button><button id="removeReportCode">Disconnect</button></details><details style="margin-top:12px"><summary>Recent actions</summary><div id="history" class="panel"></div></details>
 <p id="notice" role="status"></p><script src="popup.js"></script>
 </body></html>
