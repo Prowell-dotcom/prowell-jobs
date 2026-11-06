@@ -49,16 +49,4 @@ chrome.storage.onChanged.addListener((changes,area)=>{
  render();
 });
 
-$('saveReportCode')?.addEventListener('click',async()=>{
- const value=$('reportCode').value.trim();
- if(value.length<30||value.length>180){$('notice').textContent='Enter a valid code from your dashboard.';return;}
- await chrome.storage.local.set({reportCode:value});
- $('reportCode').value='';
- $('notice').textContent='Private reporting connected.';
-});
-$('removeReportCode')?.addEventListener('click',async()=>{
- await chrome.storage.local.remove('reportCode');
- $('reportCode').value='';
- $('notice').textContent='Reporting disconnected.';
-});
 start().catch(err=>{$('notice').textContent=err.message;});
