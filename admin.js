@@ -38,11 +38,11 @@ async function markSectionViewed(section){
  unreadCounts[section]=0;
  renderUnreadBadges();
 }
-function showSignedIn(){signedIn=true;$('#activityPanel').hidden=false;$('#externalWriterPanel').hidden=false;$('#ownerExtensionPanel').hidden=false;loadOwnerExtensionStatus().catch(err=>setExtensionStatus(err.message));renderUnreadBadges();$('#keyForm').hidden=true;$('#sessionPanel').hidden=false;$('#notificationDiagnostics').hidden=activeTab!=='notification_outbox';}
+function showSignedIn(){signedIn=true;$('#activityPanel').hidden=false;$('#externalWriterPanel').hidden=false;$('#ownerExtensionPanel').hidden=false;loadOwnerExtensionStatus().catch(err=>setExtensionStatus(err.message));renderUnreadBadges();$('#keyForm').hidden=true;$('#sessionPanel').hidden=false;$('#notificationDiagnostics').hidden=activeTab!=='notification_outbox';$('#extensionClaimNotifications').hidden=activeTab!=='notification_outbox';}
 function showSignedOut(message='Signed out. Use your administrator account to sign in again.'){
  signedIn=false;csrfToken='';unreadCounts={};$('#activityPanel').hidden=true;$('#externalWriterPanel').hidden=true;$('#ownerExtensionPanel').hidden=true;$('#downloadOwnerExtension').disabled=true;renderUnreadBadges();dataset={jobs:[],applications:[],candidates:[],reviews:[],reports:[],alerts:[],notification_outbox:[]};
  $('#sessionPanel').hidden=true;$('#keyForm').hidden=false;$('#adminKey').value='';
- $('#adminStatus').textContent=message;$('#notificationDiagnostics').hidden=true;render();
+ $('#adminStatus').textContent=message;$('#notificationDiagnostics').hidden=true;$('#extensionClaimNotifications').hidden=true;render();
 }
 async function refresh(){if(!signedIn)return;
  for(const table of Object.keys(dataset)){const data=await api('/api/admin/'+table);dataset[table]=data[table]||[];}
@@ -128,7 +128,7 @@ $('#adminTabs').addEventListener('click',async e=>{
    b.setAttribute('aria-selected',String(b===btn));
  });
  const filter=$('#adminFilter');filter.innerHTML=activeTab==='notification_outbox'?'<option value="all">All</option><option value="pending">Pending</option><option value="sent">Sent</option><option value="retry">Retry</option><option value="failed">Failed</option>':activeTab==='applications'?'<option value="all">All records</option><option value="pending">Pending</option><option value="reviewed">Reviewed</option><option value="closed">Closed</option>':'<option value="all">All records</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option>';
- render();$('#notificationDiagnostics').hidden=!(signedIn&&activeTab==='notification_outbox');
+ render();$('#notificationDiagnostics').hidden=!(signedIn&&activeTab==='notification_outbox');$('#extensionClaimNotifications').hidden=!(signedIn&&activeTab==='notification_outbox');
  if(!signedIn)return;
  try{
    // Refresh this section first, so a new item is actually visible before marking it viewed.
@@ -137,7 +137,7 @@ $('#adminTabs').addEventListener('click',async e=>{
    if(activeTab!==section)return;
    render();
    await markSectionViewed(section);
-   if(section==='notification_outbox')await refreshNotificationStatus();
+   if(section==='notification_outbox'){await refreshNotificationStatus();await loadExtensionEvents();}
  }catch(err){$('#adminStatus').textContent='Could not load this section: '+err.message;}
 });
 
