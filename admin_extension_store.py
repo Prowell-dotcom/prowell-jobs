@@ -94,7 +94,7 @@ def _owner_only(handler, write=False):
 def bundled_extension(root: Path) -> bytes:
     """Build an installable ZIP from GitHub-tracked extension sources."""
     source = root / 'extension' / '4writers'
-    names = ('manifest.json', 'background.js', 'content.js', 'popup.html', 'popup.js')
+    names = ('manifest.json', 'background.js', 'content.js', 'popup.html', 'popup.js', 'refresh.js', 'popup-refresh.js')
     if not all((source / name).is_file() for name in names):
         raise FileNotFoundError('Bundled extension source is missing from the deployment.')
     output = BytesIO()
