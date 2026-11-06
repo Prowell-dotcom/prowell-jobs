@@ -92,7 +92,7 @@
     const current=state.claim;
     if(current){
       const elapsedMs=Math.max(0,Date.now()-current.startedAt);
-      sendResult({eventKey:'claim_'+current.id+'_'+current.startedAt,orderId:current.id,outcome:ok?'success':'failure',stage,elapsedMs,detail:message+(ok?' · Monitor click and page load times for optimization.':' · Check order availability and selectors.')});
+      sendResult({eventKey:'claim_'+current.id+'_'+current.startedAt,orderId:current.id,outcome:ok?'success':'failure',stage,elapsedMs,detail:message+(ok?(elapsedMs<=2500?' · Fast target reached.':elapsedMs<=5000?' · Within 5-second target; optimize loading.':' · Slower than target; investigate network and page rendering.'):' · Check whether another writer took the order or the order expired.')});
     }
     const claim=state.claim;if(!claim)return;
     const array=ok?'completed':'attemptedIds';
