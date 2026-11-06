@@ -212,6 +212,23 @@ $('#downloadOwnerExtension')?.addEventListener('click',async()=>{
  finally{button.disabled=false;}
 });
 
+
+async function loadExtensionEvents(){
+ if(!signedIn)return;
+ const data=await api('/api/admin/extension/events');
+ const panel=$('#extensionClaimEvents');panel.replaceChildren();
+ for(const event of (data.events||[])){
+  const row=document.createElement('article');row.className='activity-entry';
+  const content=document.createElement('div'),title=document.createElement('strong'),meta=document.createElement('div');
+  title.textContent='Order #'+event.orderId+' — '+event.outcome.toUpperCase();
+  meta.className='activity-meta';
+  meta.textContent=event.detail+' · Stage '+event.stage+' · '+event.elapsedMs+' ms · '+new Date(event.createdAt).toLocaleString();
+  content.append(title,meta);row.append(content);panel.append(row);
+ }
+ if(!(data.events||[]).length)panel.textContent='No results yet. Pair your browser extension to receive reports.';
+}
+$('#refreshExtensionEvents')?.addEventListener('click',()=>loadExtensionEvents().catch(e=>$('#extensionClaimEvents').textContent=e.message));
+
 $('#adminFilter').addEventListener('change',render);
 $('#adminRecords').addEventListener('click',async e=>{const btn=e.target.closest('[data-id]');if(!btn||!signedIn)return;const id=btn.dataset.id;const current=dataset[activeTab].find(r=>r.id===id);if(!current)return;const verification=btn.dataset.verified;
  if((btn.dataset.status==='approved'||verification==='true')&&!confirm('Confirm that the content or employer has been checked and may be published / verified.'))return;
