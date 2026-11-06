@@ -13,13 +13,21 @@ label{display:block;margin-top:12px}.note{font-size:11px;color:#6b5b30;backgroun
 small{color:#5a7089}#history{font:11px/1.6 monospace;max-height:95px;overflow:auto}
 </style></head>
 <body>
-<h1>Prowell Good-Writers Assistant</h1><small>Version 1.0.0 · private browser extension</small>
+<h1>Prowell Good-Writers Assistant</h1><small>Version 1.0.1 · private browser extension</small>
 <p>Monitors the official good-writers tab, refreshes every 2 seconds, and attempts the normal order-acceptance sequence.</p>
 <div id="status" class="panel" role="status">Loading extension...</div>
 <div class="controls"><button id="arm" class="go">START AUTO-CLAIM</button><button id="stop" class="stop">STOP</button></div>
 <label><input type="checkbox" id="returnToList" checked> Return to available orders after confirmed success</label>
 <div class="note">This independent beta attempts View → Take it → OK → I understand automatically. Site-specific acceptance steps are not yet verified. It does not bypass CAPTCHA or account limits. It has not been live-tested; claiming an order within one second is not guaranteed.</div>
 <div class="controls" style="margin-top:11px"><button id="reset">Reset stalled claim</button><button id="clear">Clear attempted IDs</button></div>
+<details id="gwPairing" style="margin-top:12px"><summary>Private Prowell admin notifications</summary>
+<p>In Prowell Admin, select Generate Good-Writers pairing code. Paste it below to connect this extension only.</p>
+<label for="gwReportCode">Good-Writers pairing code</label>
+<input id="gwReportCode" type="password" autocomplete="off" placeholder="Paste private pairing code" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #b6c7da;border-radius:8px">
+<div class="controls" style="margin-top:8px"><button type="button" id="gwPair">Connect & test</button><button type="button" id="gwUnpair">Disconnect</button></div>
+<button type="button" id="gwRetry" style="margin-top:8px">Retry pending reports</button>
+<div id="gwPairStatus" class="panel" role="status">No connection verified yet.</div>
+</details>
 <details style="margin-top:12px"><summary>Recent actions</summary><div id="history" class="panel"></div></details>
 <p id="notice" role="status"></p><script src="popup.js"></script><script src="popup-refresh.js"></script>
 </body></html>
