@@ -38,11 +38,11 @@ async function markSectionViewed(section){
  unreadCounts[section]=0;
  renderUnreadBadges();
 }
-function showSignedIn(){signedIn=true;$('#activityPanel').hidden=false;$('#externalWriterPanel').hidden=false;$('#ownerExtensionPanel').hidden=false;loadOwnerExtensionStatus().catch(err=>setExtensionStatus(err.message));renderUnreadBadges();$('#keyForm').hidden=true;$('#sessionPanel').hidden=false;$('#notificationDiagnostics').hidden=activeTab!=='notification_outbox';}
+function showSignedIn(){signedIn=true;$('#activityPanel').hidden=false;$('#externalWriterPanel').hidden=false;$('#ownerExtensionPanel').hidden=false;loadOwnerExtensionStatus().catch(err=>setExtensionStatus(err.message));renderUnreadBadges();$('#keyForm').hidden=true;$('#sessionPanel').hidden=false;$('#notificationDiagnostics').hidden=activeTab!=='notification_outbox';$('#extensionClaimNotifications').hidden=activeTab!=='notification_outbox';}
 function showSignedOut(message='Signed out. Use your administrator account to sign in again.'){
  signedIn=false;csrfToken='';unreadCounts={};$('#activityPanel').hidden=true;$('#externalWriterPanel').hidden=true;$('#ownerExtensionPanel').hidden=true;$('#downloadOwnerExtension').disabled=true;renderUnreadBadges();dataset={jobs:[],applications:[],candidates:[],reviews:[],reports:[],alerts:[],notification_outbox:[]};
  $('#sessionPanel').hidden=true;$('#keyForm').hidden=false;$('#adminKey').value='';
- $('#adminStatus').textContent=message;$('#notificationDiagnostics').hidden=true;render();
+ $('#adminStatus').textContent=message;$('#notificationDiagnostics').hidden=true;$('#extensionClaimNotifications').hidden=true;render();
 }
 async function refresh(){if(!signedIn)return;
  for(const table of Object.keys(dataset)){const data=await api('/api/admin/'+table);dataset[table]=data[table]||[];}
@@ -128,7 +128,7 @@ $('#adminTabs').addEventListener('click',async e=>{
    b.setAttribute('aria-selected',String(b===btn));
  });
  const filter=$('#adminFilter');filter.innerHTML=activeTab==='notification_outbox'?'<option value="all">All</option><option value="pending">Pending</option><option value="sent">Sent</option><option value="retry">Retry</option><option value="failed">Failed</option>':activeTab==='applications'?'<option value="all">All records</option><option value="pending">Pending</option><option value="reviewed">Reviewed</option><option value="closed">Closed</option>':'<option value="all">All records</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option>';
- render();$('#notificationDiagnostics').hidden=!(signedIn&&activeTab==='notification_outbox');
+ render();$('#notificationDiagnostics').hidden=!(signedIn&&activeTab==='notification_outbox');$('#extensionClaimNotifications').hidden=!(signedIn&&activeTab==='notification_outbox');
  if(!signedIn)return;
  try{
    // Refresh this section first, so a new item is actually visible before marking it viewed.
@@ -137,7 +137,7 @@ $('#adminTabs').addEventListener('click',async e=>{
    if(activeTab!==section)return;
    render();
    await markSectionViewed(section);
-   if(section==='notification_outbox')await refreshNotificationStatus();
+   if(section==='notification_outbox'){await refreshNotificationStatus();await loadExtensionEvents();}
  }catch(err){$('#adminStatus').textContent='Could not load this section: '+err.message;}
 });
 
@@ -167,7 +167,7 @@ async function loadActivity(){
 $('#refreshActivityButton')?.addEventListener('click',()=>loadActivity());
 
 // Lightweight live checks: show newly submitted records without page reload.
-setInterval(()=>{if(signedIn)fetchUnreadCounts().catch(()=>{});},45000);
+setInterval(()=>{if(signedIn){fetchUnreadCounts().catch(()=>{});if(activeTab==='notification_outbox')loadExtensionEvents().catch(()=>{});}},10000);
 
 
 function setExtensionStatus(message){const element=$('#ownerExtensionStatus');if(element)element.textContent=message;}
@@ -210,6 +210,46 @@ $('#downloadOwnerExtension')?.addEventListener('click',async()=>{
   setExtensionStatus('ZIP downloaded. Extract it before selecting Load unpacked in your browser.');
  }catch(err){setExtensionStatus('Download failed: '+err.message)}
  finally{button.disabled=false;}
+});
+
+
+async function loadExtensionEvents(){
+ if(!signedIn)return;
+ const data=await api('/api/admin/extension/events');
+ const panel=$('#extensionClaimEvents');panel.replaceChildren();
+ for(const event of (data.events||[])){
+  const row=document.createElement('article');row.className='activity-entry';
+  const content=document.createElement('div'),title=document.createElement('strong'),meta=document.createElement('div');
+  title.textContent='Order #'+event.orderId+' — '+event.outcome.toUpperCase();
+  meta.className='activity-meta';
+  meta.textContent=event.detail+' · Stage '+event.stage+' · '+event.elapsedMs+' ms · '+new Date(event.createdAt).toLocaleString();
+  content.append(title,meta);row.append(content);panel.append(row);
+ }
+ if(!(data.events||[]).length)panel.textContent='No results yet. Pair your browser extension to receive reports.';
+}
+$('#refreshExtensionEvents')?.addEventListener('click',()=>loadExtensionEvents().catch(e=>$('#extensionClaimEvents').textContent=e.message));
+
+
+$('#pairOwnerExtension')?.addEventListener('click',async()=>{
+ if(!signedIn||!confirm('Generate a new pairing code? Previous codes stop working.'))return;
+ try{
+  const data=await api('/api/admin/extension/pair',{method:'POST'});
+  $('#ownerPairingCodeValue').value=data.pairingCode;
+  $('#ownerPairingCode').hidden=false;
+  $('#ownerPairingStatus').textContent='Code created. Copy it into the extension settings.';
+ }catch(e){$('#ownerPairingStatus').textContent=e.message;}
+});
+$('#copyOwnerPairingCode')?.addEventListener('click',async()=>{
+ try{await navigator.clipboard.writeText($('#ownerPairingCodeValue').value);$('#ownerPairingStatus').textContent='Pairing code copied.';}
+ catch(e){$('#ownerPairingStatus').textContent='Select and copy the code manually.';}
+});
+$('#revokeOwnerExtension')?.addEventListener('click',async()=>{
+ if(!signedIn||!confirm('Revoke the paired extension reporting code?'))return;
+ try{
+  await api('/api/admin/extension/revoke',{method:'POST'});
+  $('#ownerPairingCode').hidden=true;$('#ownerPairingCodeValue').value='';
+  $('#ownerPairingStatus').textContent='Reporting code revoked.';
+ }catch(e){$('#ownerPairingStatus').textContent=e.message;}
 });
 
 $('#adminFilter').addEventListener('change',render);

@@ -6,8 +6,8 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
 // Some official View links open a separate tab; continue monitoring it.
 chrome.tabs.onCreated.addListener(tab => {
   if (!Number.isInteger(tab.openerTabId)) return;
-  chrome.storage.local.get(['armed', 'targetTabId'], state => {
-    if (!state.armed || state.targetTabId !== tab.openerTabId) return;
+  chrome.storage.local.get(['armed', 'claimConsentVersion', 'targetTabId'], state => {
+    if (!state.armed || state.claimConsentVersion !== '0.5.0' || state.targetTabId !== tab.openerTabId) return;
     const newTab = tab.id;
     const listener = (id, info, current) => {
       if (id !== newTab) return;
@@ -19,4 +19,21 @@ chrome.tabs.onCreated.addListener(tab => {
     };
     chrome.tabs.onUpdated.addListener(listener);
   });
+});
+
+chrome.runtime.onMessage.addListener((msg,sender,reply)=>{
+ if(msg?.type!=='PROWELL_CLAIM_REPORT')return;
+ const p=msg.payload||{};
+ chrome.storage.local.get(['reportCode'],async state=>{
+   if(!state.reportCode){reply({ok:false,reason:'Dashboard pairing code not configured'});return;}
+   try{
+    const response=await fetch('https://prowelljobs.com/api/extension/claim-report',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+state.reportCode,'Content-Type':'application/json'},
+      body:JSON.stringify(p)
+    });
+    reply({ok:response.ok,status:response.status});
+   }catch(err){reply({ok:false,reason:'Network unavailable'});}
+ });
+ return true;
 });
