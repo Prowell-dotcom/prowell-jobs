@@ -114,7 +114,7 @@
     if(state.claim){
       const current=state.claim;
       if((current.stage==='confirmed'||current.stage==='acknowledged') && success())return finished(true,'Order #'+current.id+': Now you can write the order');
-      if(failure())return finished(false,'Order #'+current.id+': already taken or unavailable');
+      if(failure()){const reason=/taken/i.test(pageText())?'claimed by another writer':/not available|unavailable/i.test(pageText())?'no longer available':'claim rejected by the website';return finished(false,'Order #'+current.id+': '+reason);}
       if(Date.now()-current.startedAt>25000){
         stopRefresh();sendResult({eventKey:'timeout_'+current.id+'_'+current.startedAt,orderId:current.id,outcome:'uncertain',stage:'timeout',elapsedMs:Date.now()-current.startedAt,detail:'No confirmation within 25 seconds; inspect Processing orders before retrying.'});await report('Claim status unclear; stopped to prevent duplicate acceptance',{armed:false});return;
       }
