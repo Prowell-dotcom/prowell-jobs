@@ -285,3 +285,57 @@ def receive_report(handler, db_connection):
           "VALUES(?,?,?,?,?,?,?)",
           (event_key,order_id,outcome,stage,elapsed,detail,datetime.now(timezone.utc).isoformat()))
     return handler.send_json(202, {'received': True})
+
+
+GOOD_WRITERS_BUNDLE_NAME = 'prowell-good-writers-assistant.zip'
+GOOD_WRITERS_FILES = ('manifest.json','background.js','content.js','refresh.js',
+                      'popup.html','popup.js','popup-refresh.js')
+
+
+def good_writers_bundle(root: Path) -> bytes:
+    """Build separate Good-Writers ZIP without touching the 4writers package."""
+    source = root / 'extension' / 'good-writers'
+    if not all((source / name).is_file() for name in GOOD_WRITERS_FILES):
+        raise FileNotFoundError('Good-Writers extension source is missing from deployment.')
+    output = BytesIO()
+    with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED) as bundle:
+        for name in GOOD_WRITERS_FILES:
+            bundle.write(source / name, arcname=name)
+    data = output.getvalue()
+    validate_bundle(data)
+    with zipfile.ZipFile(BytesIO(data)) as bundle:
+        manifest = json.loads(bundle.read('manifest.json'))
+        if 'Good-Writers' not in manifest['name']:
+            raise ValueError('Incorrect extension manifest.')
+        if any('4writers.net' in str(s) for s in manifest.get('host_permissions', [])):
+            raise ValueError('Good-Writers extension must be isolated.')
+    return data
+
+
+def good_writers_status(handler, root: Path):
+    if not _owner_only(handler):
+        return
+    try:
+        data=good_writers_bundle(root)
+        version=validate_bundle(data)
+    except (ValueError, OSError) as exc:
+        return handler.send_json(500, {'error':str(exc)})
+    return handler.send_json(200, {'available':True,'version':version,'sizeBytes':len(data),
+                                   'source':'github-bundled','sha256':hashlib.sha256(data).hexdigest()})
+
+
+def good_writers_download(handler, root: Path):
+    if not _owner_only(handler):
+        return
+    try:
+        data=good_writers_bundle(root)
+    except (ValueError, OSError) as exc:
+        return handler.send_json(500, {'error':str(exc)})
+    handler.send_response(200)
+    handler.send_header('Content-Type','application/zip')
+    handler.send_header('Content-Disposition','attachment; filename="' + GOOD_WRITERS_BUNDLE_NAME + '"')
+    handler.send_header('Content-Length',str(len(data)))
+    handler.send_header('Cache-Control','private, no-store, max-age=0')
+    handler.send_header('Pragma','no-cache')
+    handler.end_headers()
+    handler.wfile.write(data)
