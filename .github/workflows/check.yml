@@ -21,5 +21,12 @@ jobs:
       - name: Check Python syntax
         run: python -m compileall -q server.py
 
+      - name: Validate Chrome extension JavaScript
+        run: |
+          node --check extension/4writers/content.js
+          node --check extension/4writers/background.js
+          node --check extension/4writers/popup.js
+          node tests/test_extension_flow.cjs
+
       - name: Run website tests
         run: python -m unittest discover -s tests -v
