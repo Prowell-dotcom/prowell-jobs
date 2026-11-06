@@ -1233,6 +1233,10 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(200, {'registrationOpen': not self.admin_owner_exists()})
         if path == '/api/admin/extension/events':
             return owner_extension.list_report_events(self, db_connection)
+        if path == '/api/admin/good-writers/extension/status':
+            return owner_extension.good_writers_status(self, ROOT)
+        if path == '/api/admin/good-writers/extension/download':
+            return owner_extension.good_writers_download(self, ROOT)
         if path == '/api/admin/extension/status':
             return owner_extension.status(self, DATABASE_PATH, ROOT)
         if path == '/api/admin/extension/download':

@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Prowell Good-Writers Assistant",
+  "version": "1.0.0",
+  "description": "Independent browser order-page monitoring and alerts for Good-Writers.",
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://good-writers.com/*",
+    "https://www.good-writers.com/*"
+  ],
+  "action": {
+    "default_title": "Good-Writers Assistant",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://good-writers.com/*",
+        "https://www.good-writers.com/*"
+      ],
+      "js": [
+        "content.js",
+        "refresh.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}

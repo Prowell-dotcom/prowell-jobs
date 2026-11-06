@@ -38,9 +38,9 @@ async function markSectionViewed(section){
  unreadCounts[section]=0;
  renderUnreadBadges();
 }
-function showSignedIn(){signedIn=true;$('#activityPanel').hidden=false;$('#externalWriterPanel').hidden=false;$('#ownerExtensionPanel').hidden=false;loadOwnerExtensionStatus().catch(err=>setExtensionStatus(err.message));renderUnreadBadges();$('#keyForm').hidden=true;$('#sessionPanel').hidden=false;$('#notificationDiagnostics').hidden=activeTab!=='notification_outbox';$('#extensionClaimNotifications').hidden=activeTab!=='notification_outbox';}
+function showSignedIn(){signedIn=true;$('#activityPanel').hidden=false;$('#externalWriterPanel').hidden=false;$('#ownerExtensionPanel').hidden=false;loadOwnerExtensionStatus().catch(err=>setExtensionStatus(err.message));loadGoodWritersStatus().catch(err=>setGoodWritersStatus(err.message));renderUnreadBadges();$('#keyForm').hidden=true;$('#sessionPanel').hidden=false;$('#notificationDiagnostics').hidden=activeTab!=='notification_outbox';$('#extensionClaimNotifications').hidden=activeTab!=='notification_outbox';}
 function showSignedOut(message='Signed out. Use your administrator account to sign in again.'){
- signedIn=false;csrfToken='';unreadCounts={};$('#activityPanel').hidden=true;$('#externalWriterPanel').hidden=true;$('#ownerExtensionPanel').hidden=true;$('#downloadOwnerExtension').disabled=true;renderUnreadBadges();dataset={jobs:[],applications:[],candidates:[],reviews:[],reports:[],alerts:[],notification_outbox:[]};
+ signedIn=false;csrfToken='';unreadCounts={};$('#activityPanel').hidden=true;$('#externalWriterPanel').hidden=true;$('#ownerExtensionPanel').hidden=true;$('#downloadOwnerExtension').disabled=true;$('#downloadGoodWritersExtension').disabled=true;renderUnreadBadges();dataset={jobs:[],applications:[],candidates:[],reviews:[],reports:[],alerts:[],notification_outbox:[]};
  $('#sessionPanel').hidden=true;$('#keyForm').hidden=false;$('#adminKey').value='';
  $('#adminStatus').textContent=message;$('#notificationDiagnostics').hidden=true;$('#extensionClaimNotifications').hidden=true;render();
 }
@@ -250,6 +250,41 @@ $('#revokeOwnerExtension')?.addEventListener('click',async()=>{
   $('#ownerPairingCode').hidden=true;$('#ownerPairingCodeValue').value='';
   $('#ownerPairingStatus').textContent='Reporting code revoked.';
  }catch(e){$('#ownerPairingStatus').textContent=e.message;}
+});
+
+
+function setGoodWritersStatus(message){
+ const node=$('#goodWritersExtensionStatus');
+ if(node)node.textContent=message;
+}
+async function loadGoodWritersStatus(){
+ if(!signedIn)return;
+ const data=await api('/api/admin/good-writers/extension/status');
+ $('#downloadGoodWritersExtension').disabled=!data.available;
+ setGoodWritersStatus(data.available
+  ? 'Separate Chrome package ready · Version '+data.version+' · '+Math.round(data.sizeBytes/1024)+' KB'
+  : 'Good-Writers package is unavailable.');
+}
+$('#downloadGoodWritersExtension')?.addEventListener('click',async()=>{
+ if(!signedIn)return;
+ const button=$('#downloadGoodWritersExtension');
+ button.disabled=true;
+ setGoodWritersStatus('Preparing the Good-Writers download...');
+ try{
+   const res=await fetch('/api/admin/good-writers/extension/download',{credentials:'same-origin',cache:'no-store'});
+   if(!res.ok){
+     const data=await res.json();
+     throw Error(data.error||'Download could not be completed.');
+   }
+   const file=await res.blob();
+   const url=URL.createObjectURL(file);
+   const link=document.createElement('a');
+   link.href=url;link.download='prowell-good-writers-assistant.zip';
+   document.body.appendChild(link);link.click();link.remove();
+   setTimeout(()=>URL.revokeObjectURL(url),3000);
+   setGoodWritersStatus('Good-Writers ZIP downloaded. Extract it and use Chrome Load unpacked.');
+ }catch(err){setGoodWritersStatus('Download failed: '+err.message);}
+ finally{if(signedIn)button.disabled=false;}
 });
 
 $('#adminFilter').addEventListener('change',render);
