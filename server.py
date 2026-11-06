@@ -1226,6 +1226,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._employer_applications()
         if path == '/api/admin/bootstrap/status':
             return self.send_json(200, {'registrationOpen': not self.admin_owner_exists()})
+        if path == '/api/admin/extension/events':
+            return owner_extension.list_report_events(self, db_connection)
         if path == '/api/admin/extension/status':
             return owner_extension.status(self, DATABASE_PATH, ROOT)
         if path == '/api/admin/extension/download':
@@ -1361,6 +1363,12 @@ class Handler(SimpleHTTPRequestHandler):
             return self.mark_admin_tab_viewed()
         if path == '/api/admin/documents/send':
             return admin_docs.handle_post(self, db_connection, check_rate)
+        if path == '/api/admin/extension/pair':
+            return owner_extension.create_report_token(self, db_connection)
+        if path == '/api/admin/extension/revoke':
+            return owner_extension.revoke_report_token(self, db_connection)
+        if path == '/api/extension/claim-report':
+            return owner_extension.receive_report(self, db_connection)
         if path == '/api/admin/extension/upload':
             return owner_extension.upload(self, DATABASE_PATH, ROOT)
         if path == '/api/admin/notifications/test':
