@@ -32,7 +32,7 @@
   const challenge = () => /captcha|verify you are human|unusual activity/i.test(pageText()) ||
     Boolean(document.querySelector('iframe[src*="captcha"], [class*="g-recaptcha"]'));
   const success = () => /now you can write the order|you (?:can|may) start writing|order (?:has been )?(?:assigned to you|taken successfully)/i.test(pageText());
-  const failure = () => /order (?:has been )?(?:taken by another|no longer available)|this order is unavailable|failed to take (?:the )?order/i.test(pageText());
+  const failure = () => /(?:the )?order (?:has been )?(?:taken(?: by another)?|no longer available)|not available|this order is unavailable|failed to take (?:the )?order/i.test(pageText());
   function banner(message){
     if(!active()) return;
     if(!statusNode){
@@ -99,7 +99,7 @@
     const ids=[...new Set([...(state[array]||[]),claim.id])].slice(-200);
     state[array]=ids;state.claim=null;
     await report(message,{[array]:ids,claim:null});
-    if(ok && state.returnToList && claim.listUrl &&
+    if(state.returnToList && claim.listUrl &&
       new URL(claim.listUrl).origin===location.origin && location.href!==claim.listUrl){
       location.assign(claim.listUrl);
     }else scheduleRefresh();
@@ -107,7 +107,9 @@
   async function scan(){
     if(!active()||busy||!document.body)return;
     if(challenge()){
-      stopRefresh();await report('Paused: website security challenge', {armed:false});return;
+      stopRefresh();
+      if(state.claim)sendResult({eventKey:'security_'+state.claim.id+'_'+state.claim.startedAt,orderId:state.claim.id,outcome:'uncertain',stage:'security',elapsedMs:Date.now()-state.claim.startedAt,detail:'Security challenge appeared; automation paused.'});
+      await report('Paused: website security challenge', {armed:false});return;
     }
     if(state.claim){
       const current=state.claim;
