@@ -106,11 +106,15 @@ def bundled_extension(root: Path) -> bytes:
 
 
 def selected_bundle(database_path: Path, root: Path):
-    """Prefer an owner-uploaded ZIP; otherwise use the version deployed from GitHub."""
-    path = private_path(database_path, root)
-    if path.is_file():
-        return path.read_bytes(), 'owner-upload'
-    return bundled_extension(root), 'github-bundled'
+    """Serve the GitHub-tracked release, with legacy owner upload as fallback."""
+    try:
+        return bundled_extension(root), 'github-bundled'
+    except FileNotFoundError:
+        legacy = private_path(database_path, root)
+        if legacy.is_file():
+            return legacy.read_bytes(), 'owner-upload'
+        raise
+
 
 
 def status(handler, database_path: Path, root: Path):
