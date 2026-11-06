@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Prowell 4writers Order Assistant",
+  "version": "0.4.0",
+  "description": "Event-driven order detection and one-at-a-time claim workflow on 4writers. No direct polling or credentials.",
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://4writers.net/*",
+    "https://www.4writers.net/*"
+  ],
+  "action": {
+    "default_title": "Prowell Order Assistant",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://4writers.net/*",
+        "https://www.4writers.net/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}
