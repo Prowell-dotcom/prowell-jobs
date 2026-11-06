@@ -177,8 +177,8 @@ async function loadOwnerExtensionStatus(){
  const button=$('#downloadOwnerExtension');
  button.disabled=!data.available;
  setExtensionStatus(data.available
-   ? 'Extension ready · Version '+data.version+' · '+Math.round(data.sizeBytes/1024)+' KB · Uploaded '+new Date(data.updatedAt).toLocaleString()
-   : 'No private extension ZIP has been uploaded. Use Upload or replace ZIP to publish it for your administrator account.');
+   ? 'Extension ready · Version '+data.version+' · '+Math.round(data.sizeBytes/1024)+' KB · '+(data.source==='github-bundled'?'Built directly from GitHub source':'Owner-uploaded version')
+   : 'Extension is not yet available. Check deployment logs.');
 }
 $('#uploadOwnerExtension')?.addEventListener('change',async event=>{
  const element=event.currentTarget, file=element.files?.[0];
