@@ -14,3 +14,22 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
  });
  return true;
 });
+
+chrome.tabs.onCreated.addListener(tab=>{
+ if(!Number.isInteger(tab.openerTabId))return;
+ chrome.storage.local.get(['armed','claimConsentVersion','targetTabId'],state=>{
+  if(!state.armed||state.claimConsentVersion!=='1.0.0'||state.targetTabId!==tab.openerTabId)return;
+  const target=tab.id;
+  const watcher=(id,change,current)=>{
+    if(id!==target)return;
+    const url=current.url||change.url||'';
+    if(/^https:\/\/(?:www\.)?good-writers\.com\//i.test(url)){
+      chrome.storage.local.set({targetTabId:id});
+      chrome.tabs.onUpdated.removeListener(watcher);
+    }else if(/^https?:\/\//i.test(url)){
+      chrome.tabs.onUpdated.removeListener(watcher);
+    }
+  };
+  chrome.tabs.onUpdated.addListener(watcher);
+ });
+});
