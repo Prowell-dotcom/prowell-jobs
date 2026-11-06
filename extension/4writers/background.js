@@ -6,8 +6,8 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
 // Some official View links open a separate tab; continue monitoring it.
 chrome.tabs.onCreated.addListener(tab => {
   if (!Number.isInteger(tab.openerTabId)) return;
-  chrome.storage.local.get(['armed', 'targetTabId'], state => {
-    if (!state.armed || state.targetTabId !== tab.openerTabId) return;
+  chrome.storage.local.get(['armed', 'claimConsentVersion', 'targetTabId'], state => {
+    if (!state.armed || state.claimConsentVersion !== '0.5.0' || state.targetTabId !== tab.openerTabId) return;
     const newTab = tab.id;
     const listener = (id, info, current) => {
       if (id !== newTab) return;
