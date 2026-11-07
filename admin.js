@@ -38,9 +38,9 @@ async function markSectionViewed(section){
  unreadCounts[section]=0;
  renderUnreadBadges();
 }
-function showSignedIn(){signedIn=true;$('#privateParaphraserPanel').hidden=false;$('#paraphraserShortcut').hidden=false;window.dispatchEvent(new CustomEvent('prowell-admin-session',{detail:{signedIn:true}}));$('#activityPanel').hidden=false;$('#externalWriterPanel').hidden=false;$('#ownerExtensionPanel').hidden=false;loadOwnerExtensionStatus().catch(err=>setExtensionStatus(err.message));loadGoodWritersStatus().catch(err=>setGoodWritersStatus(err.message));renderUnreadBadges();$('#keyForm').hidden=true;$('#sessionPanel').hidden=false;$('#notificationDiagnostics').hidden=activeTab!=='notification_outbox';$('#extensionClaimNotifications').hidden=activeTab!=='notification_outbox';$('#goodWritersClaimNotifications').hidden=activeTab!=='notification_outbox';}
+function showSignedIn(){signedIn=true;$('#privateParaphraserPanel').hidden=false;$('#paraphraserShortcut').hidden=false;window.updateProwellParaphraser?.();window.dispatchEvent(new CustomEvent('prowell-admin-session',{detail:{signedIn:true}}));$('#activityPanel').hidden=false;$('#externalWriterPanel').hidden=false;$('#ownerExtensionPanel').hidden=false;loadOwnerExtensionStatus().catch(err=>setExtensionStatus(err.message));loadGoodWritersStatus().catch(err=>setGoodWritersStatus(err.message));renderUnreadBadges();$('#keyForm').hidden=true;$('#sessionPanel').hidden=false;$('#notificationDiagnostics').hidden=activeTab!=='notification_outbox';$('#extensionClaimNotifications').hidden=activeTab!=='notification_outbox';$('#goodWritersClaimNotifications').hidden=activeTab!=='notification_outbox';}
 function showSignedOut(message='Signed out. Use your administrator account to sign in again.'){
- signedIn=false;$('#privateParaphraserPanel').hidden=true;$('#paraphraserShortcut').hidden=true;window.dispatchEvent(new CustomEvent('prowell-admin-session',{detail:{signedIn:false}}));csrfToken='';unreadCounts={};$('#activityPanel').hidden=true;$('#externalWriterPanel').hidden=true;$('#ownerExtensionPanel').hidden=true;$('#downloadOwnerExtension').disabled=true;$('#downloadGoodWritersExtension').disabled=true;renderUnreadBadges();dataset={jobs:[],applications:[],candidates:[],reviews:[],reports:[],alerts:[],notification_outbox:[]};
+ signedIn=false;$('#privateParaphraserPanel').hidden=true;$('#paraphraserShortcut').hidden=true;window.updateProwellParaphraser?.();window.dispatchEvent(new CustomEvent('prowell-admin-session',{detail:{signedIn:false}}));csrfToken='';unreadCounts={};$('#activityPanel').hidden=true;$('#externalWriterPanel').hidden=true;$('#ownerExtensionPanel').hidden=true;$('#downloadOwnerExtension').disabled=true;$('#downloadGoodWritersExtension').disabled=true;renderUnreadBadges();dataset={jobs:[],applications:[],candidates:[],reviews:[],reports:[],alerts:[],notification_outbox:[]};
  $('#sessionPanel').hidden=true;$('#keyForm').hidden=false;$('#adminKey').value='';
  $('#adminStatus').textContent=message;$('#notificationDiagnostics').hidden=true;$('#extensionClaimNotifications').hidden=true;$('#goodWritersClaimNotifications').hidden=true;render();
 }
@@ -338,3 +338,116 @@ $('#adminRecords').addEventListener('click',async e=>{const btn=e.target.closest
 window.prowellAdminCsrf = () => signedIn ? csrfToken : '';
 window.prowellAdminSignedIn = () => signedIn;
 
+
+
+// BEGIN PRIVATE PARAPHRASER — included in the signed-in admin script so
+// failures to load a second file cannot leave the main button unresponsive.
+(() => {
+ const byId = id => document.getElementById(id);
+ const form=byId('paraphraseForm');
+ const input=byId('paraphraseInput');
+ const output=byId('paraphraseOutput');
+ const submit=byId('paraphraseSubmit');
+ const statusNode=byId('paraphraseStatus');
+ if(!form || !input || !output || !submit || !statusNode)return;
+ const words = value => (String(value ?? '').trim().match(/\S+/gu)||[]).length;
+ const status = value => { statusNode.textContent=value; };
+ let busy=false,oldText=null,lastSignedIn=null;
+
+ const refresh=()=>{
+   const source=input.value||'';
+   const n=words(source);
+   oldText=source;
+   byId('paraphraseInputCount').textContent=n.toLocaleString()+' / 3,000 words';
+   byId('paraphraseInputCount').style.color=n>3000?'#b42336':'';
+   byId('paraphraseOutputCount').textContent=words(output.value).toLocaleString()+' words';
+   byId('paraphraseCopy').disabled=!signedIn||!output.value.trim();
+   byId('paraphraseDownload').disabled=!signedIn||!output.value.trim();
+   // Never disable on empty/over-limit input. Keep the button clickable
+   // so an invalid input gets a useful explanation rather than doing nothing.
+   submit.disabled=busy;
+   if(n>3000 && !busy)status('Please shorten your text by '+(n-3000).toLocaleString()+' words (3,000 maximum).');
+ };
+ const sync=()=>{
+   byId('privateParaphraserPanel').hidden=!signedIn;
+   const link=byId('paraphraserShortcut');
+   if(link)link.hidden=!signedIn;
+   if(lastSignedIn!==signedIn){
+     if(!signedIn && lastSignedIn===true){
+       input.value='';output.value='';
+       status('Signed out. Sign in as administrator to use the studio.');
+     }
+     if(signedIn)status('Ready. Paste 1–3,000 words and select Paraphrase text.');
+     lastSignedIn=signedIn;
+   }
+   refresh();
+ };
+ window.updateProwellParaphraser=sync;
+
+ for(const name of ['input','change','paste','cut','drop','keyup']){
+   input.addEventListener(name,()=>{
+     refresh();
+     if(['paste','cut','drop'].includes(name))setTimeout(refresh,0);
+   });
+ }
+ window.addEventListener('pageshow',()=>setTimeout(sync,0));
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)sync();});
+ // Detect content inserted by browser restoration or extensions without events.
+ setInterval(()=>{
+   if(input.value!==oldText)refresh();
+ },350);
+
+ form.addEventListener('submit',async event=>{
+   event.preventDefault();
+   refresh();
+   if(busy)return;
+   if(!signedIn || !csrfToken){
+     status('Administrator session is not active. Sign in and refresh the page.');
+     return;
+   }
+   const source=input.value.trim();
+   const n=words(source);
+   if(n===0){status('Paste or type some text before selecting Paraphrase.');return;}
+   if(n>3000){status('Maximum 3,000 words; please remove '+(n-3000)+' words.');return;}
+   busy=true;
+   submit.disabled=true;
+   status('Paraphrasing and checking grammar and sentence flow…');
+   try{
+     const data=await api('/api/admin/paraphrase',{
+       method:'POST',
+       headers:{'Content-Type':'application/json'},
+       body:JSON.stringify({text:source,tone:byId('paraphraseTone').value})
+     });
+     if(typeof data.paraphrased!=='string'||!data.paraphrased.trim())throw Error('The server returned an empty rewrite.');
+     output.value=data.paraphrased;
+     status('Paraphrasing complete — '+words(output.value).toLocaleString()+' words. Review the result before using it.');
+   }catch(err){
+     status('Could not paraphrase: '+(err?.message||'Unknown request error')+'.');
+   }finally{
+     busy=false;
+     refresh();
+   }
+ });
+
+ byId('paraphraseClear').addEventListener('click',()=>{
+   if(busy){status('A rewrite is already in progress.');return;}
+   input.value='';output.value='';status('Cleared.');refresh();
+ });
+ byId('paraphraseCopy').addEventListener('click',async()=>{
+   if(!signedIn||!output.value.trim())return;
+   try{await navigator.clipboard.writeText(output.value);status('Result copied.');}
+   catch(_){output.focus();output.select();status('Select the result and press Ctrl+C to copy it.');}
+ });
+ byId('paraphraseDownload').addEventListener('click',()=>{
+   if(!signedIn||!output.value.trim())return;
+   const blob=new Blob([output.value],{type:'text/plain;charset=utf-8'});
+   const url=URL.createObjectURL(blob);
+   const link=document.createElement('a');
+   link.href=url;link.download='prowell-paraphrased-text.txt';
+   document.body.appendChild(link);link.click();link.remove();
+   setTimeout(()=>URL.revokeObjectURL(url),2500);
+   status('Result saved as a text file.');
+ });
+ sync();
+})();
+// END PRIVATE PARAPHRASER
