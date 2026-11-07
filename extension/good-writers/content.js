@@ -65,7 +65,7 @@
     if(!claim)return null;
     const panels=[...document.querySelectorAll(DETAILS_SELECTORS)];
     for(const el of panels){
-      if(!visible(el))continue;
+      if(!el?.isConnected || !el.getClientRects?.().length)continue;
       const txt=String(el.innerText||el.textContent||'');
       ID_IN_DETAILS.lastIndex=0;
       const ids=[...txt.matchAll(ID_IN_DETAILS)].map(hit=>hit[1]);
