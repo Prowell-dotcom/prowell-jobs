@@ -429,6 +429,34 @@ window.prowellAdminSignedIn = () => signedIn;
    }
  });
 
+ const connectionButton=byId('testParaphraserConnection');
+ if(connectionButton)connectionButton.addEventListener('click',async()=>{
+   if(busy)return;
+   if(!signedIn||!csrfToken){
+     status('Sign in as administrator before testing the Gemini connection.');
+     return;
+   }
+   busy=true;
+   connectionButton.disabled=true;
+   submit.disabled=true;
+   status('Testing AI provider connection using a short sample (your pasted text is not sent)…');
+   try{
+     const data=await api('/api/admin/paraphrase/test-connection',{
+       method:'POST',
+       headers:{'Content-Type':'application/json'},
+       body:'{}'
+     });
+     status((data.connected?'Connected: ':'Connection failed: ')+(data.message||'No status returned.')+
+       (data.model?' Model: '+data.model+'.':''));
+   }catch(err){
+     status('Connection test failed: '+(err?.message||'Unknown error')+'.');
+   }finally{
+     busy=false;
+     connectionButton.disabled=false;
+     refresh();
+   }
+ });
+
  byId('paraphraseClear').addEventListener('click',()=>{
    if(busy){status('A rewrite is already in progress.');return;}
    input.value='';output.value='';status('Cleared.');refresh();
