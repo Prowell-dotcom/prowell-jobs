@@ -1,4 +1,5 @@
 'use strict';
+importScripts('order-sound-background.js');
 // Identify the current frame's tab without reading account credentials.
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (message && message.type === 'PROWELL_TAB_ID') reply({tabId: sender.tab ? sender.tab.id : null});
@@ -7,7 +8,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
 chrome.tabs.onCreated.addListener(tab => {
   if (!Number.isInteger(tab.openerTabId)) return;
   chrome.storage.local.get(['armed', 'claimConsentVersion', 'targetTabId'], state => {
-    if (!state.armed || state.claimConsentVersion !== '0.5.4' || state.targetTabId !== tab.openerTabId) return;
+    if (!state.armed || state.claimConsentVersion !== '0.5.5' || state.targetTabId !== tab.openerTabId) return;
     const newTab = tab.id;
     const listener = (id, info, current) => {
       if (id !== newTab) return;

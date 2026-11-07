@@ -11,7 +11,7 @@ async function run(){
  const clicks=[],messages=[],subscribers=[],scrolls=[],timeline=[];
  let buttons=[],text='Available orders Writings',dialogShown=false;
  const modal={innerText:'ORDER INFORMATION Order #6447728953',isConnected:true,scrollHeight:7000,getClientRects(){return [1];},scrollTo(x,y){timeline.push('modal-scroll');}};
- const storage={armed:true,claimConsentVersion:'0.5.4',targetTabId:7,refreshMs:2000,claim:null,attemptedIds:[],completed:[],lastResult:'',log:[],returnToList:false};
+ const storage={armed:true,claimConsentVersion:'0.5.5',targetTabId:7,refreshMs:2000,claim:null,attemptedIds:[],completed:[],lastResult:'',log:[],returnToList:false};
  let onMutation=()=>{};
  const body={get innerText(){return text;},get textContent(){return text;}};
  const root={scrollHeight:5000,appendChild(el){el.isConnected=true;}};

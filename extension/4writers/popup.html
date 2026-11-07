@@ -13,10 +13,11 @@ label{display:block;margin-top:12px}.note{font-size:11px;color:#6b5b30;backgroun
 small{color:#5a7089}#history{font:11px/1.6 monospace;max-height:95px;overflow:auto}
 </style></head>
 <body>
-<h1>Prowell Order Watcher</h1><small>Version 0.5.4 · private browser extension</small>
+<h1>Prowell Order Watcher</h1><small>Version 0.5.5 · private browser extension</small>
 <p>Monitors the official 4writers tab, refreshes every 2 seconds, and attempts the normal order-acceptance sequence.</p>
 <div id="status" class="panel" role="status">Loading extension...</div>
 <div class="controls"><button id="arm" class="go">START AUTO-CLAIM</button><button id="stop" class="stop">STOP</button></div>
+<div style="margin-top:10px"><button type="button" id="testOrderSound">🔔 Test notification sound</button></div>
 <label><input type="checkbox" id="returnToList" checked> Return to available orders after confirmed success</label>
 <div class="note">New available orders: View → scroll to Take it → OK → I understand. Processing orders: View → scroll to bottom only; no acceptance. OK supports an in-page button or an expected native 'Are you sure?' dialog after Take it; other dialogs are left alone. It does not bypass CAPTCHA or account limits. Live claiming and one-second timing are not guaranteed.</div>
 <div class="controls" style="margin-top:11px"><button id="reset">Reset stalled claim</button><button id="clear">Clear attempted IDs</button></div>

@@ -5,7 +5,7 @@ const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,refreshMs:20
 let state={...DEFAULTS},tab=null;
 const valid=url=>/^https:\/\/(?:www\.)?4writers\.net\//i.test(url||'');
 const current=()=>Boolean(tab&&valid(tab.url)&&state.targetTabId===tab.id);
-const isArmed=()=>Boolean(state.armed&&state.claimConsentVersion==='0.5.4');
+const isArmed=()=>Boolean(state.armed&&state.claimConsentVersion==='0.5.5');
 async function store(delta){state={...state,...delta};await chrome.storage.local.set(delta);render();}
 function render(){
  $('arm').disabled=!tab||!valid(tab.url)||Boolean(isArmed()&&current());
@@ -27,7 +27,7 @@ async function start(){
 $('arm').addEventListener('click',async()=>{
  if(!tab||!valid(tab.url))return;
  if(!confirm('AUTO-CLAIM EVERY ORDER? This will refresh every 2 seconds, click View, Take it, and acknowledge the order without checking its pay, deadline, or topic. Each acceptance may be binding. Continue?'))return;
- await store({armed:true,claimConsentVersion:'0.5.4',targetTabId:tab.id,claim:null,lastResult:'Monitoring and auto-claim enabled'});
+ await store({armed:true,claimConsentVersion:'0.5.5',targetTabId:tab.id,claim:null,lastResult:'Monitoring and auto-claim enabled'});
  $('notice').textContent='Auto-claim enabled. Leave the 4writers tab open.';
 });
 $('stop').addEventListener('click',async()=>{
@@ -60,5 +60,16 @@ $('removeReportCode')?.addEventListener('click',async()=>{
  await chrome.storage.local.remove('reportCode');
  $('reportCode').value='';
  $('notice').textContent='Reporting disconnected.';
+});
+$('testOrderSound')?.addEventListener('click',async()=>{
+ const button=$('testOrderSound');
+ button.disabled=true;
+ $('notice').textContent='Playing a test notification chime…';
+ try{
+   const result=await chrome.runtime.sendMessage({type:'PROWELL_TEST_ORDER_SOUND'});
+   $('notice').textContent=result?.ok?'Notification sound sent. Check your browser and system volume.':
+     'Sound could not play; check Chrome audio permissions and extension status.';
+ }catch(_){$('notice').textContent='Sound test failed; reload the extension and try again.';}
+ finally{button.disabled=false;}
 });
 start().catch(err=>{$('notice').textContent=err.message;});

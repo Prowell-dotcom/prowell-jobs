@@ -1,4 +1,5 @@
 'use strict';
+importScripts('order-sound-background.js');
 chrome.runtime.onMessage.addListener((message,sender,reply)=>{
  if(message?.type==='GW_TAB_ID')reply({tabId:sender.tab?.id??null});
 });
@@ -73,7 +74,7 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
 chrome.tabs.onCreated.addListener(tab=>{
  if(!Number.isInteger(tab.openerTabId))return;
  chrome.storage.local.get(['armed','claimConsentVersion','targetTabId'],state=>{
-  if(!state.armed||state.claimConsentVersion!=='1.0.4'||state.targetTabId!==tab.openerTabId)return;
+  if(!state.armed||state.claimConsentVersion!=='1.0.5'||state.targetTabId!==tab.openerTabId)return;
   const target=tab.id;
   const watcher=(id,change,current)=>{
     if(id!==target)return;
