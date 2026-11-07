@@ -13,7 +13,9 @@ Under the existing prowell-jobs Railway service, open Variables and add:
 
 Never place provider API keys in HTML, JavaScript or GitHub.
 
-When logged in, press **Test Gemini connection** in the private studio. It sends the fixed word READY (never your draft) to check the active model and key, then shows a safe configuration or quota error. If PARAPHRASER_PROVIDER is set to openai, remove it or set it to gemini. If the default model is unavailable for your Google AI Studio project, set GEMINI_MODEL to one listed as available for that project. Do not put quote marks around a Railway API key.\n\nDeploy the updated GitHub main commit. Sign in to the Prowell admin dashboard and use My private AI Paraphrasing Studio. Enter any nonempty text up to 3,000 words, choose a style, then select Paraphrase. Copy or download as TXT.
+When logged in, press **Test Gemini connection** in the private studio. It sends the fixed word READY (never your draft) to check the active model and key, then shows a safe configuration or quota error. If PARAPHRASER_PROVIDER is set to openai, remove it or set it to gemini. If the default model is unavailable for your Google AI Studio project, set GEMINI_MODEL to one listed as available for that project. Do not put quote marks around a Railway API key.
+
+Deploy the updated GitHub main commit. Sign in to the Prowell admin dashboard and use My private AI Paraphrasing Studio. Enter any nonempty text up to 3,000 words, choose a style, then select Paraphrase. Copy or download as TXT.
 
 ## Security and limitations
 
