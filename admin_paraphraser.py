@@ -357,7 +357,7 @@ def rewrite_via_openai(text, tone, count):
     key = os.environ.get("OPENAI_API_KEY", "").strip()
     if not key:
         raise RuntimeError(
-            "OpenAI is selected but OPENAI_API_KEY is missing in Railway Variables."
+            "OpenAI is selected but not configured. Set OPENAI_API_KEY in Railway Variables."
         )
     model = os.environ.get("PARAPHRASER_MODEL", MODEL_DEFAULT).strip() or MODEL_DEFAULT
     return _editorial_rewrite(text, tone, _request_rewrite, key, model)
