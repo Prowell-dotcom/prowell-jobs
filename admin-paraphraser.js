@@ -4,21 +4,41 @@
  const form=$('paraphraseForm');
  if(!form)return;
  const input=$('paraphraseInput'),output=$('paraphraseOutput');
- const count=txt=>(txt.trim().match(/\S+/gu)||[]).length;
- let isReady=false,working=false;
+ const count=txt=>(String(txt??'').trim().match(/\S+/gu)||[]).length;
+ let isReady=false,working=false,lastInputValue=null;
 
  function status(message){$('paraphraseStatus').textContent=message;}
  function update(){
-   const n=count(input.value);
+   // Always read the live textarea value rather than relying on input events.
+   // Browser restore, accessibility tools and paste extensions may set .value
+   // without emitting input, leaving the counter at 0 and the button disabled.
+   const value=input.value;
+   lastInputValue=value;
+   const n=count(value);
    $('paraphraseInputCount').textContent=n.toLocaleString()+' / 3,000 words';
    $('paraphraseInputCount').style.color=n>3000?'#ad2831':'';
-   $('paraphraseSubmit').disabled=working||!isReady||!n||n>3000;
+   $('paraphraseSubmit').disabled=working||!isReady||n<1||n>3000;
    $('paraphraseOutputCount').textContent=count(output.value).toLocaleString()+' words';
    $('paraphraseCopy').disabled=!output.value.trim()||!isReady;
    $('paraphraseDownload').disabled=!output.value.trim()||!isReady;
    if(n>3000)status('Please remove '+(n-3000)+' words to meet the 3,000-word maximum.');
  }
- input.addEventListener('input',update);
+ for(const eventName of ['input','change','keyup','paste','cut','drop','focus','blur']){
+   input.addEventListener(eventName,()=>{
+     // Paste, cut and drop events usually precede the value update.
+     update();
+     if(['paste','cut','drop'].includes(eventName))setTimeout(update,0);
+   });
+ }
+ // Also handle programmatic paste and browser form restoration. The sync runs
+ // only when the textarea actually changes, to avoid unnecessary UI updates.
+ setInterval(()=>{
+   if(input.value!==lastInputValue)update();
+ },400);
+ window.addEventListener('pageshow',()=>setTimeout(update,0));
+ document.addEventListener('visibilitychange',()=>{
+   if(!document.hidden)update();
+ });
  function syncSession(ready){
    isReady=Boolean(ready);
    $('privateParaphraserPanel').hidden=!isReady;
@@ -32,8 +52,13 @@
  syncSession(Boolean(window.prowellAdminSignedIn?.()));
  form.addEventListener('submit',async event=>{
    event.preventDefault();
-   const n=count(input.value);
-   if(!isReady||working||n<1||n>3000)return;
+   update(); // Revalidate at click time even if an input event was missed.
+   const source=input.value;
+   const n=count(source);
+   if(!isReady||working||n<1||n>3000){
+     if(!isReady)status('Sign in as administrator to use the studio.');
+     return;
+   }
    working=true;output.value='';update();status('Rewriting and reviewing sentence quality…');
    try{
      const token=window.prowellAdminCsrf?.()||'';
@@ -43,7 +68,7 @@
        credentials:'same-origin',
        cache:'no-store',
        headers:{'Content-Type':'application/json','X-Admin-CSRF':token},
-       body:JSON.stringify({text:input.value,tone:$('paraphraseTone').value})
+       body:JSON.stringify({text:source,tone:$('paraphraseTone').value})
      });
      const data=await response.json();
      if(!response.ok)throw Error(data.error||'The rewrite could not be completed.');
