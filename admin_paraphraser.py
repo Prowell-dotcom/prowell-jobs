@@ -14,7 +14,7 @@ import urllib.request
 
 MAX_WORDS = 3000
 MAX_REQUEST_BYTES = 90000
-MODEL_DEFAULT = "gpt-6.1-terra"
+MODEL_DEFAULT = "gpt-4.1"
 TONES = {
     "natural": "Natural, fluent English with varied sentence structures and clear phrasing.",
     "simple": "Plain, direct English with short readable sentences.",
