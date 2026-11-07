@@ -10,7 +10,7 @@ const vm=require('node:vm');
 async function run(){
  const clicks=[],messages=[],subscribers=[];
  let buttons=[],text='Available orders Writings';
- const storage={armed:true,claimConsentVersion:'0.5.1',targetTabId:7,refreshMs:2000,claim:null,attemptedIds:[],completed:[],lastResult:'',log:[],returnToList:false};
+ const storage={armed:true,claimConsentVersion:'0.5.2',targetTabId:7,refreshMs:2000,claim:null,attemptedIds:[],completed:[],lastResult:'',log:[],returnToList:false};
  let onMutation=()=>{};
  const body={get innerText(){return text;},get textContent(){return text;}};
  const root={appendChild(el){el.isConnected=true;}};
@@ -56,6 +56,9 @@ async function run(){
  };
  const location={origin:'https://4writers.net',href:'https://4writers.net/orders',reload(){},assign(){}};
  const window={};window.top=window;
+ window.scrollTo=()=>{};
+ window.__prowellCardDetector={pageKind:()=> 'available',
+   cards:()=>buttons.filter(b=>b.innerText==='View').map(b=>({id:'6447728953',view:b,type:'available'}))};
  const context={chrome,location,window,document,MutationObserver:class{constructor(fn){onMutation=fn;}observe(){}},
   setTimeout,clearTimeout,setInterval,clearInterval,Date,URL,queueMicrotask,console};
  const filename=path.join(__dirname,'../extension/4writers/content.js');
