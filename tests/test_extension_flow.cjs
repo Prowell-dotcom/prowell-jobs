@@ -10,7 +10,7 @@ const vm=require('node:vm');
 async function run(){
  const clicks=[],messages=[],subscribers=[],scrolls=[],timeline=[];
  let buttons=[],text='Available orders Writings';
- const storage={armed:true,claimConsentVersion:'0.5.2',targetTabId:7,refreshMs:2000,claim:null,attemptedIds:[],completed:[],lastResult:'',log:[],returnToList:false};
+ const storage={armed:true,claimConsentVersion:'0.5.3',targetTabId:7,refreshMs:2000,claim:null,attemptedIds:[],completed:[],lastResult:'',log:[],returnToList:false};
  let onMutation=()=>{};
  const body={get innerText(){return text;},get textContent(){return text;}};
  const root={scrollHeight:5000,appendChild(el){el.isConnected=true;}};

@@ -66,6 +66,6 @@ async function preview(slug,site,version,tabMessage){
  console.log(slug+' processing preview: View → bottom scroll → STOP, no claiming');
 }
 Promise.all([
- preview('4writers','4writers.net','0.5.2','PROWELL_TAB_ID'),
- preview('good-writers','good-writers.com','1.0.2','GW_TAB_ID')
+ preview('4writers','4writers.net','0.5.3','PROWELL_TAB_ID'),
+ preview('good-writers','good-writers.com','1.0.3','GW_TAB_ID')
 ]).then(()=>process.exit(0),err=>{console.error(err);process.exit(1);});

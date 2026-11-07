@@ -7,7 +7,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
 chrome.tabs.onCreated.addListener(tab => {
   if (!Number.isInteger(tab.openerTabId)) return;
   chrome.storage.local.get(['armed', 'claimConsentVersion', 'targetTabId'], state => {
-    if (!state.armed || state.claimConsentVersion !== '0.5.2' || state.targetTabId !== tab.openerTabId) return;
+    if (!state.armed || state.claimConsentVersion !== '0.5.3' || state.targetTabId !== tab.openerTabId) return;
     const newTab = tab.id;
     const listener = (id, info, current) => {
       if (id !== newTab) return;
