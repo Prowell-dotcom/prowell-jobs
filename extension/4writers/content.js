@@ -25,7 +25,7 @@
     !el.disabled && el.getAttribute('aria-disabled')!=='true');
   const find = pattern => [...document.querySelectorAll(ACTIONS)]
     .find(el => visible(el) && pattern.test(label(el)));
-  const active = () => Boolean(state.armed && state.claimConsentVersion==='0.5.3' && tabId === state.targetTabId);
+  const active = () => Boolean(state.armed && state.claimConsentVersion==='0.5.4' && tabId === state.targetTabId);
   const pageText = () => document.body?.innerText || '';
   const orderList = () => window.__prowellCardDetector?.pageKind()==='available';
   const challenge = () => /captcha|verify you are human|unusual activity/i.test(pageText()) ||
@@ -53,33 +53,63 @@
     await chrome.storage.local.set({claim});
   }
   function orderCards(){return window.__prowellCardDetector?.cards()||[];}
-  // Scroll the details document and any visible, nested detail or modal panels.
-  // This also covers pages that render the order after navigation completes.
-  function jumpToBottom(){
+  // The View button may open an ORDER INFORMATION modal on the same URL.
+  // Never scroll the available-orders list: only scroll after matching the
+  // opened details to the order whose View was clicked.
+  const DETAILS_SELECTORS='dialog[open],[role="dialog"],.modal.show,.modal.in,.modal-content,.modal-dialog,.modal-body,[class*="order-info"],[class*="orderInfo"],[id*="modal"],[data-order-details]';
+  const ID_IN_DETAILS=/\border\s*(?:#|id\s*[:#]?)\s*(\d{5,16})\b/ig;
+  function sameOrder(a,b){
+    return String(a||'').replace(/^0+/,'')===String(b||'').replace(/^0+/,'');
+  }
+  function matchedDetailsPanel(claim){
+    if(!claim)return null;
+    const panels=[...document.querySelectorAll(DETAILS_SELECTORS)];
+    for(const el of panels){
+      if(!visible(el))continue;
+      const txt=String(el.innerText||el.textContent||'');
+      ID_IN_DETAILS.lastIndex=0;
+      const ids=[...txt.matchAll(ID_IN_DETAILS)].map(hit=>hit[1]);
+      if(ids.some(id=>sameOrder(id,claim.id)))return el;
+    }
+    return null;
+  }
+  function scrollOpenedOrder(claim){
+    if(!active() || !state.claim || !sameOrder(state.claim.id,claim.id))return false;
+    const panel=matchedDetailsPanel(claim);
+    if(panel){
+      // Scroll inside the visible order popup, *not* the page behind it.
+      const descendants=typeof panel.querySelectorAll==='function'
+        ? [...panel.querySelectorAll('.modal-body,.modal-content,[class*="scroll"],[style*="overflow"],[data-order-details]')]
+        : [];
+      for(const el of [...new Set([panel,...descendants])]){
+        try{
+          if(typeof el.scrollTo==='function')el.scrollTo(0,el.scrollHeight||0);
+          else el.scrollTop=el.scrollHeight||0;
+        }catch(_){try{el.scrollTop=el.scrollHeight||0;}catch(__){}}
+      }
+      return true;
+    }
+    // Some View links navigate to an entire details page instead of a modal.
+    // A changed URL alone is insufficient; verify the order ID is displayed.
+    if(location.href!==claim.listUrl){
+      const txt=String(document.body?.innerText||'');
+      ID_IN_DETAILS.lastIndex=0;
+      if([...txt.matchAll(ID_IN_DETAILS)].some(hit=>sameOrder(hit[1],claim.id))){
+        const bottom=Math.max(document.body?.scrollHeight||0,document.documentElement?.scrollHeight||0);
+        try{window.scrollTo(0,bottom);}catch(_){}
+        try{document.scrollingElement?.scrollTo(0,bottom);}catch(_){}
+        return true;
+      }
+    }
+    return false;
+  }
+  function scrollAcknowledgment(button){
+    if(!active()||!state.claim||!visible(button))return;
+    // This is the acknowledgement screen AFTER confirmation, not the order list.
+    try{button.scrollIntoView?.({behavior:'instant',block:'end'});}catch(_){}
     const bottom=Math.max(document.body?.scrollHeight||0,document.documentElement?.scrollHeight||0);
     try{window.scrollTo(0,bottom);}catch(_){}
-    const nodes=[document.scrollingElement,document.documentElement,document.body,
-      ...document.querySelectorAll('dialog[open],[role="dialog"],.modal.show,.modal.in,.modal-body,.modal-content,.modal-dialog,[class*="order-info"],[class*="orderInfo"],[class*="popup"],[id*="modal"],[data-order-details]')];
-    for(const node of [...new Set(nodes)]){
-      if(!node || typeof node.scrollHeight!=='number')continue;
-      try{if(typeof node.scrollTo==='function')node.scrollTo(0,node.scrollHeight);else node.scrollTop=node.scrollHeight;}
-      catch(_){try{node.scrollTop=node.scrollHeight;}catch(__){}}
-    }
-  }
-  // Page navigation is not the only way View opens details: an inline dialog
-  // or replacing the card with a details panel must also count.
-  function processingDetailsOpened(claim){
-    if(location.href!==claim.listUrl)return true;
-    const panels=[...document.querySelectorAll('dialog[open],[role="dialog"],.modal.show,.modal.in,.modal-content,[class*="order-info"],[class*="popup"],[id*="modal"],[data-order-details]')];
-    if(panels.some(el=>el.isConnected && el.getClientRects?.().length &&
-      /order information|order\s*#\s*\d{5,16}/i.test(el.innerText||el.textContent||'')))return true;
-    return !orderCards().some(c=>c.type==='processing' && c.id===claim.id);
-  }
-  function repeatBottomScroll(){
-    jumpToBottom();
-    setTimeout(jumpToBottom,60);
-    setTimeout(jumpToBottom,180);
-    setTimeout(jumpToBottom,420);
+    try{document.scrollingElement?.scrollTo(0,bottom);}catch(_){}
   }
   function stopRefresh(){if(nextRefresh){clearTimeout(nextRefresh);nextRefresh=null;}}
   // Refresh scheduling is controlled exclusively by refresh.js.
@@ -126,15 +156,13 @@
     if(state.claim){
       const current=state.claim;
       if(current.stage==='processing-view-clicked'){
-        // Processing orders are a View-and-scroll test only, NEVER an acceptance.
-        jumpToBottom();
-        const opened=processingDetailsOpened(current);
+        // Processing orders: View -> detail-popup scroll -> stop, no acceptance.
+        const opened=scrollOpenedOrder(current);
         if(!opened && Date.now()-current.startedAt<5500)return;
-        if(opened)repeatBottomScroll();
         const seen=[...new Set([...(state.processingPreviewedIds||[]),current.id])].slice(-200);
         await report(opened
-            ? 'Processing order #'+current.id+': View opened and bottom scroll initiated; no acceptance attempted. Open Available Orders to resume.'
-            : 'Processing order #'+current.id+': clicked View, but details were not confirmed; stopped without acceptance.',
+            ? 'Processing test: clicked View, scrolled order #'+current.id+' details; no acceptance.'
+            : 'Processing test: View clicked but order #'+current.id+' details were not found; stopped.',
           {armed:false,claim:null,processingPreviewedIds:seen});
         return;
       }
@@ -146,20 +174,18 @@
       if(current.stage==='take-clicked' && find(OK))
         return clickStage(find(OK),'ok-clicked','Confirmed OK for #'+current.id);
       if((current.stage==='ok-clicked'||current.stage==='take-clicked')){
-        jumpToBottom(); // 4writers requires scrolling to its separate acknowledgment area
         const accept=find(ACCEPT);
+        // Only scroll when the acknowledgement button has actually appeared.
         if(accept){
-          try{accept.scrollIntoView?.({behavior:'instant',block:'end'});}catch(_){}
+          scrollAcknowledgment(accept);
           return clickStage(accept,'acknowledged','Acknowledged order #'+current.id);
         }
       }
       if((current.stage==='view-clicked'||current.stage==='take-waiting')){
-        jumpToBottom(); // details page: scroll immediately, even before Take it renders
+        // Do not click or scroll until View has shown THIS order's information.
+        if(!scrollOpenedOrder(current))return;
         const take=find(TAKE);
-        if(take){
-          try{take.scrollIntoView?.({behavior:'instant',block:'end'});}catch(_){}
-          return clickStage(take,'take-clicked','Clicked Take it for #'+current.id);
-        }
+        if(take)return clickStage(take,'take-clicked','Clicked Take it for #'+current.id);
       }
       return;
     }
@@ -170,8 +196,8 @@
         // Commit the stage BEFORE triggering navigation, so it survives reload.
         await setClaim(processing.id,'processing-view-clicked',{listUrl:location.href,startedAt:Date.now()});
         processing.view.click();
-        jumpToBottom(); // immediate attempt for inline details
-        await report('Processing test: clicked View and initiated scroll for #'+processing.id);
+        // No scroll here: wait for matching Order Information details to render.
+        await report('Processing test: clicked View; waiting for #'+processing.id+' details');
         setTimeout(scheduleScan,0);
         return;
       }
