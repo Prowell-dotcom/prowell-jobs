@@ -133,6 +133,10 @@ def handle_rewrite(handler, rate_checker, rewrite=rewrite_via_openai):
         return handler.send_json(400, {"error": str(exc) or "Invalid input."})
     try:
         output = rewrite(source, tone, n)
+        if not isinstance(output, str) or not output.strip():
+            raise RuntimeError("No rewritten text was returned. Please retry.")
+        if count_words(output) > MAX_WORDS:
+            raise RuntimeError("The rewrite exceeded 3,000 words. Please try again.")
     except RuntimeError as exc:
         # No text from the prompt or API keys are included in errors.
         return handler.send_json(503, {"error": str(exc)})
