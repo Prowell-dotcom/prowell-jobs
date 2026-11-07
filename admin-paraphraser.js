@@ -19,13 +19,17 @@
    if(n>3000)status('Please remove '+(n-3000)+' words to meet the 3,000-word maximum.');
  }
  input.addEventListener('input',update);
- window.addEventListener('prowell-admin-session',event=>{
-   isReady=Boolean(event.detail?.signedIn);
+ function syncSession(ready){
+   isReady=Boolean(ready);
    $('privateParaphraserPanel').hidden=!isReady;
+   const shortcut=$('paraphraserShortcut');if(shortcut)shortcut.hidden=!isReady;
    if(!isReady){input.value='';output.value='';status('Signed out.');}
    else status('Ready to paraphrase.');
    update();
- });
+ }
+ window.addEventListener('prowell-admin-session',event=>syncSession(event.detail?.signedIn));
+ // Resynchronize in case session restoration completed before this script loaded.
+ syncSession(Boolean(window.prowellAdminSignedIn?.()));
  form.addEventListener('submit',async event=>{
    event.preventDefault();
    const n=count(input.value);
