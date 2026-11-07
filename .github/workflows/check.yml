@@ -25,6 +25,7 @@ jobs:
         run: |
           node --check admin.js
           node --check admin-paraphraser.js
+          node tests/test_paraphraser_paste.cjs
           node --check extension/4writers/content.js
           node --check extension/4writers/background.js
           node --check extension/4writers/popup.js
