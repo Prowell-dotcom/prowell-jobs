@@ -47,6 +47,6 @@ async function run(slug,site,version,tabMessage){
  console.log(slug+' View-first modal gating and STOP cancellation passed');
 }
 Promise.all([
- run('4writers','4writers.net','0.5.5','PROWELL_TAB_ID'),
- run('good-writers','good-writers.com','1.0.5','GW_TAB_ID')
+ run('4writers','4writers.net','0.5.6','PROWELL_TAB_ID'),
+ run('good-writers','good-writers.com','1.0.6','GW_TAB_ID')
 ]).then(()=>process.exit(0),err=>{console.error(err);process.exit(1);});
