@@ -87,5 +87,16 @@ chrome.storage.onChanged.addListener((changed,area)=>{
  }
 });
 
+$('testOrderSound')?.addEventListener('click',async()=>{
+ const button=$('testOrderSound');
+ button.disabled=true;
+ $('notice').textContent='Playing a test notification chime…';
+ try{
+   const result=await chrome.runtime.sendMessage({type:'PROWELL_TEST_ORDER_SOUND'});
+   $('notice').textContent=result?.ok?'Notification sound sent. Check your browser and system volume.':
+     'Sound could not play; check Chrome audio permissions and extension status.';
+ }catch(_){$('notice').textContent='Sound test failed; reload the extension and try again.';}
+ finally{button.disabled=false;}
+});
 start().catch(err=>{$('notice').textContent=err.message;});
 void updateGoodWritersPairingStatus();
