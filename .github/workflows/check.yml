@@ -49,6 +49,13 @@ jobs:
           node tests/test_modal_scroll.cjs
           node tests/test_available_modal_flow.cjs
           node tests/test_stop_before_modal.cjs
+          node --check extension/4writers/order-sound-background.js
+          node --check extension/4writers/order-sound-watch.js
+          node --check extension/4writers/order-sound.js
+          node --check extension/good-writers/order-sound-background.js
+          node --check extension/good-writers/order-sound-watch.js
+          node --check extension/good-writers/order-sound.js
+          node tests/test_order_sound.cjs
 
       - name: Run website tests
         run: python -m unittest discover -s tests -v
