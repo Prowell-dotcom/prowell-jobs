@@ -19,10 +19,12 @@ jobs:
           python-version: '3.12'
 
       - name: Check Python syntax
-        run: python -m compileall -q server.py
+        run: python -m compileall -q server.py admin_paraphraser.py
 
       - name: Validate Chrome extension JavaScript
         run: |
+          node --check admin.js
+          node --check admin-paraphraser.js
           node --check extension/4writers/content.js
           node --check extension/4writers/background.js
           node --check extension/4writers/popup.js
