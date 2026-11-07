@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
   "name": "Prowell Good-Writers Assistant",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Order detection, modal-aware scrolling and confirmation workflow; processing View preview (beta).",
   "permissions": [
     "storage",
-    "tabs"
+    "tabs",
+    "offscreen"
   ],
   "host_permissions": [
     "https://good-writers.com/*",
@@ -38,6 +39,7 @@
       ],
       "js": [
         "order-card.js",
+        "order-sound-watch.js",
         "content.js",
         "refresh.js"
       ],
