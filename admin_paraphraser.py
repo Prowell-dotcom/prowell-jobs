@@ -242,9 +242,28 @@ def _request_gemini(api_key, model, instructions, prompt):
                 "use the selected model. Check your GEMINI_API_KEY in Railway."
             ) from None
         if exc.code == 400:
+            error_type = ""
+            error_reason = ""
+            try:
+                details = json.loads(exc.read(4096).decode("utf-8"))
+                issue = details.get("error", {}) if isinstance(details, dict) else {}
+                error_type = str(issue.get("status", "")).upper()
+                metadata = issue.get("details", [])
+                if isinstance(metadata, list):
+                    error_reason = " ".join(
+                        str(d.get("reason", "")).upper() for d in metadata
+                        if isinstance(d, dict)
+                    )
+            except (ValueError, UnicodeDecodeError, AttributeError, TypeError):
+                pass
+            if "API_KEY_INVALID" in error_reason or "API_KEY_INVALID" in error_type:
+                raise RuntimeError(
+                    "Gemini reports an invalid API key. Generate a Gemini Developer API "
+                    "key in Google AI Studio and replace GEMINI_API_KEY in Railway."
+                ) from None
             raise RuntimeError(
-                "Gemini rejected the request. Check your GEMINI_MODEL setting "
-                "and API access in Google AI Studio."
+                "Gemini rejected the request (400). Check the selected GEMINI_MODEL, "
+                "Gemini API key, and project availability in Google AI Studio."
             ) from None
         if exc.code == 404:
             raise RuntimeError(
@@ -386,6 +405,72 @@ def rewrite_via_provider(text, tone, count):
     raise RuntimeError(
         "Unsupported PARAPHRASER_PROVIDER. Choose gemini or openai in Railway."
     )
+
+
+def check_connection(handler, rate_checker,
+                     gemini_request=_request_gemini,
+                     openai_request=_request_rewrite):
+    """Authenticated, opt-in live model check. Does not send pasted user text.
+
+    Exposes only provider name, selected model and a safe status message; never
+    returns or logs raw provider errors, input text or API credentials.
+    """
+    if not handler.admin_session():
+        return handler.send_json(401, {"error": "Administrator sign-in required."})
+    if not handler.admin_write_authorized():
+        return handler.send_json(403, {"error": "Invalid administrator session token."})
+    if not rate_checker(handler.client_address[0], "admin-paraphrase-connection", limit=6):
+        return handler.send_json(429, {"error": "Connection test limit reached. Try again later."})
+
+    provider = (os.environ.get("PARAPHRASER_PROVIDER", "gemini").strip().lower()
+                or "gemini")
+    if provider == "gemini":
+        provider_label = "Gemini"
+        api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+        model = os.environ.get("GEMINI_MODEL", GEMINI_MODEL_DEFAULT).strip() or GEMINI_MODEL_DEFAULT
+        request_fn = gemini_request
+        setting = "GEMINI_API_KEY"
+    elif provider == "openai":
+        provider_label = "OpenAI"
+        api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+        model = os.environ.get("PARAPHRASER_MODEL", MODEL_DEFAULT).strip() or MODEL_DEFAULT
+        request_fn = openai_request
+        setting = "OPENAI_API_KEY"
+    else:
+        return handler.send_json(200, {
+            "connected": False, "provider": provider,
+            "message": "Unsupported PARAPHRASER_PROVIDER. Use gemini, or remove this variable."
+        })
+
+    if not api_key:
+        hint = "To use the free Gemini tier, set PARAPHRASER_PROVIDER=gemini." if provider == "openai" else ""
+        return handler.send_json(200, {
+            "connected": False, "provider": provider_label, "model": model,
+            "message": "Missing %s in Railway Variables. %s" % (setting, hint)
+        })
+    if api_key[0] in "'\"" or api_key[-1] in "'\"":
+        return handler.send_json(200, {
+            "connected": False, "provider": provider_label, "model": model,
+            "message": "The API key contains quote characters. Remove surrounding quotes in Railway Variables."
+        })
+
+    try:
+        result = request_fn(
+            api_key, model,
+            "Reply with the single word READY, with no punctuation or explanation.",
+            "READY"
+        )
+        if not result or not result.strip():
+            raise RuntimeError("The AI provider returned an empty reply.")
+    except RuntimeError as exc:
+        return handler.send_json(200, {
+            "connected": False, "provider": provider_label, "model": model,
+            "message": str(exc)
+        })
+    return handler.send_json(200, {
+        "connected": True, "provider": provider_label, "model": model,
+        "message": "%s connection successful. Test a short paragraph next." % provider_label
+    })
 
 
 def handle_rewrite(handler, rate_checker, rewrite=rewrite_via_provider):
