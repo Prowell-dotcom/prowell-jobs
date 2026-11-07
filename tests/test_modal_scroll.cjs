@@ -59,6 +59,6 @@ async function simulate(slug,site,version,messageType){
  console.log(slug+' View modal (same URL) → scroll internal order details → stop: PASS');
 }
 Promise.all([
- simulate('4writers','4writers.net','0.5.3','PROWELL_TAB_ID'),
- simulate('good-writers','good-writers.com','1.0.3','GW_TAB_ID')
+ simulate('4writers','4writers.net','0.5.4','PROWELL_TAB_ID'),
+ simulate('good-writers','good-writers.com','1.0.4','GW_TAB_ID')
 ]).then(()=>process.exit(0),error=>{console.error(error);process.exit(1);});
