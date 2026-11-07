@@ -336,3 +336,5 @@ $('#adminRecords').addEventListener('click',async e=>{const btn=e.target.closest
 
 // Read-only access to the CSRF token for other administrator-only dashboard features.
 window.prowellAdminCsrf = () => signedIn ? csrfToken : '';
+window.prowellAdminSignedIn = () => signedIn;
+
