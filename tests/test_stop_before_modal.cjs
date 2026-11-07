@@ -21,7 +21,7 @@ async function run(slug,site,version,tabMessage){
    if(sel.includes('dialog')||sel.includes('modal'))return shown?[modal]:[];
    return shown?[take]:[view];
   },querySelector(){return null;},addEventListener(){},
-  createElement(){return {style:{},isConnected:true,contains(){return false;}};}};
+  createElement(){return {style:{},isConnected:true,contains(){return false;},remove(){}};}};
  const window={};window.top=window;window.scrollTo=()=>scrolled.push('page');
  window.__prowellCardDetector={pageKind:()=> 'available',cards:()=>shown?[]:[{id:'123456789',type:'available',view}]};
  const chrome={runtime:{sendMessage(m,cb){if(m.type===tabMessage)cb({tabId:3});else cb?.({ok:true});},
