@@ -9,14 +9,15 @@ const vm=require('node:vm');
 
 async function run(){
  const clicks=[],messages=[],subscribers=[],scrolls=[],timeline=[];
- let buttons=[],text='Available orders Writings';
- const storage={armed:true,claimConsentVersion:'1.0.3',targetTabId:7,refreshMs:2000,claim:null,attemptedIds:[],completed:[],lastResult:'',log:[],returnToList:false};
+ let buttons=[],text='Available orders Writings',dialogShown=false;
+ const modal={innerText:'ORDER INFORMATION Order #6447728953',isConnected:true,scrollHeight:7000,getClientRects(){return [1];},scrollTo(x,y){timeline.push('modal-scroll');}};
+ const storage={armed:true,claimConsentVersion:'1.0.4',targetTabId:7,refreshMs:2000,claim:null,attemptedIds:[],completed:[],lastResult:'',log:[],returnToList:false};
  let onMutation=()=>{};
  const body={get innerText(){return text;},get textContent(){return text;}};
  const root={scrollHeight:5000,appendChild(el){el.isConnected=true;}};
  const document={
    body,documentElement:root,
-   querySelectorAll(){return buttons;},
+   querySelectorAll(selector){return selector.includes('dialog')||selector.includes('modal')||selector.includes('order-info')?dialogShown?[modal]:[]:buttons;},
    querySelector(){return null;},
    addEventListener(){},
    createElement(){return {style:{},textContent:'',isConnected:true,contains(){return false;}};}
@@ -31,7 +32,7 @@ async function run(){
   };
  }
  function update(name){
-  if(name==='View'){text='Order detail';buttons=[button('Take it',()=>update('Take it'))];}
+  if(name==='View'){dialogShown=true;text='ORDER INFORMATION Order #6447728953';buttons=[button('Take it',()=>update('Take it'))];}
   if(name==='Take it'){text='Confirm order';buttons=[button('OK',()=>update('OK'))];}
   if(name==='OK'){text='Acknowledgement';buttons=[button('I understand the order',()=>update('I understand the order'))];}
   if(name==='I understand the order'){text='Now you can write the order';buttons=[];}
@@ -66,7 +67,7 @@ async function run(){
  const deadline=Date.now()+1000;
  while(Date.now()<deadline && storage.completed.length===0)await new Promise(r=>setTimeout(r,15));
  assert.deepEqual(clicks,['View','Take it','OK','I understand the order']);
- assert(timeline.indexOf('scroll')<timeline.indexOf('Take it'),'Good-Writers scrolls before Take it');
+ assert(timeline.indexOf('modal-scroll')<timeline.indexOf('Take it'),'Good-Writers scrolls before Take it');
  assert(!timeline.slice(timeline.indexOf('OK')+1,timeline.indexOf('I understand the order')).includes('scroll'),'Good-Writers does not scroll after OK');
  assert.equal(storage.completed[0],'6447728953');
  assert.equal(messages.length,1);

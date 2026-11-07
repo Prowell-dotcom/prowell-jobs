@@ -15,7 +15,7 @@ async function preview(slug,site,version,tabMessage){
  const view={
   innerText:'View',isConnected:true,disabled:false,
   getClientRects(){return [1];},getAttribute(){return null;},
-  click(){clicks.push('View');currentHref='https://'+site+'/order/123456789/';onMutation([{target:body}]);}
+  click(){clicks.push('View');currentHref='https://'+site+'/order/123456789/';body.innerText='Order #123456789 details';onMutation([{target:body}]);}
  };
  const take={innerText:'Take it',isConnected:true,disabled:false,getClientRects(){return [1];},
   getAttribute(){return null;},click(){clicks.push('Take it');}};
@@ -66,6 +66,6 @@ async function preview(slug,site,version,tabMessage){
  console.log(slug+' processing preview: View → bottom scroll → STOP, no claiming');
 }
 Promise.all([
- preview('4writers','4writers.net','0.5.3','PROWELL_TAB_ID'),
- preview('good-writers','good-writers.com','1.0.3','GW_TAB_ID')
+ preview('4writers','4writers.net','0.5.4','PROWELL_TAB_ID'),
+ preview('good-writers','good-writers.com','1.0.4','GW_TAB_ID')
 ]).then(()=>process.exit(0),err=>{console.error(err);process.exit(1);});

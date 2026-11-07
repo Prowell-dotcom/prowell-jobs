@@ -10,7 +10,7 @@ async function simulate(slug,site,version,tabMessage){
  let bodyText='Available orders',page='available';
  const storage={armed:true,claimConsentVersion:version,targetTabId:9,claim:null,
   attemptedIds:[],completed:[],log:[],returnToList:false};
- const modal={scrollHeight:14000,isConnected:true,
+ const modal={scrollHeight:14000,innerText:'ORDER INFORMATION Order #0783450648',isConnected:true,
    getClientRects(){return [1];},
    scrollTo(x,y){timeline.push('modal-scroll-'+y);}
  };
@@ -74,13 +74,13 @@ async function simulate(slug,site,version,tabMessage){
  const takeIndex=timeline.indexOf('Take it'),okIndex=timeline.indexOf('OK'),ackIndex=timeline.indexOf('I understand the order');
  assert(timeline.slice(0,takeIndex).includes('modal-scroll-14000'),'Take it must follow internal modal scrolling');
  if(slug==='4writers')
-  assert(timeline.slice(okIndex,ackIndex).includes('modal-scroll-14000'),
+  assert(timeline.slice(okIndex,ackIndex).some(x=>x==='scroll-into-view-I understand the order'),
    '4writers should scroll after confirmation');
  else assert(!timeline.slice(okIndex,ackIndex).includes('modal-scroll-14000'),
    'Good-Writers must not add a second scroll after OK');
  console.log(slug+' new available order modal: View → internal scroll → Take it → OK → acknowledgement: PASS');
 }
 Promise.all([
- simulate('4writers','4writers.net','0.5.3','PROWELL_TAB_ID'),
- simulate('good-writers','good-writers.com','1.0.3','GW_TAB_ID')
+ simulate('4writers','4writers.net','0.5.4','PROWELL_TAB_ID'),
+ simulate('good-writers','good-writers.com','1.0.4','GW_TAB_ID')
 ]).then(()=>process.exit(0),error=>{console.error(error);process.exit(1);});
