@@ -212,7 +212,7 @@ def _request_gemini(api_key, model, instructions, prompt):
     source_words = count_words(match.group(1)) if match else count_words(prompt)
     # Allow for long passages and the model's low thinking budget.
     max_tokens = min(11000, max(1100, int(source_words * 2.4) + 700))
-    config = {"maxOutputTokens": max_tokens, "temperature": 0.35}
+    config = {"maxOutputTokens": max_tokens}
     if model.startswith(("gemini-3.", "gemini-4.")):
         config["thinkingConfig"] = {"thinkingLevel": "low"}
     elif model.startswith("gemini-2.5-flash"):
