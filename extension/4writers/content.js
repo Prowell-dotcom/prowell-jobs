@@ -99,10 +99,19 @@
     if(state.claim){
       const current=state.claim;
       if(current.stage==='processing-view-clicked'){
-        // This is a verification-only path; under NO circumstance click Take it.
+        // Verification only: give navigation or an in-page detail overlay a chance to render.
+        // A processing preview must NEVER click Take it, OK or acknowledgement.
+        const stillOnCard=orderCards().some(c=>c.type==='processing' && c.id===current.id);
+        const stillOnList=location.href===current.listUrl && stillOnCard;
+        if(stillOnList && Date.now()-current.startedAt<3500)return;
+        if(stillOnList){
+          await report('Processing test: View did not visibly open order details; stopped safely',
+            {armed:false,claim:null});
+          return;
+        }
         jumpToBottom();
         const seen=[...new Set([...(state.processingPreviewedIds||[]),current.id])].slice(-200);
-        await report('Processing test: View opened for #'+current.id+', scrolled to bottom; no acceptance attempted',
+        await report('Processing test: order #'+current.id+' opened; scrolled to bottom; no acceptance attempted',
           {armed:false,claim:null,processingPreviewedIds:seen});
         return;
       }
