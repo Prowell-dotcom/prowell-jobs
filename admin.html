@@ -13,6 +13,7 @@
 <section class="admin-panel" id="privateParaphraserPanel" hidden aria-labelledby="privateParaphraserTitle">
  <div class="admin-title"><h2 id="privateParaphraserTitle">My private AI Paraphrasing Studio</h2><span class="external-writer-private">ADMINISTRATOR ONLY</span></div>
  <p class="admin-status">Rewrite your text clearly while preserving its meaning, technical terms, names and citations. Accepts any nonempty text up to 3,000 words. Only your signed-in administrator account can use this tool.</p>
+ <p class="admin-status"><strong>AI provider:</strong> Google Gemini free tier by default. Add a private <code>GEMINI_API_KEY</code> in Railway Variables to activate rewriting; no OpenAI key is needed. Free usage is limited and Google may use free-tier content to improve its products.</p>
  <form id="paraphraseForm" class="paraphrase-tool">
   <div class="paraphrase-toolbar"><label for="paraphraseTone">Writing style</label>
    <select id="paraphraseTone" name="tone">
