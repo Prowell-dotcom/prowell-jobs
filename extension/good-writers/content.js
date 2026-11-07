@@ -8,7 +8,7 @@
   window.__prowellGoodWritersV1 = true;
 
   const DEFAULTS = {armed:false,claimConsentVersion:'',targetTabId:null,refreshMs:2000,claim:null,
-    attemptedIds:[],completed:[],lastResult:'Ready',log:[],returnToList:true};
+    attemptedIds:[],completed:[],processingPreviewedIds:[],lastResult:'Ready',log:[],returnToList:true};
   const ID = /\b(?:order\s*)?ID\s*[:#]\s*(\d{5,})\b/i;
   const VIEW = /^view(?:\s+(?:order|details))?$/i;
   const TAKE = /^take\s*it(?:\s*now)?[.!]?$/i;
@@ -25,10 +25,9 @@
     !el.disabled && el.getAttribute('aria-disabled')!=='true');
   const find = pattern => [...document.querySelectorAll(ACTIONS)]
     .find(el => visible(el) && pattern.test(label(el)));
-  const active = () => Boolean(state.armed && state.claimConsentVersion==='1.0.0' && tabId === state.targetTabId);
+  const active = () => Boolean(state.armed && state.claimConsentVersion==='1.0.2' && tabId === state.targetTabId);
   const pageText = () => document.body?.innerText || '';
-  const orderList = () => /available orders/i.test(pageText()) &&
-    /\bwritings\b/i.test(pageText()) && !/please log in/i.test(pageText());
+  const orderList = () => window.__prowellCardDetector?.pageKind()==='available';
   const challenge = () => /captcha|verify you are human|unusual activity/i.test(pageText()) ||
     Boolean(document.querySelector('iframe[src*="captcha"], [class*="g-recaptcha"]'));
   const success = () => /now you can write the order|you (?:can|may) start writing|order (?:has been )?(?:assigned to you|taken successfully)/i.test(pageText());
@@ -53,19 +52,11 @@
     state.claim=claim;
     await chrome.storage.local.set({claim});
   }
-  function orderCards(){
-    const hits=[];
-    for(const button of document.querySelectorAll(ACTIONS)){
-      if(!visible(button) || !VIEW.test(label(button)))continue;
-      let node=button,order=null;
-      for(let i=0;i<9&&node&&node!==document.body;i++,node=node.parentElement){
-        const text=node.innerText||node.textContent||'';
-        const match=ID.exec(text);
-        if(match&&text.length<3300){order={id:match[1],button};break;}
-      }
-      if(order)hits.push(order);
-    }
-    return hits;
+  function orderCards(){return window.__prowellCardDetector?.cards()||[];}
+  function jumpToBottom(){
+    const bottom=Math.max(document.body?.scrollHeight||0,document.documentElement?.scrollHeight||0);
+    try{window.scrollTo(0,bottom);}catch(_){}
+    try{document.scrollingElement?.scrollTo(0,bottom);}catch(_){}
   }
   function stopRefresh(){if(nextRefresh){clearTimeout(nextRefresh);nextRefresh=null;}}
   // Refresh scheduling is controlled exclusively by refresh.js.
@@ -107,6 +98,14 @@
     }
     if(state.claim){
       const current=state.claim;
+      if(current.stage==='processing-view-clicked'){
+        // This is a verification-only path; under NO circumstance click Take it.
+        jumpToBottom();
+        const seen=[...new Set([...(state.processingPreviewedIds||[]),current.id])].slice(-200);
+        await report('Processing test: View opened for #'+current.id+', scrolled to bottom; no acceptance attempted',
+          {armed:false,claim:null,processingPreviewedIds:seen});
+        return;
+      }
       if((current.stage==='confirmed'||current.stage==='acknowledged') && success())return finished(true,'Order #'+current.id+': Now you can write the order');
       if(failure()){const reason=/taken/i.test(pageText())?'claimed by another writer':/not available|unavailable/i.test(pageText())?'no longer available':'claim rejected by the website';return finished(false,'Order #'+current.id+': '+reason);}
       if(Date.now()-current.startedAt>25000){
@@ -114,20 +113,32 @@
       }
       if(current.stage==='take-clicked' && find(OK))
         return clickStage(find(OK),'ok-clicked','Confirmed OK for #'+current.id);
-      if((current.stage==='ok-clicked'||current.stage==='take-clicked') && find(ACCEPT))
+      if((current.stage==='ok-clicked'||current.stage==='take-clicked') && find(ACCEPT)){
         return clickStage(find(ACCEPT),'acknowledged','Acknowledged order #'+current.id);
-      if((current.stage==='view-clicked'||current.stage==='take-waiting') && find(TAKE))
-        return clickStage(find(TAKE),'take-clicked','Clicked Take it for #'+current.id);
+      }
+      if((current.stage==='view-clicked'||current.stage==='take-waiting')){
+        jumpToBottom();
+        const take=find(TAKE);
+        if(take)return clickStage(take,'take-clicked','Clicked Take it for #'+current.id);
+      }
       return;
     }
     const cards=orderCards();
     if(cards.length){
-      const fresh=cards.find(c=>!(state.attemptedIds||[]).includes(c.id) &&
+      const processing=cards.find(c=>c.type==='processing' && !(state.processingPreviewedIds||[]).includes(c.id));
+      if(processing){
+        await setClaim(processing.id,'processing-view-clicked',{listUrl:location.href,startedAt:Date.now()});
+        processing.view.click();
+        await report('Processing test: clicked View for #'+processing.id);
+        setTimeout(scheduleScan,0);
+        return;
+      }
+      const fresh=cards.find(c=>c.type==='available' && !(state.attemptedIds||[]).includes(c.id) &&
         !(state.completed||[]).includes(c.id));
       if(fresh){
         stopRefresh();
         await setClaim(fresh.id,'view-clicked',{listUrl:location.href,startedAt:Date.now()});
-        lastAction=Date.now();fresh.button.click();
+        lastAction=Date.now();fresh.view.click();
         await report('Opening order #'+fresh.id);
         setTimeout(scheduleScan,0);
         return;
