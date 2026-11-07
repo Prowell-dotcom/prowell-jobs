@@ -34,7 +34,7 @@
    event.preventDefault();
    const n=count(input.value);
    if(!isReady||working||n<1||n>3000)return;
-   working=true;output.value='';update();status('Rewriting securely…');
+   working=true;output.value='';update();status('Rewriting and reviewing sentence quality…');
    try{
      const token=window.prowellAdminCsrf?.()||'';
      if(!token)throw Error('Administrator session token is unavailable. Refresh and sign in again.');
@@ -48,7 +48,7 @@
      const data=await response.json();
      if(!response.ok)throw Error(data.error||'The rewrite could not be completed.');
      output.value=data.paraphrased||'';
-     status('Rewrite complete. '+(data.outputWords||count(output.value))+' words. Detector score not tested.');
+     status('Editorial rewrite complete. '+(data.outputWords||count(output.value))+' words. Please review meaning and references.');
    }catch(error){status('Unable to paraphrase: '+error.message);}
    finally{working=false;update();}
  });
