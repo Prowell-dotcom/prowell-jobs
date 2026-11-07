@@ -29,6 +29,7 @@ from writing_marketplace import Marketplace, init_db as init_writing_db
 import admin_document_sender as admin_docs
 import admin_extension_store as owner_extension
 import good_writers_reporting as good_writers_reports
+import admin_paraphraser
 
 ROOT = Path(__file__).resolve().parent
 DATABASE_PATH = Path(os.getenv('DATABASE_PATH', str(ROOT / 'prowell-jobs.sqlite3'))).resolve()
@@ -1377,6 +1378,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.admin_logout()
         if path == '/api/admin/tab-viewed':
             return self.mark_admin_tab_viewed()
+        if path == '/api/admin/paraphrase':
+            return admin_paraphraser.handle_rewrite(self, check_rate)
         if path == '/api/admin/documents/send':
             return admin_docs.handle_post(self, db_connection, check_rate)
         if path == '/api/admin/good-writers/pair':
