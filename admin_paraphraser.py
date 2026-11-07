@@ -134,7 +134,7 @@ def _request_rewrite(api_key, model, instructions, prompt):
     # The two-pass editorial workflow must not reserve an oversized output
     # allowance for a short paragraph; excessive reservations can count
     # toward token-per-minute rate limits.
-    source_match = re.search(r"<source>\\n([\\s\\S]*?)\\n</source>", prompt)
+    source_match = re.search(r"<source>\n([\s\S]*?)\n</source>", prompt)
     source_words = count_words(source_match.group(1)) if source_match else count_words(prompt)
     max_tokens = min(8000, max(550, int(source_words * 2.0) + 450))
     data = json.dumps({
