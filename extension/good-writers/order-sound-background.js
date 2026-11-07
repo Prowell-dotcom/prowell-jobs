@@ -22,11 +22,18 @@ async function ensureOrderSoundDocument(){
 }
 async function playOrderSound(kind){
   await ensureOrderSoundDocument();
-  return chrome.runtime.sendMessage({
+  const request={
     type:'PROWELL_PLAY_ORDER_SOUND',
-    target:'prowell-offscreen-audio',
-    kind
-  });
+    target:'prowell-offscreen-audio',kind
+  };
+  // A newly opened offscreen document may need a moment to register its
+  // message listener. Retry once if the first attempt cannot play.
+  try{
+    const result=await chrome.runtime.sendMessage(request);
+    if(result?.ok===true)return result;
+  }catch(_){}
+  await new Promise(resolve=>setTimeout(resolve,160));
+  return chrome.runtime.sendMessage(request);
 }
 async function notifyOrderOnce(orderId,kind){
   const key=kind+':'+orderId,now=Date.now();
@@ -36,13 +43,17 @@ async function notifyOrderOnce(orderId,kind){
   if(Number(history[key])>now-SOUND_COOLDOWN_MS)return false;
   const recent=Object.fromEntries(Object.entries(history)
     .filter(([,at])=>Number(at)>now-SOUND_COOLDOWN_MS).slice(-180));
-  recent[key]=now;
-  await chrome.storage.session.set({[ORDER_SOUND_SEEN]:recent});
-  try{await playOrderSound(kind);}catch(error){
-    // Sound failure must NEVER interrupt or delay the separate claim process.
+  try{
+    const result=await playOrderSound(kind);
+    if(result?.ok!==true)return false;
+    recent[key]=now;
+    await chrome.storage.session.set({[ORDER_SOUND_SEEN]:recent});
+    return true;
+  }catch(error){
+    // Sound failures must NEVER interrupt or delay the separate claim process.
     console.warn('Prowell order sound unavailable:',String(error?.message||error));
+    return false;
   }
-  return true;
 }
 chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   if(message?.type==='PROWELL_ORDER_SOUND'){
