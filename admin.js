@@ -38,9 +38,9 @@ async function markSectionViewed(section){
  unreadCounts[section]=0;
  renderUnreadBadges();
 }
-function showSignedIn(){signedIn=true;$('#activityPanel').hidden=false;$('#externalWriterPanel').hidden=false;$('#ownerExtensionPanel').hidden=false;loadOwnerExtensionStatus().catch(err=>setExtensionStatus(err.message));loadGoodWritersStatus().catch(err=>setGoodWritersStatus(err.message));renderUnreadBadges();$('#keyForm').hidden=true;$('#sessionPanel').hidden=false;$('#notificationDiagnostics').hidden=activeTab!=='notification_outbox';$('#extensionClaimNotifications').hidden=activeTab!=='notification_outbox';$('#goodWritersClaimNotifications').hidden=activeTab!=='notification_outbox';}
+function showSignedIn(){signedIn=true;window.dispatchEvent(new CustomEvent('prowell-admin-session',{detail:{signedIn:true}}));$('#activityPanel').hidden=false;$('#externalWriterPanel').hidden=false;$('#ownerExtensionPanel').hidden=false;loadOwnerExtensionStatus().catch(err=>setExtensionStatus(err.message));loadGoodWritersStatus().catch(err=>setGoodWritersStatus(err.message));renderUnreadBadges();$('#keyForm').hidden=true;$('#sessionPanel').hidden=false;$('#notificationDiagnostics').hidden=activeTab!=='notification_outbox';$('#extensionClaimNotifications').hidden=activeTab!=='notification_outbox';$('#goodWritersClaimNotifications').hidden=activeTab!=='notification_outbox';}
 function showSignedOut(message='Signed out. Use your administrator account to sign in again.'){
- signedIn=false;csrfToken='';unreadCounts={};$('#activityPanel').hidden=true;$('#externalWriterPanel').hidden=true;$('#ownerExtensionPanel').hidden=true;$('#downloadOwnerExtension').disabled=true;$('#downloadGoodWritersExtension').disabled=true;renderUnreadBadges();dataset={jobs:[],applications:[],candidates:[],reviews:[],reports:[],alerts:[],notification_outbox:[]};
+ signedIn=false;window.dispatchEvent(new CustomEvent('prowell-admin-session',{detail:{signedIn:false}}));csrfToken='';unreadCounts={};$('#activityPanel').hidden=true;$('#externalWriterPanel').hidden=true;$('#ownerExtensionPanel').hidden=true;$('#downloadOwnerExtension').disabled=true;$('#downloadGoodWritersExtension').disabled=true;renderUnreadBadges();dataset={jobs:[],applications:[],candidates:[],reviews:[],reports:[],alerts:[],notification_outbox:[]};
  $('#sessionPanel').hidden=true;$('#keyForm').hidden=false;$('#adminKey').value='';
  $('#adminStatus').textContent=message;$('#notificationDiagnostics').hidden=true;$('#extensionClaimNotifications').hidden=true;$('#goodWritersClaimNotifications').hidden=true;render();
 }
@@ -333,3 +333,6 @@ $('#adminRecords').addEventListener('click',async e=>{const btn=e.target.closest
  btn.disabled=true;let payload={status:btn.dataset.status||current.status};if(verification!==undefined)payload.verified=verification==='true';
  try{await api(`/api/admin/${activeTab}/${encodeURIComponent(id)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});Object.assign(current,payload);render();$('#adminStatus').textContent='Record updated successfully.';}catch(err){btn.disabled=false;$('#adminStatus').textContent=err.message;}
 });
+
+// Read-only access to the CSRF token for other administrator-only dashboard features.
+window.prowellAdminCsrf = () => signedIn ? csrfToken : '';
