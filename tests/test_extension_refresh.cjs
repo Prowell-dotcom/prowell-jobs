@@ -25,6 +25,7 @@ async function run(){
     runtime:{sendMessage(m,cb){cb({tabId:42});}}
   };
   const window={};window.top=window;
+  window.__prowellCardDetector={pageKind:()=> 'available',cards:()=>[]};
   const ctx={window,document:doc,chrome,location:{origin:'https://4writers.net',reload(){reloadCount++;}},
     MutationObserver:class{constructor(cb){observer=cb;}observe(){}},
     setTimeout(fn,ms){assert.equal(ms,2000);timer=async()=>{timer=null;return fn();};return ++timeoutId;},
