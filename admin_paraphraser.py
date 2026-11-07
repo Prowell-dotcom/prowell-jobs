@@ -84,14 +84,66 @@ def _safe_output(source, candidate):
     return _protected_details(source) == _protected_details(candidate)
 
 
+def _describe_api_429(exc):
+    """Differentiate exhausted API billing from temporary rate limits.
+
+    Never return raw provider messages, input text or credentials to clients.
+    """
+    try:
+        response = json.loads(exc.read(4096).decode("utf-8"))
+        error = response.get("error") if isinstance(response, dict) else {}
+        if not isinstance(error, dict):
+            error = {}
+        code = str(error.get("code") or "").lower().strip()
+        category = str(error.get("type") or "").lower().strip()
+        description = str(error.get("message") or "").lower()
+    except (ValueError, UnicodeDecodeError, AttributeError, TypeError):
+        code, category, description = "", "", ""
+
+    billing_codes = {
+        "credit_balance_exhausted", "insufficient_quota",
+        "organization_usage_limit_exceeded",
+        "organization_spend_limit_exceeded",
+        "project_spend_limit_exceeded",
+        "billing_hard_limit_reached"
+    }
+    if code in billing_codes or category in billing_codes or (
+        any(part in description for part in (
+            "insufficient quota", "exceeded your current quota",
+            "billing hard limit", "credit balance exhausted",
+            "reached your spending limit"
+        ))
+    ):
+        return ("OpenAI API credits or spending limit exhausted. Check your "
+                "OpenAI Platform Billing and Limits. Adding credits or "
+                "increasing the permitted limit may be required; retrying "
+                "without resolving billing will not help.")
+
+    if code == "rate_limit_exceeded" or category in ("rate_limit_error", "rate_limit_exceeded") or (
+        "rate limit" in description or "requests per min" in description
+    ):
+        return ("OpenAI API request/token rate limit reached. "
+                "Wait for the limit to reset, or review the project's "
+                "rate limits in OpenAI Platform settings.")
+    return ("OpenAI API returned HTTP 429 (quota or rate limit). "
+            "Check API credit balance and organization/project Limits "
+            "before retrying.")
+
+
 def _request_rewrite(api_key, model, instructions, prompt):
+    # The two-pass editorial workflow must not reserve an oversized output
+    # allowance for a short paragraph; excessive reservations can count
+    # toward token-per-minute rate limits.
+    source_match = re.search(r"<source>\n([\s\S]*?)\n</source>", prompt)
+    source_words = count_words(source_match.group(1)) if source_match else count_words(prompt)
+    max_tokens = min(8000, max(550, int(source_words * 2.0) + 450))
     data = json.dumps({
         "model": model,
         "instructions": instructions,
         "input": [{"role": "user", "content": [
             {"type": "input_text", "text": prompt}
         ]}],
-        "max_output_tokens": 14000,
+        "max_output_tokens": max_tokens,
         "store": False
     }).encode("utf-8")
     request = urllib.request.Request(
@@ -110,7 +162,7 @@ def _request_rewrite(api_key, model, instructions, prompt):
         if exc.code in (401, 403):
             raise RuntimeError("AI provider key is invalid or the selected model is unavailable to this account.") from None
         if exc.code == 429:
-            raise RuntimeError("AI provider rate limit reached. Please try again later.") from None
+            raise RuntimeError(_describe_api_429(exc)) from None
         raise RuntimeError("AI provider request failed (HTTP %d)." % exc.code) from None
     except (urllib.error.URLError, TimeoutError):
         raise RuntimeError("AI provider is unavailable or timed out. Please try again.") from None
