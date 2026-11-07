@@ -58,7 +58,7 @@ class ParaphraserTests(unittest.TestCase):
         code, result=tool.handle_rewrite(handle,lambda *a,**k:True,rewrite)
         self.assertEqual(code,200)
         self.assertEqual(result['outputWords'],2)
-        self.assertIsNone(result['detectorScore'])
+        self.assertEqual(result['editingApproach'], 'Natural rewrite with a second editorial review')
         self.assertEqual(calls,['Private draft'])
 
     def test_api_secret_is_server_side_and_store_disabled(self):
@@ -79,7 +79,8 @@ class ParaphraserTests(unittest.TestCase):
         self.assertFalse(payload['store'])
         self.assertEqual(payload['model'],'gpt-4.1-mini')
         self.assertEqual(captured[0].get_header('Authorization'),'Bearer test-private-token')
-        self.assertEqual(len(captured),1)
+        self.assertEqual(len(captured),2)
+        self.assertIn('senior copy editor',json.loads(captured[1].data)['instructions'].lower())
 
     def test_no_key_fails_cleanly(self):
         with patch.dict('os.environ',{'OPENAI_API_KEY':''}):
