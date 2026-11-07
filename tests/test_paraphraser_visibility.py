@@ -10,7 +10,7 @@ class AdminParaphraserVisibilityTests(unittest.TestCase):
         self.assertIn('id="privateParaphraserPanel"', markup)
         self.assertIn('id="paraphraserShortcut"', markup)
         self.assertIn('href="#privateParaphraserTitle"', markup)
-        self.assertIn('admin-paraphraser.js?v=2', markup)
+        self.assertIn('admin-paraphraser.js?v=3', markup)
 
     def test_admin_session_explicit_visibility(self):
         script = (ROOT/'admin.js').read_text(encoding='utf-8')
