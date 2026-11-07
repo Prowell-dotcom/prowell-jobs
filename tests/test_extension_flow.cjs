@@ -8,12 +8,12 @@ const path=require('node:path');
 const vm=require('node:vm');
 
 async function run(){
- const clicks=[],messages=[],subscribers=[];
+ const clicks=[],messages=[],subscribers=[],scrolls=[],timeline=[];
  let buttons=[],text='Available orders Writings';
- const storage={armed:true,claimConsentVersion:'0.5.1',targetTabId:7,refreshMs:2000,claim:null,attemptedIds:[],completed:[],lastResult:'',log:[],returnToList:false};
+ const storage={armed:true,claimConsentVersion:'0.5.2',targetTabId:7,refreshMs:2000,claim:null,attemptedIds:[],completed:[],lastResult:'',log:[],returnToList:false};
  let onMutation=()=>{};
  const body={get innerText(){return text;},get textContent(){return text;}};
- const root={appendChild(el){el.isConnected=true;}};
+ const root={scrollHeight:5000,appendChild(el){el.isConnected=true;}};
  const document={
    body,documentElement:root,
    querySelectorAll(){return buttons;},
@@ -27,7 +27,7 @@ async function run(){
  function button(name,action,parent=null){
   return {textContent:name,innerText:name,isConnected:true,disabled:false,parentElement:parent,
    getAttribute(){return null;},getClientRects(){return [1];},
-   click(){clicks.push(name);action();emit();}
+   click(){clicks.push(name);timeline.push(name);action();emit();}
   };
  }
  function update(name){
@@ -56,6 +56,9 @@ async function run(){
  };
  const location={origin:'https://4writers.net',href:'https://4writers.net/orders',reload(){},assign(){}};
  const window={};window.top=window;
+ window.scrollTo=(x,y)=>{scrolls.push(y);timeline.push('scroll');};
+ window.__prowellCardDetector={pageKind:()=> 'available',
+   cards:()=>buttons.filter(b=>b.innerText==='View').map(b=>({id:'6447728953',view:b,type:'available'}))};
  const context={chrome,location,window,document,MutationObserver:class{constructor(fn){onMutation=fn;}observe(){}},
   setTimeout,clearTimeout,setInterval,clearInterval,Date,URL,queueMicrotask,console};
  const filename=path.join(__dirname,'../extension/4writers/content.js');
@@ -63,6 +66,8 @@ async function run(){
  const deadline=Date.now()+1000;
  while(Date.now()<deadline && storage.completed.length===0)await new Promise(r=>setTimeout(r,15));
  assert.deepEqual(clicks,['View','Take it','OK','I understand the order']);
+ assert(timeline.indexOf('scroll')<timeline.indexOf('Take it'),'4writers scrolls before Take it');
+ assert(timeline.slice(timeline.indexOf('OK')+1,timeline.indexOf('I understand the order')).includes('scroll'),'4writers scrolls after OK');
  assert.equal(storage.completed[0],'6447728953');
  assert.equal(messages.length,1);
  assert.equal(messages[0].outcome,'success');

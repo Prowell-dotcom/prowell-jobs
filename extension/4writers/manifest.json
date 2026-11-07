@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Prowell 4writers Order Watcher",
-  "version": "0.5.1",
-  "description": "Instant browser-side order detection, View highlighting and manual acceptance assistance.",
+  "version": "0.5.2",
+  "description": "Order-card detection, two-second refresh, processing-view test and staged acceptance assistant for 4writers (beta).",
   "permissions": [
     "storage",
     "tabs"
@@ -26,6 +26,7 @@
         "https://www.4writers.net/*"
       ],
       "js": [
+        "order-card.js",
         "content.js",
         "refresh.js"
       ],

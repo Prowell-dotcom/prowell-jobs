@@ -14,7 +14,7 @@
   let status = '';
   let local = {armed:false,targetTabId:null,claim:null,claimConsentVersion:'',attemptedIds:[],completed:[]};
   const interval = 2000;
-  const isActive = () => local.armed && local.claimConsentVersion === '1.0.0' && local.targetTabId === tabId;
+  const isActive = () => local.armed && local.claimConsentVersion === '1.0.2' && local.targetTabId === tabId;
 
   function setStatus(message) {
     if (message === status) return;
@@ -25,30 +25,16 @@
     if (timer !== null) clearTimeout(timer);
     timer = null;
   }
-  function orderListVisible() {
-    const text = document.body?.innerText || '';
-    return /available orders/i.test(text) && /\bwritings\b/i.test(text) &&
-      !/please log in|forgot your password/i.test(text) &&
-      !document.querySelector('input[type="password"]');
-  }
+  function orderListVisible(){return window.__prowellCardDetector?.pageKind()==='available';}
   function challengeVisible() {
     const text = document.body?.innerText || '';
     return /captcha|verify you are human|unusual activity/i.test(text) ||
       Boolean(document.querySelector('iframe[src*="captcha"],[class*="g-recaptcha"]'));
   }
-  function unseenOrderVisible() {
-    const seen = new Set([...(local.attemptedIds || []),...(local.completed || [])]);
-    for (const btn of document.querySelectorAll('a,button,input[type="button"],input[type="submit"],[role="button"]')) {
-      const text = (btn.innerText || btn.value || btn.textContent || '').trim();
-      if (!/^view(?:\s+(?:order|details))?$/i.test(text) || !btn.getClientRects().length) continue;
-      let parent = btn;
-      for (let i=0;i<9 && parent && parent!==document.body;i++,parent=parent.parentElement) {
-        const t=parent.innerText || parent.textContent || '';
-        const match = /\b(?:order\s*)?ID\s*[:#]\s*(\d{5,})\b/i.exec(t);
-        if (match && t.length < 3300 && !seen.has(match[1])) return true;
-      }
-    }
-    return false;
+  function unseenOrderVisible(){
+    const cards=window.__prowellCardDetector?.cards()||[];
+    const handled=new Set([...(local.attemptedIds||[]),...(local.completed||[])]);
+    return cards.some(c=>c.type==='processing'||(c.type==='available'&&!handled.has(c.id)));
   }
   function evaluate() {
     if (!isActive()) {
@@ -64,6 +50,11 @@
     if (challengeVisible()) {
       cancel();
       setStatus('Paused — website security check detected');
+      return;
+    }
+    if (unseenOrderVisible()) {
+      cancel();
+      setStatus('Order card detected — refresh stopped for action');
       return;
     }
     if (!orderListVisible()) {

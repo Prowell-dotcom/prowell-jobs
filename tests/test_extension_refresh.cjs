@@ -6,7 +6,7 @@ const path=require('node:path');
 async function run(){
   let timeoutId=0,reloadCount=0,observer=()=>{},timer=null,oldTimer=null;
   const subscribers=[];
-  const state={armed:true,claimConsentVersion:'0.5.1',targetTabId:42,claim:null,refreshCount:0,attemptedIds:[],completed:[]};
+  const state={armed:true,claimConsentVersion:'0.5.2',targetTabId:42,claim:null,refreshCount:0,attemptedIds:[],completed:[]};
   let text='Available Orders Writings';
   const doc={
     body:{get innerText(){return text;}},
@@ -25,6 +25,7 @@ async function run(){
     runtime:{sendMessage(m,cb){cb({tabId:42});}}
   };
   const window={};window.top=window;
+  window.__prowellCardDetector={pageKind:()=> 'available',cards:()=>[]};
   const ctx={window,document:doc,chrome,location:{origin:'https://4writers.net',reload(){reloadCount++;}},
     MutationObserver:class{constructor(cb){observer=cb;}observe(){}},
     setTimeout(fn,ms){assert.equal(ms,2000);timer=async()=>{timer=null;return fn();};return ++timeoutId;},

@@ -36,6 +36,10 @@ jobs:
           node --check extension/good-writers/popup.js
           node --check extension/good-writers/popup-refresh.js
           node tests/test_good_writers_flow.cjs
+          node --check extension/4writers/order-card.js
+          node --check extension/good-writers/order-card.js
+          node tests/test_order_cards.cjs
+          node tests/test_processing_preview.cjs
 
       - name: Run website tests
         run: python -m unittest discover -s tests -v
