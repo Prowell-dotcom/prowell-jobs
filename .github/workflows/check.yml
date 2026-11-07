@@ -56,6 +56,7 @@ jobs:
           node --check extension/good-writers/order-sound-watch.js
           node --check extension/good-writers/order-sound.js
           node tests/test_order_sound.cjs
+          node tests/test_order_audio.cjs
 
       - name: Run website tests
         run: python -m unittest discover -s tests -v
