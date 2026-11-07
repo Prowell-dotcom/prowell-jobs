@@ -31,7 +31,7 @@
       try{
         chrome.runtime.sendMessage({
           type:'PROWELL_ORDER_SOUND',orderId:String(card.id),kind:card.type
-        }).catch?.(()=>{});
+        },()=>{void chrome.runtime.lastError;});
       }catch(_){}
     }
   }
