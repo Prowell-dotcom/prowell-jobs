@@ -81,6 +81,6 @@ async function simulate(slug,site,version,tabMessage){
  console.log(slug+' new available order modal: View → internal scroll → Take it → OK → acknowledgement: PASS');
 }
 Promise.all([
- simulate('4writers','4writers.net','0.5.5','PROWELL_TAB_ID'),
- simulate('good-writers','good-writers.com','1.0.5','GW_TAB_ID')
+ simulate('4writers','4writers.net','0.5.6','PROWELL_TAB_ID'),
+ simulate('good-writers','good-writers.com','1.0.6','GW_TAB_ID')
 ]).then(()=>process.exit(0),error=>{console.error(error);process.exit(1);});

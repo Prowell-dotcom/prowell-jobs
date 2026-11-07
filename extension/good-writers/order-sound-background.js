@@ -6,7 +6,8 @@ const OFFICIAL_ORDER_SOUND_DOMAIN=/^https:\/\/(?:www\.)?good-writers\.com\//i;
 const ORDER_SOUND_SEEN='prowellOrderSoundHistory';
 let orderSoundQueue=Promise.resolve();
 let offscreenCreating=null;
-const SOUND_COOLDOWN_MS=12*60*60*1000;
+// Suppress rapid duplicate DOM events, not later monitoring sessions.
+const SOUND_COOLDOWN_MS=1200;
 
 async function ensureOrderSoundDocument(){
   if(!chrome.offscreen)throw Error('Offscreen audio unsupported by this Chrome version.');
@@ -35,8 +36,10 @@ async function playOrderSound(kind){
   await new Promise(resolve=>setTimeout(resolve,160));
   return chrome.runtime.sendMessage(request);
 }
-async function notifyOrderOnce(orderId,kind){
-  const key=kind+':'+orderId,now=Date.now();
+async function notifyOrderOnce(orderId,kind,runId){
+  // An explicit START generates a fresh run ID, so the same processing order
+  // can alert again immediately when the owner restarts the bot.
+  const key=runId+':'+kind+':'+orderId,now=Date.now();
   const stored=await chrome.storage.session.get(ORDER_SOUND_SEEN);
   const history=(stored[ORDER_SOUND_SEEN]&&typeof stored[ORDER_SOUND_SEEN]==='object')
     ?stored[ORDER_SOUND_SEEN]:{};
@@ -59,13 +62,15 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   if(message?.type==='PROWELL_ORDER_SOUND'){
     const id=String(message.orderId||'').trim();
     const kind=message.kind;
+    const runId=String(message.soundRunId||'');
     const source=String(sender.url||sender.tab?.url||'');
     // Trust only official order pages. Test events are handled separately.
     if(!/^\d{5,16}$/.test(id) || !['available','processing'].includes(kind) ||
+        !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(runId) ||
         !OFFICIAL_ORDER_SOUND_DOMAIN.test(source) || !sender.tab){
       respond({ok:false});return;
     }
-    orderSoundQueue=orderSoundQueue.then(()=>notifyOrderOnce(id,kind)).catch(error=>{
+    orderSoundQueue=orderSoundQueue.then(()=>notifyOrderOnce(id,kind,runId)).catch(error=>{
       console.warn('Prowell order sound queue:',String(error?.message||error));
       return false;
     });

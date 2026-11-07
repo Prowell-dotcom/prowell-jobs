@@ -5,7 +5,7 @@ const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,refreshMs:20
 let state={...DEFAULTS},tab=null;
 const valid=url=>/^https:\/\/(?:www\.)?good-writers\.com\//i.test(url||'');
 const current=()=>Boolean(tab&&valid(tab.url)&&state.targetTabId===tab.id);
-const isArmed=()=>Boolean(state.armed&&state.claimConsentVersion==='1.0.5');
+const isArmed=()=>Boolean(state.armed&&state.claimConsentVersion==='1.0.6');
 async function store(delta){state={...state,...delta};await chrome.storage.local.set(delta);render();}
 function render(){
  $('arm').disabled=!tab||!valid(tab.url)||Boolean(isArmed()&&current());
@@ -27,7 +27,7 @@ async function start(){
 $('arm').addEventListener('click',async()=>{
  if(!tab||!valid(tab.url))return;
  if(!confirm('AUTO-CLAIM EVERY ORDER? This will refresh every 2 seconds, click View, Take it, and acknowledge the order without checking its pay, deadline, or topic. Each acceptance may be binding. Continue?'))return;
- await store({armed:true,claimConsentVersion:'1.0.5',targetTabId:tab.id,claim:null,lastResult:'Monitoring and auto-claim enabled'});
+ await store({armed:true,claimConsentVersion:'1.0.6',targetTabId:tab.id,claim:null,soundRunId:crypto.randomUUID(),lastResult:'Monitoring and auto-claim enabled'});
  $('notice').textContent='Auto-claim enabled. Leave the good-writers tab open.';
 });
 $('stop').addEventListener('click',async()=>{

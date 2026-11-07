@@ -25,7 +25,7 @@
     !el.disabled && el.getAttribute('aria-disabled')!=='true');
   const find = pattern => [...document.querySelectorAll(ACTIONS)]
     .find(el => visible(el) && pattern.test(label(el)));
-  const active = () => Boolean(state.armed && state.claimConsentVersion==='0.5.5' && tabId === state.targetTabId);
+  const active = () => Boolean(state.armed && state.claimConsentVersion==='0.5.6' && tabId === state.targetTabId);
   const pageText = () => document.body?.innerText || '';
   const orderList = () => window.__prowellCardDetector?.pageKind()==='available';
   const challenge = () => /captcha|verify you are human|unusual activity/i.test(pageText()) ||
