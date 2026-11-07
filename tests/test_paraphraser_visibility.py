@@ -10,7 +10,9 @@ class AdminParaphraserVisibilityTests(unittest.TestCase):
         self.assertIn('id="privateParaphraserPanel"', markup)
         self.assertIn('id="paraphraserShortcut"', markup)
         self.assertIn('href="#privateParaphraserTitle"', markup)
-        self.assertIn('admin-paraphraser.js?v=4', markup)
+        self.assertIn('admin.js?v=paraphrase-button-v5', markup)
+        self.assertNotIn('<script src="admin-paraphraser.js', markup)
+        self.assertIn('id="paraphraseSubmit">', markup)
 
     def test_admin_session_explicit_visibility(self):
         script = (ROOT/'admin.js').read_text(encoding='utf-8')
@@ -19,10 +21,11 @@ class AdminParaphraserVisibilityTests(unittest.TestCase):
         self.assertIn("window.prowellAdminSignedIn = () => signedIn", script)
 
     def test_paraphraser_handles_missed_signin_event(self):
-        script = (ROOT/'admin-paraphraser.js').read_text(encoding='utf-8')
-        self.assertIn("window.prowellAdminSignedIn?.()", script)
-        self.assertIn("window.addEventListener('prowell-admin-session'", script)
-        self.assertIn("const shortcut=$('paraphraserShortcut')", script)
+        script = (ROOT/'admin.js').read_text(encoding='utf-8')
+        self.assertIn('BEGIN PRIVATE PARAPHRASER', script)
+        self.assertIn("window.updateProwellParaphraser=sync", script)
+        self.assertIn("form.addEventListener('submit'", script)
+        self.assertIn("submit.disabled=busy", script)
 
 if __name__=='__main__':
     unittest.main()
