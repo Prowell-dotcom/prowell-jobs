@@ -59,7 +59,7 @@
     const bottom=Math.max(document.body?.scrollHeight||0,document.documentElement?.scrollHeight||0);
     try{window.scrollTo(0,bottom);}catch(_){}
     const nodes=[document.scrollingElement,document.documentElement,document.body,
-      ...document.querySelectorAll('dialog[open],[role="dialog"],.modal.show,.modal.in,.modal-body,[data-order-details]')];
+      ...document.querySelectorAll('dialog[open],[role="dialog"],.modal.show,.modal.in,.modal-body,.modal-content,.modal-dialog,[class*="order-info"],[class*="orderInfo"],[class*="popup"],[id*="modal"],[data-order-details]')];
     for(const node of [...new Set(nodes)]){
       if(!node || typeof node.scrollHeight!=='number')continue;
       try{if(typeof node.scrollTo==='function')node.scrollTo(0,node.scrollHeight);else node.scrollTop=node.scrollHeight;}
@@ -70,8 +70,9 @@
   // or replacing the card with a details panel must also count.
   function processingDetailsOpened(claim){
     if(location.href!==claim.listUrl)return true;
-    const panels=[...document.querySelectorAll('dialog[open],[role="dialog"],.modal.show,.modal.in,[data-order-details]')];
-    if(panels.some(el=>el.isConnected && el.getClientRects?.().length))return true;
+    const panels=[...document.querySelectorAll('dialog[open],[role="dialog"],.modal.show,.modal.in,.modal-content,[class*="order-info"],[class*="popup"],[id*="modal"],[data-order-details]')];
+    if(panels.some(el=>el.isConnected && el.getClientRects?.().length &&
+      /order information|order\s*#\s*\d{5,16}/i.test(el.innerText||el.textContent||'')))return true;
     return !orderCards().some(c=>c.type==='processing' && c.id===claim.id);
   }
   function repeatBottomScroll(){
