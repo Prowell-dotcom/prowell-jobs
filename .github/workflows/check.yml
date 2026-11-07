@@ -40,6 +40,10 @@ jobs:
           node --check extension/good-writers/order-card.js
           node tests/test_order_cards.cjs
           node tests/test_processing_preview.cjs
+          node --check extension/4writers/confirm-main.js
+          node --check extension/good-writers/confirm-main.js
+          node tests/test_native_confirm.cjs
+          node tests/test_modal_scroll.cjs
 
       - name: Run website tests
         run: python -m unittest discover -s tests -v
