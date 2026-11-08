@@ -32,6 +32,7 @@ jobs:
           node --check extension/4writers/refresh.js
           node --check extension/4writers/popup-refresh.js
           node tests/test_extension_refresh.cjs
+          node tests/test_good_writers_refresh.cjs
           node --check extension/good-writers/background.js
           node --check extension/good-writers/content.js
           node --check extension/good-writers/refresh.js

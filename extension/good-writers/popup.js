@@ -1,17 +1,17 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,refreshMs:2000,
+const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,refreshMs:1000,
  claim:null,lastResult:'Ready',log:[]};
 let state={...DEFAULTS},tab=null;
 const valid=url=>/^https:\/\/(?:www\.)?good-writers\.com\//i.test(url||'');
 const current=()=>Boolean(tab&&valid(tab.url)&&state.targetTabId===tab.id);
-const isArmed=()=>Boolean(state.armed&&state.claimConsentVersion==='1.0.7');
+const isArmed=()=>Boolean(state.armed&&state.claimConsentVersion==='1.0.8');
 async function store(delta){state={...state,...delta};await chrome.storage.local.set(delta);render();}
 function render(){
  $('arm').disabled=!tab||!valid(tab.url)||Boolean(isArmed()&&current());
  $('stop').disabled=!isArmed();
  $('status').textContent=(isArmed()&&current()?'ARMED — THIS TAB':isArmed()?'ARMED IN ANOTHER TAB':'STOPPED')+
- '\nRefresh interval: every 2 seconds' +
+ '\nRefresh interval: every 1 second' +
  '\nAction after detection: manual review'+
  '\nLast: '+(state.lastResult||'Ready');
  $('history').textContent=(state.log||[]).slice(-10).reverse().join('\n')||'No events yet.';
@@ -25,7 +25,7 @@ async function start(){
 }
 $('arm').addEventListener('click',async()=>{
  if(!tab||!valid(tab.url))return;
- await store({armed:true,claimConsentVersion:'1.0.7',targetTabId:tab.id,claim:null,soundRunId:crypto.randomUUID(),lastResult:'Watching for orders; will stop after opening View'});
+ await store({armed:true,claimConsentVersion:'1.0.8',targetTabId:tab.id,claim:null,soundRunId:crypto.randomUUID(),lastResult:'Watching for orders; will stop after opening View'});
  $('notice').textContent='Order watcher enabled. Leave the good-writers tab open.';
 });
 $('stop').addEventListener('click',async()=>{
