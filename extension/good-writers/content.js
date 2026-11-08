@@ -11,7 +11,7 @@
   if(window.__prowellViewOnlyV107)return;
   window.__prowellViewOnlyV107=true;
 
-  const VERSION='1.0.7',TAB_MESSAGE='GW_TAB_ID';
+  const VERSION='1.0.8',TAB_MESSAGE='GW_TAB_ID';
   const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,
     soundRunId:'',claim:null,lastResult:'Ready',log:[]};
   let state={...DEFAULTS},tabId=null,opening=false,queued=false;
