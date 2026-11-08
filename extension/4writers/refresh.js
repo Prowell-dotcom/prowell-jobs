@@ -25,7 +25,7 @@
     if (timer !== null) clearTimeout(timer);
     timer = null;
   }
-  function orderListVisible(){return window.__prowellCardDetector?.pageKind()==='available';}
+  function orderListVisible(){return ['available','overview'].includes(window.__prowellCardDetector?.pageKind());}
   function challengeVisible() {
     const text = document.body?.innerText || '';
     return /captcha|verify you are human|unusual activity/i.test(text) ||
@@ -59,7 +59,7 @@
     }
     if (!orderListVisible()) {
       cancel();
-      setStatus('Waiting — open Available Orders → Writings');
+      setStatus('Waiting — open account overview or Available Orders → Writings');
       return;
     }
     if (unseenOrderVisible()) {
@@ -81,7 +81,7 @@
       await chrome.storage.local.set({
         refreshCount:count,
         lastRefreshAt:at,
-        refreshStatus:'Reloading Available Orders'
+        refreshStatus:'Reloading order monitoring page'
       });
       if (isActive() && !local.claim && !unseenOrderVisible()) location.reload();
     },interval);
