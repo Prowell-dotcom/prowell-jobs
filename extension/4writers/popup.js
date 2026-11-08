@@ -12,6 +12,7 @@ function render(){
  $('stop').disabled=!isArmed();
  $('status').textContent=(isArmed()&&current()?'ARMED — THIS TAB':isArmed()?'ARMED IN ANOTHER TAB':'STOPPED')+
  '\nRefresh interval: every 1 second' +
+ '\nSupported: account overview and available orders'+
  '\nAction after detection: manual review'+
  '\nLast: '+(state.lastResult||'Ready');
  $('history').textContent=(state.log||[]).slice(-10).reverse().join('\n')||'No events yet.';
