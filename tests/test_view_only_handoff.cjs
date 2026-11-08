@@ -42,7 +42,7 @@ async function run(slug,kind){
       cb?.({ok:true});
     },onMessage:{addListener(){}} ,lastError:null},
     storage:{local:{
-      get:async keys=>Object.fromEntries(keys.map(k=>[k,state[k]])),
+      get:async keys=>Object.fromEntries((Array.isArray(keys)?keys:Object.keys(keys)).map(k=>[k,state[k]])),
       async set(delta){
         chronology.push('stopped stored');
         Object.assign(state,delta);
