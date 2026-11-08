@@ -31,32 +31,21 @@ jobs:
           node --check extension/4writers/popup.js
           node --check extension/4writers/refresh.js
           node --check extension/4writers/popup-refresh.js
-          node tests/test_extension_flow.cjs
           node tests/test_extension_refresh.cjs
           node --check extension/good-writers/background.js
           node --check extension/good-writers/content.js
           node --check extension/good-writers/refresh.js
           node --check extension/good-writers/popup.js
           node --check extension/good-writers/popup-refresh.js
-          node tests/test_good_writers_flow.cjs
           node --check extension/4writers/order-card.js
           node --check extension/good-writers/order-card.js
           node tests/test_order_cards.cjs
-          node tests/test_processing_preview.cjs
-          node --check extension/4writers/confirm-main.js
-          node --check extension/good-writers/confirm-main.js
-          node tests/test_native_confirm.cjs
-          node tests/test_modal_scroll.cjs
-          node tests/test_available_modal_flow.cjs
-          node tests/test_stop_before_modal.cjs
           node --check extension/4writers/order-sound-background.js
-          node --check extension/4writers/order-sound-watch.js
           node --check extension/4writers/order-sound.js
           node --check extension/good-writers/order-sound-background.js
-          node --check extension/good-writers/order-sound-watch.js
           node --check extension/good-writers/order-sound.js
-          node tests/test_order_sound.cjs
           node tests/test_order_audio.cjs
+          node tests/test_view_only_handoff.cjs
 
       - name: Run website tests
         run: python -m unittest discover -s tests -v

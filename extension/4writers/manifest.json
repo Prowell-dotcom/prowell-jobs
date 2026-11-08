@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Prowell 4writers Order Watcher",
-  "version": "0.5.6",
-  "description": "Order detection, modal-aware scrolling and confirmation workflow; processing View preview (beta).",
+  "version": "0.5.7",
+  "description": "View-only order watcher: detect, stop, sound alert, and open View for manual order review.",
   "permissions": [
     "storage",
     "tabs",
@@ -27,19 +27,7 @@
         "https://www.4writers.net/*"
       ],
       "js": [
-        "confirm-main.js"
-      ],
-      "run_at": "document_start",
-      "world": "MAIN"
-    },
-    {
-      "matches": [
-        "https://4writers.net/*",
-        "https://www.4writers.net/*"
-      ],
-      "js": [
         "order-card.js",
-        "order-sound-watch.js",
         "content.js",
         "refresh.js"
       ],

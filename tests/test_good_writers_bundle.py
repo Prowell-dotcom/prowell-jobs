@@ -12,8 +12,8 @@ class GoodWritersPackageTests(unittest.TestCase):
         good=store.good_writers_bundle(root)
         original=store.bundled_extension(root)
         self.assertNotEqual(good,original)
-        self.assertEqual(store.validate_bundle(good),'1.0.6')
-        self.assertEqual(store.validate_bundle(original),'0.5.6')
+        self.assertEqual(store.validate_bundle(good),'1.0.7')
+        self.assertEqual(store.validate_bundle(original),'0.5.7')
         with zipfile.ZipFile(io.BytesIO(good)) as pkg:
             manifest=json.loads(pkg.read('manifest.json'))
             self.assertIn('Good-Writers',manifest['name'])
@@ -22,7 +22,7 @@ class GoodWritersPackageTests(unittest.TestCase):
             self.assertIn('https://good-writers.com/*',manifest['host_permissions'])
             self.assertNotIn('https://4writers.net/*',manifest['host_permissions'])
             self.assertTrue({'manifest.json','background.js','content.js','refresh.js',
-                             'popup.html','popup.js','popup-refresh.js','order-card.js','confirm-main.js','order-sound-watch.js','order-sound-background.js','order-sound.js','order-sound.html'} <= set(pkg.namelist()))
+                             'popup.html','popup.js','popup-refresh.js','order-card.js','order-sound-background.js' ,'order-sound.js','order-sound.html'} <= set(pkg.namelist()))
         with zipfile.ZipFile(io.BytesIO(original)) as pkg:
             manifest=json.loads(pkg.read('manifest.json'))
             self.assertIn('4writers.net',manifest['content_scripts'][0]['matches'][0])

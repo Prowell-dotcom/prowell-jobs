@@ -14,7 +14,7 @@
   let status = '';
   let local = {armed:false,targetTabId:null,claim:null,claimConsentVersion:'',attemptedIds:[],completed:[]};
   const interval = 2000;
-  const isActive = () => local.armed && local.claimConsentVersion === '1.0.6' && local.targetTabId === tabId;
+  const isActive = () => local.armed && local.claimConsentVersion === '1.0.7' && local.targetTabId === tabId;
 
   function setStatus(message) {
     if (message === status) return;
@@ -39,7 +39,7 @@
   function evaluate() {
     if (!isActive()) {
       cancel();
-      setStatus('Stopped — press START AUTO-CLAIM');
+      setStatus('Stopped — press START WATCHING');
       return;
     }
     if (local.claim) {
@@ -64,7 +64,7 @@
     }
     if (unseenOrderVisible()) {
       cancel();
-      setStatus('Order detected — refresh stopped for claiming');
+      setStatus('Order detected — refresh stopped for manual review');
       return;
     }
     if (timer !== null) return;

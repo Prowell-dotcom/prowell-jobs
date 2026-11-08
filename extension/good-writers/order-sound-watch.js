@@ -9,7 +9,7 @@
   let armed=false,targetTabId=null,thisTabId=null;
   let consentVersion='',soundRunId='';
   const notifiedThisPage=new Set();
-  const VERSION='1.0.6';
+  const VERSION='1.0.7';
   const TAB_MESSAGE='GW_TAB_ID';
   function active(){
     return armed && consentVersion===VERSION && soundRunId &&

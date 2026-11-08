@@ -4,7 +4,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 
-const version={ '4writers':'0.5.6','good-writers':'1.0.6' };
+const version={ '4writers':'0.5.7','good-writers':'1.0.7' };
 const host={ '4writers':'4writers.net','good-writers':'good-writers.com' };
 const tabType={ '4writers':'PROWELL_TAB_ID','good-writers':'GW_TAB_ID' };
 
