@@ -1,7 +1,7 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,refreshMs:2000,returnToList:true,
- claim:null,attemptedIds:[],completed:[],lastResult:'Ready',log:[]};
+const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,refreshMs:2000,
+ claim:null,lastResult:'Ready',log:[]};
 let state={...DEFAULTS},tab=null;
 const valid=url=>/^https:\/\/(?:www\.)?good-writers\.com\//i.test(url||'');
 const current=()=>Boolean(tab&&valid(tab.url)&&state.targetTabId===tab.id);
@@ -12,8 +12,7 @@ function render(){
  $('stop').disabled=!isArmed();
  $('status').textContent=(isArmed()&&current()?'ARMED — THIS TAB':isArmed()?'ARMED IN ANOTHER TAB':'STOPPED')+
  '\nRefresh interval: every 2 seconds' +
- '\nIn progress: '+(state.claim?'#'+state.claim.id+' ('+state.claim.stage+')':'none')+
- '\nSuccessfully claimed: '+(state.completed||[]).length+
+ '\nAction after detection: manual review'+
  '\nLast: '+(state.lastResult||'Ready');
  $('history').textContent=(state.log||[]).slice(-10).reverse().join('\n')||'No events yet.';
  // No auto-return: opening View hands control to the user.
@@ -33,15 +32,6 @@ $('stop').addEventListener('click',async()=>{
  await store({armed:false,targetTabId:null,lastResult:'Stopped by owner'});
  $('notice').textContent='Monitoring stopped. No order acceptance is automated.';
 });
-$('reset')?.addEventListener('click',async()=>{
- if(!confirm('Check your Processing orders first. Reset an unfinished claim?'))return;
- await store({claim:null,lastResult:'Unfinished claim reset'});
-});
-$('clear')?.addEventListener('click',async()=>{
- if(!confirm('Clear previously attempted order IDs?'))return;
- await store({attemptedIds:[],lastResult:'Attempted IDs cleared'});
-});
-$('returnToList')?.addEventListener('change',e=>{void store({returnToList:e.target.checked});});
 chrome.storage.onChanged.addListener((changes,area)=>{
  if(area!=='local')return;
  for(const [key,value] of Object.entries(changes))if(key in DEFAULTS)state[key]=value.newValue;
