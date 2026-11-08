@@ -17,7 +17,7 @@ class PrivateExtensionBundleTests(unittest.TestCase):
         self.assertEqual(store.validate_bundle(data), '0.5.7')
         with zipfile.ZipFile(io.BytesIO(data)) as zipped:
             names = set(zipped.namelist())
-            self.assertTrue({'manifest.json','content.js','popup.js','popup.html','background.js','refresh.js','popup-refresh.js','order-sound-watch.js','order-sound-background.js','order-sound.js','order-sound.html'} <= names)
+            self.assertTrue({'manifest.json','content.js','popup.js','popup.html','background.js','refresh.js','popup-refresh.js','order-sound-background.js','order-sound.js','order-sound.html'} <= names)
             manifest = json.loads(zipped.read('manifest.json'))
             self.assertEqual(manifest['manifest_version'], 3)
             self.assertIn('offscreen',manifest['permissions'])
