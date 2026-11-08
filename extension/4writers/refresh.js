@@ -81,7 +81,7 @@
       await chrome.storage.local.set({
         refreshCount:count,
         lastRefreshAt:at,
-        refreshStatus:'Reloading order monitoring page'
+        refreshStatus:'Reloading Available Orders'
       });
       if (isActive() && !local.claim && !unseenOrderVisible()) location.reload();
     },interval);
