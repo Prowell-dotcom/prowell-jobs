@@ -94,7 +94,7 @@ def _owner_only(handler, write=False):
 def bundled_extension(root: Path) -> bytes:
     """Build an installable ZIP from GitHub-tracked extension sources."""
     source = root / 'extension' / '4writers'
-    names = ('manifest.json', 'background.js', 'content.js', 'popup.html', 'popup.js', 'refresh.js', 'popup-refresh.js', 'order-card.js', 'confirm-main.js', 'order-sound-watch.js', 'order-sound-background.js', 'order-sound.js', 'order-sound.html')
+    names = ('manifest.json', 'background.js', 'content.js', 'popup.html', 'popup.js', 'refresh.js', 'popup-refresh.js', 'order-card.js', 'order-sound-background.js', 'order-sound.js', 'order-sound.html')
     if not all((source / name).is_file() for name in names):
         raise FileNotFoundError('Bundled extension source is missing from the deployment.')
     output = BytesIO()
@@ -289,8 +289,8 @@ def receive_report(handler, db_connection):
 
 GOOD_WRITERS_BUNDLE_NAME = 'prowell-good-writers-assistant.zip'
 GOOD_WRITERS_FILES = ('manifest.json','background.js','content.js','refresh.js',
-                      'popup.html','popup.js','popup-refresh.js','order-card.js','confirm-main.js',
-                      'order-sound-watch.js','order-sound-background.js','order-sound.js','order-sound.html')
+                      'popup.html','popup.js','popup-refresh.js','order-card.js',
+                      'order-sound-background.js','order-sound.js','order-sound.html')
 
 
 def good_writers_bundle(root: Path) -> bytes:
