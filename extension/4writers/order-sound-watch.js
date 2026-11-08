@@ -9,7 +9,7 @@
   let armed=false,targetTabId=null,thisTabId=null;
   let consentVersion='',soundRunId='';
   const notifiedThisPage=new Set();
-  const VERSION='0.5.6';
+  const VERSION='0.5.7';
   const TAB_MESSAGE='PROWELL_TAB_ID';
   function active(){
     return armed && consentVersion===VERSION && soundRunId &&
