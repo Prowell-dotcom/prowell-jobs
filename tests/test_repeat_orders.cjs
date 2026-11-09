@@ -50,7 +50,10 @@ async function test(slug,host,version,tabMessage){
  mutation([]);
  for(let k=0;k<12;k++)await Promise.resolve();
  assert.equal(events.filter(x=>x==='View:1234567890').length,1);
- assert.equal(state.armed,true,'START must remain armed');
+ const dual=slug==='dual-writers';
+ assert.equal(state.armed,!dual,dual?
+   'Dual monitoring must stop as soon as the order is detected':
+   'Single-site monitoring stays active');
  assert.equal(state.autoAcceptEnabled,true,'acceptance opt-in persists until STOP');
  assert.deepEqual(Array.from(state.seenOrderIds),['1234567890']);
  assert.equal(state.autoFlow.orderId,'1234567890');
@@ -63,10 +66,17 @@ async function test(slug,host,version,tabMessage){
  cards=[make('1234567890'),make('1234567891')];
  mutation([]);
  for(let k=0;k<12;k++)await Promise.resolve();
+ if(dual){
+   assert.equal(events.filter(x=>x==='View:1234567891').length,0,
+     'Dual bot must stay stopped, even after autoFlow clears');
+   await store.local.set({armed:true,targetTabId:12,autoFlow:null,seenOrderIds:[]});
+   mutation([]);
+   for(let k=0;k<12;k++)await Promise.resolve();
+ }
  assert.equal(events.filter(x=>x==='View:1234567891').length,1,
-   'new order should be handled without another START');
+   'manual START must allow another order for dual; single-site remains automatic');
  assert.equal(events.filter(x=>x.startsWith('sound:')).length,2,
-   'every new order needs its own notification sound');
+   'each detected order should sound, but only after manual re-arm for dual');
  await store.local.set({autoFlow:null,armed:false});
  cards.push(make('1234567892'));mutation([]);
  for(let k=0;k<8;k++)await Promise.resolve();
