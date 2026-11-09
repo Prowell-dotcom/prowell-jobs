@@ -49,12 +49,14 @@
        const controls=buttons.filter(b=>current===b ||
          (typeof current.contains==='function' ? current.contains(b) :
          (()=>{let p=b;while(p){if(p===current)return true;p=p.parentElement;}return false;})()));
-       // The View and selected order ID may render before the Files control.
-       // A verified listing page and a small order container are sufficient.
+       // Use the visible action set to distinguish the two workflows.
+       // Available: Files + View. Processing: Files + Messages + View.
        const hasFiles=controls.some(b=>FILES.test(label(b)));
        const hasMessages=controls.some(b=>MESSAGES.test(label(b)));
+       const isProcessing=hasMessages||page==='processing';
+       if(!hasFiles || (isProcessing && !hasMessages))continue;
        match={id:found[1],view,hasMessages,hasFiles,
-         type:hasMessages||page==='processing'?'processing':(page==='available'||page==='overview')?'available':'unknown',
+         type:isProcessing?'processing':'available',
          container:current};
        break;
      }
