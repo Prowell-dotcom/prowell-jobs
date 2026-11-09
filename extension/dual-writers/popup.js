@@ -34,11 +34,11 @@ async function start(site){
   const tab=await pick(site);
   if(!tab){notice.textContent='Open '+SITES[site].name+' in a tab first.';return;}
   await put(site,{
-    autoFlow:null,armed:true,claimConsentVersion:VERSION,targetTabId:tab.id,
+    autoFlow:null,seenOrderIds:[],armed:true,claimConsentVersion:VERSION,targetTabId:tab.id,
     claim:null,soundRunId:crypto.randomUUID(),
-    lastResult:'Monitoring for new orders. Ready for instant View and scroll.'
+    lastResult:'Watching continuously; each detected order pauses refresh during View and scroll.'
   });
-  notice.textContent=SITES[site].name+' monitoring started; available orders can be accepted when opted in.';
+  notice.textContent=SITES[site].name+' monitoring started and will continue after each handled order until STOP.';
   await render(site);
 }
 async function stop(site){
@@ -54,11 +54,11 @@ for(const site of Object.keys(SITES)){
     const checked=e.target.checked;
     const raw=await chrome.storage.local.get(key(site,'armed'));
     if(raw[key(site,'armed')]){await render(site);return;}
-    if(checked&&!confirm('Enable automatic order acceptance for '+SITES[site].name+'? Review the platform rules and order responsibilities before continuing.')){
+    if(checked&&!confirm('Enable automatic order acceptance for every eligible new order until STOP on '+SITES[site].name+'? Review the platform rules and order responsibilities before continuing.')){
       e.target.checked=false;return;
     }
     await put(site,{autoAcceptEnabled:checked,autoFlow:null});
-    notice.textContent=checked?SITES[site].name+' automatic acceptance enabled for the next eligible available order.':
+    notice.textContent=checked?SITES[site].name+' automatic acceptance enabled for eligible available orders until STOP.':
       SITES[site].name+' automatic acceptance disabled.';
     await render(site);
   });
