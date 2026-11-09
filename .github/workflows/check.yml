@@ -72,6 +72,7 @@ jobs:
           node --check extension/dual-writers/four-order-card.js
           node --check extension/dual-writers/good-order-card.js
           node tests/test_dual_writers.cjs
+          node tests/test_dual_order_paths.cjs
 
       - name: Run website tests
         run: python -m unittest discover -s tests -v
