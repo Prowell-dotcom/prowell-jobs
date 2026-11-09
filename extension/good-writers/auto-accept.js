@@ -232,7 +232,17 @@
       while (guarded()) {
         if (flow.stage === 'await-view') break;
         if (checkSecurity()) throw Error('Security challenge detected');
-        if (flow.stage === 'take') {
+        if (flow.stage === 'scroll') {
+          await waitForOrderDetails();
+          await readThrough('take');
+          const details=await chrome.storage.local.get({log:[]});
+          const message='Order #'+flow.orderId+': gradual details scrolling completed; review and accept manually.';
+          await chrome.storage.local.set({
+            autoFlow:null,lastResult:message,refreshStatus:message,
+            log:[...(details.log||[]),new Date().toLocaleTimeString()+' '+message].slice(-30)
+          });
+          flow=null;
+        } else if (flow.stage === 'take') {
           await waitForOrderDetails();
           await readThrough('take');
           const el = await locate('take', true);
@@ -263,7 +273,12 @@
         }
       }
     } catch (e) {
-      if (flow) await end('Order #' + flow.orderId + ': stopped — ' + String(e?.message || e), 'stopped');
+      if (flow && flow.mode==='scroll-only') {
+        const message='Order #'+flow.orderId+': scrolling failed — '+String(e?.message||e);
+        await chrome.storage.local.set({autoFlow:null,lastResult:message,refreshStatus:message,
+          lastScrollResult:'failed'});
+        flow=null;
+      } else if(flow) await end('Order #' + flow.orderId + ': stopped — ' + String(e?.message || e), 'stopped');
     } finally {
       busy = false;
     }
@@ -289,7 +304,7 @@
         if(idPresent && (hasOrderDialog ||
           (Boolean(find('take')) && (viewChanged || !listPage)) ||
           (viewChanged && !listPage))){
-          const next={...flow,stage:'take',stageStartedAt:Date.now()};
+          const next={...flow,stage:flow.mode==='scroll-only'?'scroll':'take',stageStartedAt:Date.now()};
           await chrome.storage.local.set({autoFlow:next});
           flow=next;
           break;
