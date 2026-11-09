@@ -350,6 +350,7 @@ DUAL_WRITERS_FILES = (
     'legacy/four/runtime-content.js', 'legacy/four/runtime-refresh.js',
     'legacy/good/confirm-main.js', 'legacy/good/order-card.js',
     'legacy/good/runtime-content.js', 'legacy/good/runtime-refresh.js',
+    'legacy/four/runtime-background.js', 'legacy/good/runtime-background.js',
     'order-sound-background.js', 'order-sound.html', 'order-sound.js',
     'README.md'
 )
