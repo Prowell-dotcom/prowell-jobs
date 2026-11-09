@@ -87,6 +87,16 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
       }).finally(()=>pendingSounds.delete(alertKey));
     return true;
   }
+  if(message?.type==='PROWELL_PREPARE_ORDER_SOUND'){
+    // Prepare the Chrome offscreen audio document when START is pressed, so
+    // the first real order can chime without waiting for cold initialization.
+    const source=String(sender.url||'');
+    if(!source.startsWith(chrome.runtime.getURL(''))){respond({ok:false});return;}
+    void ensureOrderSoundDocument()
+      .then(()=>respond({ok:true}))
+      .catch(error=>respond({ok:false,reason:String(error?.message||error)}));
+    return true;
+  }
   if(message?.type==='PROWELL_TEST_ORDER_SOUND'){
     const source=String(sender.url||'');
     if(!source.startsWith(chrome.runtime.getURL(''))){
