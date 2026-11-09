@@ -1,10 +1,10 @@
 'use strict';
 /* Independent START / STOP controls for the two supported writer accounts. */
 const SITES={
-  four:{name:'4writers',prefix:'dual_four_',host:/^https:\/\/(?:www\.)?4writers\.net\//i},
-  good:{name:'GoodWriters',prefix:'dual_good_',host:/^https:\/\/(?:www\.)?good-writers\.com\//i}
+  four:{name:'4writers',prefix:'dual_four_',legacyVersion:'0.5.4',host:/^https:\/\/(?:www\.)?4writers\.net\//i},
+  good:{name:'GoodWriters',prefix:'dual_good_',legacyVersion:'1.0.4',host:/^https:\/\/(?:www\.)?good-writers\.com\//i}
 };
-const VERSION='2.0.5';
+const VERSION='2.1.0';
 const notice=document.querySelector('#notice');
 const key=(site,name)=>SITES[site].prefix+name;
 const put=(site,values)=>chrome.storage.local.set(Object.fromEntries(
@@ -16,35 +16,31 @@ const pick=async site=>{
 };
 async function render(site){
   const obj=SITES[site],tab=await pick(site);
-  const names=['armed','claimConsentVersion','targetTabId','autoAcceptEnabled','lastResult','refreshStatus','lastProcessingPreview'];
+  const names=['armed','claimConsentVersion','targetTabId','autoAcceptEnabled','claim','lastResult','refreshStatus','refreshCount'];
   const raw=await chrome.storage.local.get(names.map(n=>key(site,n)));
   const val=n=>raw[key(site,n)];
-  const running=val('armed')===true&&val('claimConsentVersion')===VERSION;
+  const running=val('armed')===true&&val('claimConsentVersion')===obj.legacyVersion;
   document.querySelector('[data-start="'+site+'"]').disabled=!tab||running;
   document.querySelector('[data-stop="'+site+'"]').disabled=!running;
   // START AUTO-TAKE enables acceptance, so no separate checkbox is needed.
   document.querySelector('[data-status="'+site+'"]').textContent=
     (running?'WATCHING TAB #'+val('targetTabId'):'STOPPED')+
     '\n'+(tab?'Signed-in page detected (tab #'+tab.id+')':'Open the official site in a browser tab')+
-    '\n'+(val('lastResult')||val('refreshStatus')||'Ready')+
-    (val('lastProcessingPreview')?.result==='scroll-passed'
-      ? '\nProcessing test: PASS (View + instant scroll; Take it not required)'
-      : val('lastProcessingPreview')?.result==='scroll-failed'
-        ? '\nProcessing test: scroll failed; check current details view'
-        : '');
+    '\n'+(val('claim')?'Order workflow: '+String(val('claim').stage||'working'):'No active order')+
+    '\n'+(val('lastResult')||val('refreshStatus')||'Ready');
 }
 async function start(site){
   const tab=await pick(site);
   if(!tab){notice.textContent='Open '+SITES[site].name+' in a tab first.';return;}
   await put(site,{
-    autoFlow:null,seenOrderIds:[],lastProcessingPreview:null,autoAcceptEnabled:true,armed:true,claimConsentVersion:VERSION,targetTabId:tab.id,
+    autoFlow:null,seenOrderIds:[],autoAcceptEnabled:true,armed:true,claimConsentVersion:SITES[site].legacyVersion,targetTabId:tab.id,
     claim:null,soundRunId:crypto.randomUUID(),
-    lastResult:'Monitoring until one available or processing order is detected; then STOPPED until START is pressed again.'
+    lastResult:'Running the supplied original '+SITES[site].name+' bot with a separate order-notification sound.'
   });
   // Do not block monitoring/automatic clicks while preparing audio.
   // If audio cannot be prewarmed, the normal order alert still tries playback.
   void chrome.runtime.sendMessage({type:'PROWELL_PREPARE_ORDER_SOUND'}).catch(()=>{});
-  notice.textContent=SITES[site].name+': Monitoring ON. The first order will sound, open View and scroll, then stay STOPPED until you press START again.';
+  notice.textContent=SITES[site].name+': Original bot activated with a notification sound. Its existing order actions are unchanged.';
   await render(site);
 }
 async function stop(site){
