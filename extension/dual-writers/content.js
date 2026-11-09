@@ -5,10 +5,10 @@
 (() => {
   'use strict';
   if(window!==window.top || !/^https:\/\/(?:www\.)?(?:4writers\.net|good-writers\.com)$/i.test(location.origin))return;
-  if(window.__prowellDualWatcherV201)return;
+  if(window.__prowellDualWatcherV202)return;
   window.__prowellDualWatcherV201=true;
 
-  const VERSION='2.0.1';
+  const VERSION='2.0.2';
   const IS_FOUR=/(?:^|\.)4writers\.net$/i.test(location.hostname);
   const TAB_MESSAGE=IS_FOUR?'PROWELL_TAB_ID':'GW_TAB_ID';
   const store=window.__prowellDualStorage;
