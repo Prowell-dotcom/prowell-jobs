@@ -18,6 +18,7 @@ small{color:#5a7089}#history{font:11px/1.6 monospace;max-height:95px;overflow:au
 <div id="status" class="panel" role="status">Loading extension...</div>
 <div class="controls"><button id="arm" class="go">START WATCHING</button><button id="stop" class="stop">STOP</button></div>
 <label class="panel" style="display:block"><input id="autoAcceptEnabled" type="checkbox"> <strong>Enable automatic order acceptance</strong><small style="display:block">Optional. The extension will click Take it, OK and I understand for available orders. No detection avoidance. Confirm platform permission before enabling. This option cannot be changed while monitoring is active.</small></label>
+<div style="margin-top:10px"><button type="button" id="testScrollOnly">Test scrolling (no order acceptance)</button></div>
 <div style="margin-top:10px"><button type="button" id="testOrderSound">🔔 Test notification sound</button></div>
 
 <div class="note">Available or processing orders: stop refreshing → play a chime → click View once. With opt-in enabled, available orders use fixed readiness waits, gradual scroll steps and automated acceptance. With opt-in off, only View is opened. Security checks or unknown controls stop the workflow.</div>
