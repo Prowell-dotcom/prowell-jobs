@@ -14,12 +14,13 @@ small{color:#5a7089}#history{font:11px/1.6 monospace;max-height:95px;overflow:au
 </style></head>
 <body>
 <h1>Prowell Good-Writers Assistant</h1><small>Version 1.0.8 · private browser extension</small>
-<p>Watches Good-Writers every 1 second. On an order: sound alert, stop, click View once. You handle every other action manually.</p>
+<p>Watches Good-Writers every 1 second. On an order: sound alert, stop, click View once. Automatic acceptance requires opt-in; otherwise you handle all remaining actions manually.</p>
 <div id="status" class="panel" role="status">Loading extension...</div>
 <div class="controls"><button id="arm" class="go">START WATCHING</button><button id="stop" class="stop">STOP</button></div>
+<label class="panel" style="display:block"><input id="autoAcceptEnabled" type="checkbox"> <strong>Enable automatic order acceptance</strong><small style="display:block">Optional. The extension will click Take it, OK and I understand for available orders. No detection avoidance. Confirm platform permission before enabling. This option cannot be changed while monitoring is active.</small></label>
 <div style="margin-top:10px"><button type="button" id="testOrderSound">🔔 Test notification sound</button></div>
 
-<div class="note">Available or processing orders: stop refreshing → play a chime → click View once. No scrolling, Take it, OK, I understand, or automatic acceptance. The user completes all remaining steps.</div>
+<div class="note">Available or processing orders: stop refreshing → play a chime → click View once. With opt-in enabled, available orders use fixed readiness waits, gradual scroll steps and automated acceptance. With opt-in off, only View is opened. Security checks or unknown controls stop the workflow.</div>
 
 <details id="gwPairing" style="margin-top:12px"><summary>Private Prowell admin notifications</summary>
 <p>In Prowell Admin, select Generate Good-Writers pairing code. Paste it below to connect this extension only.</p>
