@@ -48,14 +48,65 @@
     return Boolean(r && r.width > 0 && r.height > 0 &&
       r.bottom > 0 && r.top < (window.innerHeight || 850));
   }
-  function scrollRoot(el) {
-    for (let p = el?.parentElement; p && p !== document.body; p = p.parentElement) {
-      const style = getComputedStyle(p);
-      if (p.scrollHeight > p.clientHeight + 50 && /auto|scroll/i.test(style.overflowY || '')) return p;
+  function scrollRoot(el, stage = 'take') {
+    // Read the order's actual scrolling content, not just the fixed footer
+    // holding Take it / I understand. Those buttons can already be visible.
+    const overlays = [...document.querySelectorAll(
+      '[role="dialog"],dialog,[aria-modal="true"],.modal,.modal-body,.popup,[class*="modal"],[class*="order-info"],[class*="order-detail"]'
+    )].filter(visible);
+    const related = [];
+    for (const overlay of overlays) {
+      related.push(overlay);
+      related.push(...overlay.querySelectorAll('*'));
     }
-    const roots = [...document.querySelectorAll('[role="dialog"],.modal,.modal-body,.popup,[class*="order-info"]')]
-      .filter(el => visible(el) && el.scrollHeight > el.clientHeight + 50);
-    return roots[0] || document.scrollingElement || document.documentElement;
+    const other = [...document.querySelectorAll(
+      '[style*="overflow"],[class*="scroll"],[class*="description"],[class*="details"],[class*="content"]'
+    )];
+    const parents = [];
+    for (let p = el?.parentElement; p && p !== document.body; p = p.parentElement) parents.push(p);
+    const candidates = [...new Set([...related, ...parents, ...other])].filter(node => {
+      if (!visible(node) || !Number.isFinite(node.scrollHeight) || !Number.isFinite(node.clientHeight)) return false;
+      if (node.clientHeight < 80 || node.scrollHeight <= node.clientHeight + 60) return false;
+      const overflow = getComputedStyle(node).overflowY || '';
+      return /auto|scroll|hidden/i.test(overflow) || related.includes(node);
+    });
+    const score = node => {
+      const text = node.innerText || '';
+      const role = node.closest?.('[role="dialog"],dialog,[aria-modal="true"],.modal,.popup,[class*="modal"]');
+      let result = 0;
+      if (related.includes(node)) result += 25;
+      if (role) result += 30;
+      if (stage === 'take' && text.includes(String(flow?.orderId || ''))) result += 20;
+      if (stage === 'understand' && /understand|acknowledge|order (?:rules|terms)/i.test(text)) result += 20;
+      if (node.contains?.(el)) result += 8;
+      // Favor the inner scrollable reading pane over a large outer panel.
+      if (node.clientHeight < 850) result += 3;
+      return result;
+    };
+    candidates.sort((a,b) => score(b) - score(a));
+    return candidates[0] || document.scrollingElement || document.documentElement;
+  }
+  async function readThrough(stage) {
+    const root = scrollRoot(find(stage), stage);
+    if (!root) throw Error('No scrollable order details container found');
+    let steps = 0;
+    const maximumSteps = 100;
+    const startedAt = Date.now();
+    while (steps < maximumSteps && Date.now() - startedAt < STEP_TIMEOUT) {
+      if (!guarded()) throw Error('Order workflow was stopped or expired');
+      if (checkSecurity()) throw Error('Security challenge detected');
+      const distance = (root.scrollHeight || 0) - (root.clientHeight || 0) - (root.scrollTop || 0);
+      if (distance <= 3) break;
+      if (!await move(root, 1)) break;
+      steps++;
+    }
+    if ((root.scrollHeight || 0) - (root.clientHeight || 0) - (root.scrollTop || 0) > 5)
+      throw Error('Could not finish scrolling through ' + stage + ' information');
+    await chrome.storage.local.set({
+      lastScrollStage: stage,
+      lastScrollSteps: steps,
+      lastScrollAt: Date.now()
+    });
   }
   async function move(root, direction) {
     if (!root || !guarded() || checkSecurity()) return false;
@@ -119,6 +170,7 @@
       while (guarded()) {
         if (checkSecurity()) throw Error('Security challenge detected');
         if (flow.stage === 'take') {
+          await readThrough('take');
           const el = await locate('take', true);
           const page = (document.body?.innerText || '') + ' ' + location.href;
           if (!page.includes(flow.orderId)) throw Error('Selected order ID not found in details');
@@ -133,6 +185,7 @@
           if (!guarded() || !el.isConnected) throw Error('Confirmation changed before OK');
           el.click();
         } else if (flow.stage === 'understand') {
+          if (IS_FOUR) await readThrough('understand');
           const el = await locate('understand', IS_FOUR);
           await updateStage('verify');
           if (!guarded() || !el.isConnected) throw Error('Acknowledgment changed before I understand');
