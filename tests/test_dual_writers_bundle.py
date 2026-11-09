@@ -11,7 +11,7 @@ class DualWritersBundleTests(unittest.TestCase):
         root=Path(__file__).resolve().parents[1]
         data=store.dual_writers_bundle(root)
         self.assertLess(len(data),store.MAX_ZIP_BYTES)
-        self.assertEqual(store.validate_bundle(data),'2.1.0')
+        self.assertEqual(store.validate_bundle(data),'2.1.1')
         self.assertNotEqual(data,store.bundled_extension(root))
         self.assertNotEqual(data,store.good_writers_bundle(root))
         with zipfile.ZipFile(io.BytesIO(data)) as z:
@@ -28,7 +28,8 @@ class DualWritersBundleTests(unittest.TestCase):
                 else:
                     self.assertEqual(script['js'][:2],['scoped-store.js','legacy-bridge.js'])
                     self.assertIn('legacy-order-sound.js',script['js'])
-                    self.assertEqual(len(script['js']),6)
+                    self.assertEqual(len(script['js']),7 if any(
+                        '4writers.net' in host for host in script['matches']) else 6)
                     self.assertTrue(any(name.endswith('/runtime-content.js') for name in script['js']))
                     self.assertTrue(any(name.endswith('/runtime-refresh.js') for name in script['js']))
             self.assertIn('dual_four_',z.read('background.js').decode())
@@ -38,6 +39,8 @@ class DualWritersBundleTests(unittest.TestCase):
             self.assertNotIn('content.js',z.namelist())
             self.assertIn('legacy/good/runtime-content.js',z.namelist())
             self.assertIn('legacy/four/runtime-content.js',z.namelist())
+            self.assertIn('four-sections.js',z.namelist())
+            self.assertIn('four-section-refresh.js',z.namelist())
             self.assertIn('legacy/four/runtime-background.js',z.namelist())
             self.assertIn('legacy/good/runtime-background.js',z.namelist())
 
