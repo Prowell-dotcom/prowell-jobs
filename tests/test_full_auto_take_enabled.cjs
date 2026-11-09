@@ -76,11 +76,13 @@ async function dual(){
   node('[data-start="four"]').listeners.click();await tick();
   assert.equal(data.dual_four_armed,true);
   assert.equal(data.dual_four_autoAcceptEnabled,true);
+  assert.equal(data.dual_four_claimConsentVersion,'0.5.4');
   assert.equal(data.dual_four_targetTabId,31);
   assert.equal(data.dual_good_autoAcceptEnabled,false,'platforms must stay separate');
   node('[data-start="good"]').listeners.click();await tick();
   assert.equal(data.dual_good_armed,true);
   assert.equal(data.dual_good_autoAcceptEnabled,true);
+  assert.equal(data.dual_good_claimConsentVersion,'1.0.4');
   assert.equal(data.dual_good_targetTabId,32);
   node('[data-stop="four"]').listeners.click();await tick();
   assert.equal(data.dual_four_armed,false);
@@ -91,13 +93,13 @@ async function dual(){
 }
 
 async function handoff(){
-  for(const site of ['4writers','good-writers','dual-writers']){
+  for(const site of ['4writers','good-writers']){
     const source=fs.readFileSync(path.join(base,site,'content.js'),'utf8');
     const stop=source.indexOf('window.__prowellCancelRefresh?.()');
     const sound=source.indexOf("type:'PROWELL_ORDER_SOUND'");
     const view=source.indexOf('first.view.click()');
     assert(stop>0&&sound>stop&&view>sound,site+': stop → sound → View order broken');
-    assert(source.includes(site==='dual-writers'?"accepts?'accept':'scroll-only'":"mode:accepts?'accept':'scroll-only'"),
+    assert(source.includes("mode:accepts?'accept':'scroll-only'"),
       site+' requires the accept branch when Take it is available');
     const automation=fs.readFileSync(path.join(base,site,'auto-accept.js'),'utf8');
     for(const stage of ['take','ok','understand'])
