@@ -5,10 +5,10 @@
 (() => {
   'use strict';
   if(window!==window.top || !/^https:\/\/(?:www\.)?4writers\.net$/i.test(location.origin))return;
-  if(window.__prowellWatcherV515)return;
-  window.__prowellWatcherV515=true;
+  if(window.__prowellWatcherV516)return;
+  window.__prowellWatcherV516=true;
 
-  const VERSION='0.5.15',TAB_MESSAGE='PROWELL_TAB_ID';
+  const VERSION='0.5.16',TAB_MESSAGE='PROWELL_TAB_ID';
   const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,
     soundRunId:'',claim:null,lastResult:'Ready',log:[],autoAcceptEnabled:false,
     autoFlow:null,seenOrderIds:[]};
