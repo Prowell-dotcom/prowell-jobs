@@ -16,7 +16,7 @@ const pick=async site=>{
 };
 async function render(site){
   const obj=SITES[site],tab=await pick(site);
-  const names=['armed','claimConsentVersion','targetTabId','autoAcceptEnabled','lastResult','refreshStatus'];
+  const names=['armed','claimConsentVersion','targetTabId','autoAcceptEnabled','lastResult','refreshStatus','lastProcessingPreview'];
   const raw=await chrome.storage.local.get(names.map(n=>key(site,n)));
   const val=n=>raw[key(site,n)];
   const running=val('armed')===true&&val('claimConsentVersion')===VERSION;
@@ -26,13 +26,18 @@ async function render(site){
   document.querySelector('[data-status="'+site+'"]').textContent=
     (running?'WATCHING TAB #'+val('targetTabId'):'STOPPED')+
     '\n'+(tab?'Signed-in page detected (tab #'+tab.id+')':'Open the official site in a browser tab')+
-    '\n'+(val('lastResult')||val('refreshStatus')||'Ready');
+    '\n'+(val('lastResult')||val('refreshStatus')||'Ready')+
+    (val('lastProcessingPreview')?.result==='scroll-passed'
+      ? '\nProcessing test: PASS (View + instant scroll; Take it not required)'
+      : val('lastProcessingPreview')?.result==='scroll-failed'
+        ? '\nProcessing test: scroll failed; check current details view'
+        : '');
 }
 async function start(site){
   const tab=await pick(site);
   if(!tab){notice.textContent='Open '+SITES[site].name+' in a tab first.';return;}
   await put(site,{
-    autoFlow:null,seenOrderIds:[],autoAcceptEnabled:true,armed:true,claimConsentVersion:VERSION,targetTabId:tab.id,
+    autoFlow:null,seenOrderIds:[],lastProcessingPreview:null,autoAcceptEnabled:true,armed:true,claimConsentVersion:VERSION,targetTabId:tab.id,
     claim:null,soundRunId:crypto.randomUUID(),
     lastResult:'Watching continuously; each detected order pauses refresh during View and scroll.'
   });
