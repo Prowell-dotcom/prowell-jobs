@@ -4,7 +4,7 @@ const SITES={
   four:{name:'4writers',prefix:'dual_four_',host:/^https:\/\/(?:www\.)?4writers\.net\//i},
   good:{name:'GoodWriters',prefix:'dual_good_',host:/^https:\/\/(?:www\.)?good-writers\.com\//i}
 };
-const VERSION='2.0.2';
+const VERSION='2.0.3';
 const notice=document.querySelector('#notice');
 const key=(site,name)=>SITES[site].prefix+name;
 const put=(site,values)=>chrome.storage.local.set(Object.fromEntries(
