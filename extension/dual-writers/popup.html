@@ -1,33 +1,43 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Prowell Dual-Platform Instant Bot</title>
 <style>
-*{box-sizing:border-box}body{margin:0;padding:15px;width:355px;background:#f5f8fc;color:#172b48;font:13px/1.45 system-ui,Arial,sans-serif}
-h1{font-size:18px;margin:0}h2{font-size:15px;margin:0 0 8px}p{margin:5px 0 9px;color:#4b617b}
-small{color:#52687d}.panel{border:1px solid #d5e1f0;border-radius:11px;background:#fff;padding:12px;margin-top:12px}
-.actions{display:flex;gap:8px}.actions button{flex:1}.status{white-space:pre-wrap;font-size:12px;color:#344763;margin:8px 0 0}
-button{cursor:pointer;padding:9px;border-radius:8px;border:1px solid #bbcde0;background:#fff;font-weight:700}
-button:disabled{opacity:.5;cursor:default}.start{background:#167751;color:#fff;border-color:#167751}.stop{color:#b52c3b}
-label{display:block;margin:10px 0;font-size:12px}.warning{font-size:11px;background:#fff6e5;padding:10px;border-radius:8px;margin:12px 0}
+  *{box-sizing:border-box}
+  body{margin:0;padding:16px;width:490px;background:#fff;color:#142c4d;font:16px/1.35 system-ui,Arial,sans-serif}
+  .site{margin:0 0 22px}
+  .site:last-of-type{margin-bottom:0}
+  h2{margin:0 0 14px;font-size:20px;line-height:1.2;font-weight:750}
+  .actions{display:flex;gap:12px}
+  button{flex:1;min-width:0;height:54px;border:1px solid #bdd0e6;border-radius:12px;background:#fff;
+    cursor:pointer;font:700 19px/1.1 system-ui,Arial,sans-serif;white-space:nowrap}
+  .start{background:#8bbca9;border-color:#8bbca9;color:#fff}
+  .stop{color:#c82632}
+  button:disabled{cursor:default;opacity:.53}
+  .stop:disabled{color:#d8a4ae}
+  button:focus-visible{outline:3px solid #3776c5;outline-offset:2px}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+    clip:rect(0,0,0,0);white-space:nowrap;border:0}
 </style>
 </head>
 <body>
-<h1>Prowell Dual-Platform Instant Bot</h1>
-<small>Version 2.1.6 · 4writers Overview + Writings + Rewritings · Good-Writers v1.0.4</small>
-<p>Uses your earlier order-handling scripts and adds sound alerts. On 4writers, the blank Available Orders overview refreshes every 2 seconds; the Writings and Rewritings tabs alternate checks every 2 seconds when their lists are ready. Refreshing stops when an order appears. Good-Writers keeps its original refreshing behavior.</p>
-<section id="four" class="panel" aria-label="4writers settings">
-<h2>4writers.net</h2><div class="actions"><button class="start" data-start="four">START AUTO-TAKE</button><button class="stop" data-stop="four">STOP</button></div>
-<p>Overview + Writings + Rewritings monitored. Automatic acceptance ON after START; processing orders are previewed.</p>
-<div class="status" data-status="four" role="status">Checking tabs...</div>
+<section class="site" aria-label="4writers bot controls">
+  <h2>4writers.net</h2>
+  <div class="actions">
+    <button type="button" class="start" data-start="four">START AUTO-TAKE</button>
+    <button type="button" class="stop" data-stop="four">STOP</button>
+  </div>
 </section>
-<section id="good" class="panel" aria-label="GoodWriters settings">
-<h2>good-writers.com</h2><div class="actions"><button class="start" data-start="good">START AUTO-TAKE</button><button class="stop" data-stop="good">STOP</button></div>
-<p>Automatic acceptance ON after START. Available orders only; processing orders are previewed.</p>
-<div class="status" data-status="good" role="status">Checking tabs...</div>
+<section class="site" aria-label="Good-Writers bot controls">
+  <h2>good-writers.com</h2>
+  <div class="actions">
+    <button type="button" class="start" data-start="good">START AUTO-TAKE</button>
+    <button type="button" class="stop" data-stop="good">STOP</button>
+  </div>
 </section>
-<p class="warning"><strong>Original scripts preserved:</strong> 4writers uses your v0.5.4 order-taking script with a three-screen refresh controller; Good-Writers uses v1.0.4 with its original 2-second refreshing. The separate audio notifier does not click or scroll. Processing orders only preview View/details, with no Take it action. Disable the stand-alone extensions when using this dual extension to prevent duplicate clicks and refreshes. Browser and network delays can affect speed.</p>
-<button id="testSound" type="button">Test notification sound</button>
-<p id="notice" role="status"></p>
+<div id="sr-notice" class="sr-only" role="status" aria-live="polite"></div>
 <script src="popup.js"></script>
-</body></html>
+</body>
+</html>
