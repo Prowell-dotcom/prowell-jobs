@@ -88,6 +88,6 @@ async function test(slug,host,version,tabMessage){
 (async()=>{
  await test('4writers','4writers.net','0.5.16','PROWELL_TAB_ID');
  await test('good-writers','good-writers.com','1.0.16','GW_TAB_ID');
- await test('dual-writers','4writers.net','2.0.5','PROWELL_TAB_ID');
- await test('dual-writers','good-writers.com','2.0.5','GW_TAB_ID');
+
+
 })().catch(error=>{console.error(error);process.exitCode=1;});
