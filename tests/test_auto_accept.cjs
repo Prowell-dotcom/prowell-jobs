@@ -11,7 +11,12 @@ async function simulate(site){
  let step='take',status={},listeners=[],ready=true,scrollAfterOk=0;
  const flow={enabled:true,orderId:'1234567890',tabId:8,startedAt:Date.now(),stage:'take',stageStartedAt:Date.now()};
  const storage={autoFlow:flow,log:[],attemptedIds:[]};
- const root={scrollTop:0,scrollHeight:1100,clientHeight:420};
+ const root={scrollHeight:1100,clientHeight:420};
+ let offset=0;const scrollEvents=[];
+ Object.defineProperty(root,'scrollTop',{
+   get(){return offset;},
+   set(value){if(value>offset)scrollEvents.push({stage:step,value});offset=value;}
+ });
  const body={innerText:'Order ID: 1234567890'};
  const getButton=()=>{
   const labels={take:'Take it',ok:'OK',understand:'I understand'};
@@ -25,7 +30,7 @@ async function simulate(site){
      const top=step==='take'?700-root.scrollTop:step==='understand'&&isFour?690-root.scrollTop:150;
      return {top,bottom:top+30,width:70,height:30};
    },
-   click(){clicks.push(label);events.push([label,Date.now()]);
+   click(){clicks.push(label);events.push([label,Date.now(),root.scrollTop]);
      if(step==='take')step='ok';
      else if(step==='ok'){step='understand';root.scrollTop=0;}
      else if(step==='understand')step='done';
@@ -62,6 +67,13 @@ async function simulate(site){
  assert.deepEqual(clicks,['Take it','OK','I understand']);
  assert(events[1][1]-events[0][1]>=475,'OK should wait about half a second');
  assert(storage.attemptedIds.includes('1234567890'));
+ assert(scrollEvents.filter(e=>e.stage==='take').length>=3,'order details must scroll in multiple steps before Take it');
+ assert(events[0][2]>0,'Take it must not be clicked before scrolling');
+ if(isFour){
+   assert(scrollEvents.some(e=>e.stage==='understand'),'4writers must scroll acknowledgment after OK');
+ }else{
+   assert(!scrollEvents.some(e=>e.stage==='understand'),'Good-Writers must not scroll after OK');
+ }
  console.log(site+': opt-in, Take it, fixed wait, OK, acknowledgment: PASS');
 }
 Promise.all([simulate('4writers'),simulate('good-writers')])
