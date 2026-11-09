@@ -1,4 +1,4 @@
-# Prowell Dual-Platform Bot v2.1.3
+# Prowell Dual-Platform Bot v2.1.4
 
 ## Source engines and changes
 
@@ -12,10 +12,10 @@
 - The standalone `legacy-order-sound.js` plays one notification per newly
   seen available or processing order per START session. It never clicks.
 
-### 4writers: Writings AND Rewritings
+### 4writers: Overview, Writings AND Rewritings
 
-The dedicated 4writers refresh controller adds support for both
-available-order sections without rewriting the original Take it workflow:
+The dedicated 4writers refresh controller monitors all three visible
+available-order surfaces without rewriting the original Take it workflow:
 
 1. The extension recognizes both **Available Orders → Writings** and
    **Available Orders → Rewritings**, including the top navigation shown in
@@ -24,15 +24,20 @@ available-order sections without rewriting the original Take it workflow:
    section and switches to the other through its **actual link**. It alternates
    sections approximately every **2 seconds** when idle and when the site
    responds normally. It never guesses hard-coded section URLs.
-3. If the website is showing only the header/sidebar with a blank main content
-   area, it waits for the list to load. After 12 seconds of incomplete loading,
-   it may retry the page load; it never reloads a blank page every 2 seconds.
-4. Any detected available order stops section switching so the **original**
+3. **Neutral Available Orders overview (neither tab selected):** the exact
+   screenshot's blank middle with Writings/Rewritings links and sidebar is a
+   third valid monitoring screen. It reloads its existing URL every **2 seconds**
+   while armed and idle, even with no orders yet. It does not force a tab switch.
+   New order cards on that overview are recognized by the original detector.
+4. **A selected Writings or Rewritings tab still loading:** the controller
+   waits for the order list to render before switching. This protects against
+   reloading partially rendered lists; after 12 seconds it may retry loading.
+5. Any detected available order stops section switching so the **original**
    `View → order details → Take it → OK → I understand` engine can act. A
    processing order uses only the original View/details preview.
-5. It does not switch sections during an active claim, verification challenge
+6. It does not switch sections during an active claim, verification challenge
    or unrelated account page. Good-Writers section navigation is untouched.
-6. The extension popup reports the last checked section and the number of
+7. The extension popup reports the last checked section and the number of
    section checks. If the site does not expose the Writings/Rewritings links,
    it explicitly reports that navigation could not be found instead of
    claiming that both are being monitored.
@@ -77,12 +82,12 @@ report other errors unrelated to these fixes; inspect the extension's
 ## Installation
 
 After ProwellJobs is deployed from the new repository commit, download
-**Dual Bot v2.1.3** from the Prowell administrator dashboard. Remove/disable
+**Dual Bot v2.1.4** from the Prowell administrator dashboard. Remove/disable
 the previous dual and separate bots, extract the new ZIP, and load the folder
 containing `manifest.json` through `chrome://extensions` with Developer Mode
 enabled. Reload the 4writers and Good-Writers site tabs. Press START separately
-for each site. On 4writers, open Available Orders → Writings or Rewritings
-before START.
+for each site. On 4writers, you may press START from the neutral Available Orders overview,
+Writings or Rewritings; all three are supported.
 
 CI validates startup, packaging and simulated behavior. Real-site navigation,
 claim timing and availability still depend on the live account and browser;
