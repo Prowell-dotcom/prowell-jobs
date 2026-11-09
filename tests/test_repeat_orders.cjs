@@ -74,8 +74,8 @@ async function test(slug,host,version,tabMessage){
  console.log(slug+' '+host+': repeat orders, sound, seen-ID dedupe and STOP: PASS');
 }
 (async()=>{
- await test('4writers','4writers.net','0.5.14','PROWELL_TAB_ID');
- await test('good-writers','good-writers.com','1.0.14','GW_TAB_ID');
- await test('dual-writers','4writers.net','2.0.1','PROWELL_TAB_ID');
- await test('dual-writers','good-writers.com','2.0.1','GW_TAB_ID');
+ await test('4writers','4writers.net','0.5.15','PROWELL_TAB_ID');
+ await test('good-writers','good-writers.com','1.0.15','GW_TAB_ID');
+ await test('dual-writers','4writers.net','2.0.2','PROWELL_TAB_ID');
+ await test('dual-writers','good-writers.com','2.0.2','GW_TAB_ID');
 })().catch(error=>{console.error(error);process.exitCode=1;});
