@@ -38,3 +38,28 @@ chrome.runtime.onMessage.addListener((msg,sender,reply)=>{
  });
  return true;
 });
+
+// Carry a single explicitly opted-in order workflow into an official View tab.
+chrome.tabs.onCreated.addListener(tab => {
+  if (!Number.isInteger(tab.openerTabId)) return;
+  chrome.storage.local.get(['autoFlow'], state => {
+    const flow=state.autoFlow;
+    if(!flow || flow.enabled!==true || flow.tabId!==tab.openerTabId ||
+       Date.now()-flow.startedAt>90000) return;
+    const createdId=tab.id;
+    const listener=(id,change,current)=>{
+      if(id!==createdId) return;
+      const url=(current&&current.url)||change.url||'';
+      if(/^https:\/\/(?:www\.)?4writers\.net\//i.test(url)){
+        chrome.tabs.onUpdated.removeListener(listener);
+        chrome.storage.local.get(['autoFlow'], latest=>{
+          const currentFlow=latest.autoFlow;
+          if(currentFlow && currentFlow.orderId===flow.orderId && currentFlow.tabId===flow.tabId){
+            chrome.storage.local.set({autoFlow:{...currentFlow,tabId:createdId}});
+          }
+        });
+      }else if(/^https?:\/\//i.test(url)) chrome.tabs.onUpdated.removeListener(listener);
+    };
+    chrome.tabs.onUpdated.addListener(listener);
+  });
+});
