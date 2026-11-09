@@ -51,6 +51,7 @@ jobs:
           node tests/test_view_only_handoff.cjs
           node tests/test_auto_accept.cjs
           node tests/test_view_navigation_scroll.cjs
+          node tests/test_foreground_order_popup.cjs
 
       - name: Run website tests
         run: python -m unittest discover -s tests -v
