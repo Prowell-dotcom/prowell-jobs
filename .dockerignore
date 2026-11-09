@@ -1,9 +1,0 @@
-*.sqlite3
-*.db
-__pycache__/
-*.pyc
-.env
-.git
-*.zip
-*.png
-*Preview.html
