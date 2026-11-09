@@ -101,7 +101,9 @@ class WritingMarketplaceTests(unittest.TestCase):
         code,my,_=self.call('GET','/api/writing/my',cookie=cc)
         self.assertEqual(code,200)
         oid=my['orders'][-1]['id']
-        code,public,_=self.call('GET','/api/writing/orders')
+        # Public summaries are visible to signed-in writers, not anonymous users.
+        self.assertEqual(self.call('GET','/api/writing/orders')[0],401)
+        code,public,_=self.call('GET','/api/writing/orders',cookie=wc)
         self.assertEqual(code,200)
         self.assertNotIn('clientId',json.dumps(public));self.assertNotIn('example.test',json.dumps(public))
         b={'amountKES':800,'days':2,'proposal':'I can edit this business report for clarity and grammar.'}
