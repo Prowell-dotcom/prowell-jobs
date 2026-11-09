@@ -170,121 +170,89 @@
     candidates.sort((a,b)=>score(b)-score(a));
     return candidates;
   }
-  async function waitForOrderDetails() {
-    const started=Date.now();
-    while(Date.now()-started<STEP_TIMEOUT){
-      if(!guarded())throw Error('Order workflow expired while opening View');
-      if(checkSecurity())throw Error('Security challenge detected');
-      const page=(document.body?.innerText||'')+' '+location.href;
-      // The red/blue Take it button may be below a very long description
-      // and may not be rendered until the details pane is scrolled.
-      const detailsReady=foregroundSurfaces(null).length>0 || find('take') ||
-        /order\s*#?\s*\d{5,16}|description|order information|order details|instructions|requirements/i.test(document.body?.innerText||'');
-      if(page.includes(String(flow.orderId))&&detailsReady)return;
-      await sleep(150);
-    }
-    throw Error('Order details did not appear after View');
+  function waitUntil(getValue, labelText) {
+    // No artificial delay: evaluate immediately and then react to DOM changes.
+    return new Promise((resolve,reject)=>{
+      let observer=null, watchdog=null, settled=false;
+      const finish=(err,value)=>{
+        if(settled)return;
+        settled=true;
+        if(observer)observer.disconnect();
+        if(watchdog!==null)clearTimeout(watchdog);
+        if(err)reject(err);else resolve(value);
+      };
+      const inspect=()=>{
+        if(settled)return;
+        try {
+          if(!guarded())return finish(Error('Order workflow stopped or expired'));
+          if(checkSecurity())return finish(Error('Security challenge detected'));
+          const result=getValue();
+          if(result)return finish(null,result);
+        }catch(e){finish(e);}
+      };
+      inspect();
+      if(settled)return;
+      if(typeof MutationObserver!=='function'){
+        return finish(Error('Cannot observe the website while waiting for '+labelText));
+      }
+      observer=new MutationObserver(inspect);
+      observer.observe(document,{childList:true,subtree:true,characterData:true,attributes:true});
+      watchdog=setTimeout(()=>finish(Error('Timed out waiting for '+labelText)),STEP_TIMEOUT);
+      inspect();
+    });
   }
-  async function readThrough(stage){
-    // The details can be inside a nested modal, an ordinary page, or a
-    // late-rendered pane. Inspect all visible scrollable descendants rather
-    // than assuming the first matching class is the scrolling container.
-    const deadline=Date.now()+STEP_TIMEOUT;
-    const tried=new Set();
-    let moved=0,foundOverflow=false,rootLabel='none';
-    while(Date.now()<deadline){
+  async function waitForOrderDetails() {
+    await waitUntil(()=>{
+      const text=(document.body?.innerText||'')+' '+location.href;
+      if(!text.includes(String(flow.orderId)))return null;
+      // Only the foreground order panel or confirmed full-page order details.
+      return foregroundSurfaces(find('take')).length>0 ||
+        detailsPage(find('take')) ? true : null;
+    },'the selected order details after View');
+  }
+  async function jumpToBottom(stage) {
+    const roots=scrollCandidates(stage,find(stage));
+    if(!roots.length){
+      const overlays=foregroundSurfaces(find(stage));
+      const genuinelyShort=overlays.length>0 && overlays.every(el=>
+        Number.isFinite(el.scrollHeight)&&Number.isFinite(el.clientHeight) &&
+        el.scrollHeight-el.clientHeight<=45);
+      if(genuinelyShort)return;
+      throw Error('Order-details scroll panel not found; background was not scrolled');
+    }
+    let alreadyAtEnd=0;
+    for(const root of roots){
       if(!guarded())throw Error('Order workflow stopped');
       if(checkSecurity())throw Error('Security challenge detected');
-      const roots=scrollCandidates(stage,find(stage));
-      // Deliberately no background-page fallback when an order dialog is open.
-      // A missing foreground scroll root is an actionable diagnostic failure.
-      if(roots.length){
-        foundOverflow=true;
-        for(const root of roots){
-          if(!root || tried.has(root))continue;
-          const distance=(root.scrollHeight||0)-(root.clientHeight||0)-(root.scrollTop||0);
-          if(distance<=3){tried.add(root);continue;}
-          const initial=root.scrollTop||0;
-          let steps=0;
-          while(steps<160 && Date.now()<deadline){
-            if(!guarded()||checkSecurity())throw Error('Scrolling interrupted');
-            if((root.scrollHeight||0)-(root.clientHeight||0)-(root.scrollTop||0)<=3)break;
-            if(!await move(root,1))break;
-            steps++;moved++;
-          }
-          rootLabel=String(root.className||root.tagName||'page').slice(0,100);
-          const remaining=(root.scrollHeight||0)-(root.clientHeight||0)-(root.scrollTop||0);
-          if(remaining<=5 && (root.scrollTop||0)>initial){
-            await chrome.storage.local.set({lastScrollStage:stage,lastScrollSteps:steps,
-              lastScrollResult:'verified-movement',lastScrollContainer:rootLabel,
-              lastScrollAt:Date.now()});
-            return;
-          }
-          tried.add(root);
-        }
-      }
-      if(moved>0) break;
-      // If the details genuinely fit and the action is already rendered,
-      // do not wait the full timeout to confirm the absence of overflow.
-      if(!foundOverflow && find(stage) && Date.now() > deadline-STEP_TIMEOUT+1200)break;
-      await sleep(200);
-    }
-    if(!foundOverflow){
-      const surfaces=foregroundSurfaces(find(stage));
-      const hasIframe=surfaces.some(el=>Boolean(el.querySelector?.('iframe')));
-      // Short content inside a verified popup may not need scrolling.
-      const short=surfaces.length>0 && !hasIframe &&
-        surfaces.every(el=>!Number.isFinite(el.scrollHeight)||
-          el.scrollHeight<=el.clientHeight+45);
-      if(short && find(stage)){
-        await chrome.storage.local.set({lastScrollStage:stage,lastScrollSteps:0,
-          lastScrollResult:'verified-short-order-popup',lastScrollAt:Date.now()});
+      const before=Number(root.scrollTop)||0;
+      const bottom=Math.max(0,(root.scrollHeight||0)-(root.clientHeight||0));
+      if(bottom-before<=3){alreadyAtEnd++;continue;}
+      // Set the actual foreground pane to its bottom in one synchronous step.
+      // No smooth scrolling, artificial pauses or background-page fallback.
+      root.scrollTop=bottom;
+      const after=Number(root.scrollTop)||0;
+      if(after>=bottom-5 && after>before+1){
+        void chrome.storage.local.set({lastScrollStage:stage,lastScrollSteps:1,
+          lastScrollResult:'instant-bottom',lastScrollAt:Date.now(),
+          lastScrollContainer:String(root.className||root.tagName||'order-panel').slice(0,100)});
         return;
       }
-      await chrome.storage.local.set({lastScrollStage:stage,lastScrollSteps:0,
-        lastScrollResult:'foreground-scroll-pane-not-found',lastScrollAt:Date.now()});
-      throw Error(hasIframe?'Order details appear inside an iframe; inspect that frame':
-        'Foreground order-details pane not found — background page was left untouched');
     }
-    await chrome.storage.local.set({lastScrollStage:stage,lastScrollSteps:moved,
-      lastScrollResult:'failed',lastScrollContainer:rootLabel,lastScrollAt:Date.now()});
-    throw Error('Could not verify order-details scrolling; check extension popup diagnostics');
-  }
-  async function move(root, direction) {
-    if (!root || !guarded() || checkSecurity()) return false;
-    const initial = root.scrollTop || 0;
-    const limit = Math.max(0, (root.scrollHeight || 0) - (root.clientHeight || 0));
-    const next = Math.max(0, Math.min(limit, initial + direction * STEP_PX));
-    if (Math.abs(next - initial) < 1) return false;
-    root.scrollTop = next;
-    await sleep(STEP_DELAY);
-    return Math.abs((root.scrollTop || 0) - initial) >= 2;
+    if(alreadyAtEnd===roots.length)return;
+    throw Error('Could not jump to the bottom of the order-details panel');
   }
   async function locate(stage, scrollAllowed) {
-    const start = Date.now();
-    let steps = 0;
-    while (Date.now() - start < STEP_TIMEOUT) {
-      if (!guarded()) throw Error('Order workflow was stopped or expired');
-      if (checkSecurity()) throw Error('Security challenge detected');
-      const el = find(stage);
-      if (el) {
-        if (inViewport(el)) return el;
-        if (!scrollAllowed) throw Error(stage + ' control is not visible; no automatic scrolling allowed');
-        const rect = el.getBoundingClientRect();
-        const direction = rect.top >= (window.innerHeight || 850) ? 1 : -1;
-        if (steps < 90 && await move(scrollCandidates(stage,el)[0], direction)) {
-          steps++;
-          continue;
-        }
-      } else if (scrollAllowed && steps < 90) {
-        if (await move(scrollCandidates(stage,null)[0], 1)) {
-          steps++;
-          continue;
-        }
-      }
-      await sleep(150);
+    let el=find(stage);
+    if(!el)el=await waitUntil(()=>find(stage),stage+' button');
+    if(!guarded())throw Error('Workflow stopped before '+stage);
+    if(!el?.isConnected||!visible(el))throw Error(stage+' button disappeared');
+    if(!inViewport(el)){
+      if(!scrollAllowed)throw Error(stage+' control is outside the visible dialog');
+      await jumpToBottom(stage);
+      el=find(stage);
+      if(!el || !inViewport(el))throw Error(stage+' button is not visible after scrolling');
     }
-    throw Error('Timed out waiting for ' + stage + ' control');
+    return el;
   }
   async function updateStage(stage) {
     if (!guarded()) throw Error('Workflow stopped');
@@ -314,9 +282,9 @@
         if (checkSecurity()) throw Error('Security challenge detected');
         if (flow.stage === 'scroll') {
           await waitForOrderDetails();
-          await readThrough('take');
+          await jumpToBottom('take');
           const details=await chrome.storage.local.get({log:[]});
-          const message='Order #'+flow.orderId+': gradual details scrolling completed; review and accept manually.';
+          const message='Order #'+flow.orderId+': instant order-details scrolling completed; review and accept manually.';
           await chrome.storage.local.set({
             autoFlow:null,lastResult:message,refreshStatus:message,
             log:[...(details.log||[]),new Date().toLocaleTimeString()+' '+message].slice(-30)
@@ -324,7 +292,7 @@
           flow=null;
         } else if (flow.stage === 'take') {
           await waitForOrderDetails();
-          await readThrough('take');
+          await jumpToBottom('take');
           const el = await locate('take', true);
           const page = (document.body?.innerText || '') + ' ' + location.href;
           if (!page.includes(flow.orderId)) throw Error('Selected order ID not found in details');
@@ -332,20 +300,21 @@
           if (!guarded() || !el.isConnected) throw Error('Details changed before Take it');
           el.click();
         } else if (flow.stage === 'ok') {
-          const elapsed = Date.now() - (flow.stageStartedAt || Date.now());
-          if (elapsed < 500) await sleep(500 - elapsed);
           const el = await locate('ok', false);
           await updateStage('understand');
           if (!guarded() || !el.isConnected) throw Error('Confirmation changed before OK');
           el.click();
         } else if (flow.stage === 'understand') {
-          if (IS_FOUR) await readThrough('understand');
+          if (IS_FOUR) {
+            await waitUntil(()=>foregroundSurfaces(find('understand')).length>0,
+              'the acknowledgment panel');
+            await jumpToBottom('understand');
+          }
           const el = await locate('understand', IS_FOUR);
           await updateStage('verify');
           if (!guarded() || !el.isConnected) throw Error('Acknowledgment changed before I understand');
           el.click();
         } else if (flow.stage === 'verify') {
-          await sleep(850);
           if (!guarded()) throw Error('Workflow stopped before verification');
           await end('Order #' + flow.orderId + ': confirmation steps submitted. Verify assignment on the website.', 'submitted-unverified');
         } else {
@@ -370,29 +339,20 @@
     if(viewRecoveryRunning || !guarded() || flow.stage!=='await-view')return;
     viewRecoveryRunning=true;
     try{
-      const deadline=Date.now()+STEP_TIMEOUT;
-      while(guarded()&&flow.stage==='await-view'&&Date.now()<deadline){
-        if(checkSecurity())throw Error('Security challenge detected after View');
-        const text=document.body?.innerText||'';
-        const idPresent=(text+' '+location.href).includes(String(flow.orderId));
-        const listPage=['available','overview','processing'].includes(
-          window.__prowellCardDetector?.pageKind?.());
-        const viewChanged=Boolean(flow.listUrl && location.href!==flow.listUrl);
-        // View may show a generic overlay with no modal class; the order
-        // header is enough to start reading, even before Take it is rendered.
-        const hasOrderDialog=foregroundSurfaces(find('take')).length>0;
-        if(idPresent && (hasOrderDialog ||
-          (Boolean(find('take')) && (viewChanged || !listPage)) ||
-          (viewChanged && !listPage))){
-          const next={...flow,stage:flow.mode==='scroll-only'?'scroll':'take',stageStartedAt:Date.now()};
-          await chrome.storage.local.set({autoFlow:next});
-          flow=next;
-          break;
-        }
-        await sleep(150);
-      }
+      await waitUntil(()=>{
+        const text=(document.body?.innerText||'')+' '+location.href;
+        if(!text.includes(String(flow.orderId)))return null;
+        const overlayReady=foregroundSurfaces(find('take')).length>0;
+        const fullDetail=detailsPage(find('take'));
+        return overlayReady||fullDetail ? true : null;
+      },'the opened order panel');
+      if(!guarded()||flow.stage!=='await-view')return;
+      const next={...flow,stage:flow.mode==='scroll-only'?'scroll':'take',
+        stageStartedAt:Date.now()};
+      await chrome.storage.local.set({autoFlow:next});
+      flow=next;
     }catch(error){
-      await chrome.storage.local.set({lastResult:'Pending order View handoff failed: '+
+      await chrome.storage.local.set({lastResult:'View handoff failed: '+
         String(error?.message||error)});
     }finally{viewRecoveryRunning=false;}
   }
