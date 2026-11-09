@@ -155,6 +155,9 @@
         }
       }
       if(moved>0) break;
+      // If the details genuinely fit and the action is already rendered,
+      // do not wait the full timeout to confirm the absence of overflow.
+      if(!foundOverflow && find(stage) && Date.now() > deadline-STEP_TIMEOUT+1200)break;
       await sleep(200);
     }
     if(!foundOverflow){
