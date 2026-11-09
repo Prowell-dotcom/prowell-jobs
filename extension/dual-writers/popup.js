@@ -39,12 +39,12 @@ async function start(site){
   await put(site,{
     autoFlow:null,seenOrderIds:[],lastProcessingPreview:null,autoAcceptEnabled:true,armed:true,claimConsentVersion:VERSION,targetTabId:tab.id,
     claim:null,soundRunId:crypto.randomUUID(),
-    lastResult:'Watching continuously; each detected order pauses refresh during View and scroll.'
+    lastResult:'Monitoring until one available or processing order is detected; then STOPPED until START is pressed again.'
   });
   // Do not block monitoring/automatic clicks while preparing audio.
   // If audio cannot be prewarmed, the normal order alert still tries playback.
   void chrome.runtime.sendMessage({type:'PROWELL_PREPARE_ORDER_SOUND'}).catch(()=>{});
-  notice.textContent=SITES[site].name+': Every detected order triggers sound + instant View and scroll; Take it → OK → I understand only when available.';
+  notice.textContent=SITES[site].name+': Monitoring ON. The first order will sound, open View and scroll, then stay STOPPED until you press START again.';
   await render(site);
 }
 async function stop(site){
