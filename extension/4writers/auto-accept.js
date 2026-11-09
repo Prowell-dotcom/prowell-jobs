@@ -63,8 +63,9 @@
   }
   function orderText(el) {
     const text=String(el?.innerText||el?.textContent||'');
-    return text.includes(String(flow?.orderId||'')) ||
-      /order information|order details|order instructions|order requirements|acknowledg/i.test(text);
+    const id=String(flow?.orderId||'');
+    return (Boolean(id)&&text.includes(id)) ||
+      /order\s*(?:information|details|instructions|requirements)|acknowledg/i.test(text);
   }
   function foregroundSurfaces(button) {
     const candidates=new Set(document.querySelectorAll(DIALOGS));
@@ -175,8 +176,10 @@
       if(!guarded())throw Error('Order workflow expired while opening View');
       if(checkSecurity())throw Error('Security challenge detected');
       const page=(document.body?.innerText||'')+' '+location.href;
-      const detailsReady=find('take')||
-        /order information|order details|instructions|requirements/i.test(document.body?.innerText||'');
+      // The red/blue Take it button may be below a very long description
+      // and may not be rendered until the details pane is scrolled.
+      const detailsReady=foregroundSurfaces(null).length>0 || find('take') ||
+        /order\s*#?\s*\d{5,16}|description|order information|order details|instructions|requirements/i.test(document.body?.innerText||'');
       if(page.includes(String(flow.orderId))&&detailsReady)return;
       await sleep(150);
     }
@@ -375,9 +378,9 @@
         const listPage=['available','overview','processing'].includes(
           window.__prowellCardDetector?.pageKind?.());
         const viewChanged=Boolean(flow.listUrl && location.href!==flow.listUrl);
-        const hasOrderDialog=[...document.querySelectorAll(DIALOGS)].some(el=>
-          visible(el) && ((el.innerText||el.textContent||'').includes(String(flow.orderId))||
-          Boolean(find('take') && el.contains?.(find('take')))));
+        // View may show a generic overlay with no modal class; the order
+        // header is enough to start reading, even before Take it is rendered.
+        const hasOrderDialog=foregroundSurfaces(find('take')).length>0;
         if(idPresent && (hasOrderDialog ||
           (Boolean(find('take')) && (viewChanged || !listPage)) ||
           (viewChanged && !listPage))){
