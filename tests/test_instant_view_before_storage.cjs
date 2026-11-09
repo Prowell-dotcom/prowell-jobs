@@ -71,8 +71,8 @@ async function simulate(slug,host,version,tabMessage,dual=false){
  console.log(slug+' '+host+': immediate refresh cancel and View before storage completion: PASS');
 }
 (async()=>{
- await simulate('4writers','4writers.net','0.5.15','PROWELL_TAB_ID');
- await simulate('good-writers','good-writers.com','1.0.15','GW_TAB_ID');
- await simulate('dual-writers','4writers.net','2.0.2','PROWELL_TAB_ID',true);
- await simulate('dual-writers','good-writers.com','2.0.2','GW_TAB_ID',true);
+ await simulate('4writers','4writers.net','0.5.16','PROWELL_TAB_ID');
+ await simulate('good-writers','good-writers.com','1.0.16','GW_TAB_ID');
+ await simulate('dual-writers','4writers.net','2.0.3','PROWELL_TAB_ID',true);
+ await simulate('dual-writers','good-writers.com','2.0.3','GW_TAB_ID',true);
 })().catch(e=>{console.error(e);process.exitCode=1;});
