@@ -229,13 +229,18 @@
       inspect();
     });
   }
+  // A processing order is already assigned. Its Files + Messages + View
+  // details do not have Take it. Never depend on a Take it control to identify
+  // or scroll that panel.
+  const previewingProcessing=()=>flow?.mode==='processing-preview';
+  const detailButton=()=>previewingProcessing()?null:find('take');
   async function waitForOrderDetails() {
     await waitUntil(()=>{
       const text=(document.body?.innerText||'')+' '+location.href;
       if(!text.includes(String(flow.orderId)))return null;
-      // Only the foreground order panel or confirmed full-page order details.
-      return foregroundSurfaces(find('take')).length>0 ||
-        inlineOrderDetails(find('take')) || detailsPage(find('take')) ? true : null;
+      const button=detailButton();
+      return foregroundSurfaces(button).length>0 ||
+        inlineOrderDetails(button) || detailsPage(button) ? true : null;
     },'the selected order details after View');
   }
   // Request an immediate scroll, never CSS smooth scrolling or timed steps.
@@ -246,13 +251,14 @@
     if (Math.abs((Number(root.scrollTop) || 0) - bottom) > 3) root.scrollTop = bottom;
   }
   async function jumpToBottom(stage) {
-    const roots=scrollCandidates(stage,find(stage));
+    const button=previewingProcessing()?null:find(stage);
+    const roots=scrollCandidates(stage,button);
     if(!roots.length){
-      const overlays=foregroundSurfaces(find(stage));
+      const overlays=foregroundSurfaces(button);
       const genuinelyShort=overlays.length>0 && overlays.every(el=>
         Number.isFinite(el.scrollHeight)&&Number.isFinite(el.clientHeight) &&
         el.scrollHeight-el.clientHeight<=45);
-      const target=find(stage);
+      const target=button;
       const confirmedDetail=Boolean(inlineOrderDetails(target) || detailsPage(target));
       // A recognized details page alone does not prove scrolling finished.
       // Skip scrolling only when content is genuinely short or the target is
@@ -330,10 +336,18 @@
         if (flow.stage === 'scroll') {
           await waitForOrderDetails();
           await jumpToBottom('take');
-          const details=await store.local.get({log:[]});
-          const message='Order #'+flow.orderId+': instant order-details scrolling completed; review and accept manually.';
+          const id=String(flow.orderId);
+          const processing=previewingProcessing();
+          const details=await store.local.get({log:[],processingPreviewedIds:[]});
+          const message=processing
+            ? 'Processing order #'+id+': preview test passed — View opened, order details scrolled; no Take it expected or clicked.'
+            : 'Order #'+id+': order details scrolled; review and accept manually.';
           await store.local.set({
             autoFlow:null,lastResult:message,refreshStatus:message,
+            ...(processing?{
+              processingPreviewedIds:[...new Set([...(details.processingPreviewedIds||[]),id])].slice(-150),
+              lastProcessingPreview:{orderId:id,result:'scroll-passed',at:Date.now()}
+            }:{}),
             log:[...(details.log||[]),new Date().toLocaleTimeString()+' '+message].slice(-30)
           });
           flow=null;
@@ -373,9 +387,13 @@
         }
       }
     } catch (e) {
-      if (flow && flow.mode==='scroll-only') {
-        const message='Order #'+flow.orderId+': scrolling failed — '+String(e?.message||e);
+      if (flow && (flow.mode==='scroll-only'||previewingProcessing())) {
+        const processing=previewingProcessing();
+        const id=String(flow.orderId);
+        const message=(processing?'Processing-order preview test #':'Order #')+id+
+          ': scrolling failed — '+String(e?.message||e);
         await store.local.set({autoFlow:null,lastResult:message,refreshStatus:message,
+          ...(processing?{lastProcessingPreview:{orderId:id,result:'scroll-failed',at:Date.now()}}:{}),
           lastScrollResult:'failed'});
         flow=null;
       } else if(flow) await end('Order #' + flow.orderId + ': stopped — ' + String(e?.message || e), 'stopped');
@@ -393,12 +411,13 @@
       await waitUntil(()=>{
         const text=(document.body?.innerText||'')+' '+location.href;
         if(!text.includes(String(flow.orderId)))return null;
-        const overlayReady=foregroundSurfaces(find('take')).length>0;
-        const fullDetail=inlineOrderDetails(find('take'))||detailsPage(find('take'));
+        const button=detailButton();
+        const overlayReady=foregroundSurfaces(button).length>0;
+        const fullDetail=inlineOrderDetails(button)||detailsPage(button);
         return overlayReady||fullDetail ? true : null;
       },'the opened order panel');
       if(!guarded()||flow.stage!=='await-view')return;
-      updateStage(flow.mode==='scroll-only'?'scroll':'take');
+      updateStage(flow.mode==='accept'?'take':'scroll');
       void execute();
     }catch(error){
       await store.local.set({lastResult:'View handoff failed: '+
