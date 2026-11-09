@@ -97,7 +97,8 @@ async function handoff(){
     const sound=source.indexOf("type:'PROWELL_ORDER_SOUND'");
     const view=source.indexOf('first.view.click()');
     assert(stop>0&&sound>stop&&view>sound,site+': stop → sound → View order broken');
-    assert(source.includes("mode:accepts?'accept':'scroll-only'"),site+' requires accept mode');
+    assert(source.includes(site==='dual-writers'?"accepts?'accept':'scroll-only'":"mode:accepts?'accept':'scroll-only'"),
+      site+' requires the accept branch when Take it is available');
     const automation=fs.readFileSync(path.join(base,site,'auto-accept.js'),'utf8');
     for(const stage of ['take','ok','understand'])
       assert(automation.includes("flow.stage === '"+stage+"'"),site+' missing stage '+stage);
