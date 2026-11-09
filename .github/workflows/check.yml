@@ -80,6 +80,9 @@ jobs:
           node --check extension/dual-writers/legacy/four/runtime-background.js
           node --check extension/dual-writers/legacy/good/runtime-background.js
           node tests/test_dual_writers.cjs
+          node --check extension/dual-writers/four-sections.js
+          node --check extension/dual-writers/four-section-refresh.js
+          node tests/test_dual_four_sections.cjs
           node tests/test_dual_legacy_merge.cjs
 
       - name: Run website tests
