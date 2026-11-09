@@ -77,6 +77,8 @@ jobs:
           node --check extension/dual-writers/legacy/four/runtime-refresh.js
           node --check extension/dual-writers/legacy/good/runtime-content.js
           node --check extension/dual-writers/legacy/good/runtime-refresh.js
+          node --check extension/dual-writers/legacy/four/runtime-background.js
+          node --check extension/dual-writers/legacy/good/runtime-background.js
           node tests/test_dual_writers.cjs
           node tests/test_dual_legacy_merge.cjs
 
