@@ -107,6 +107,6 @@ async function handoff(){
   console.log('All three bot engines: stop → sound → View → instant scroll → three acceptance actions: PASS');
 }
 
-(async()=>{await single('4writers','4writers.net','0.5.15');
-  await single('good-writers','good-writers.com','1.0.15');
+(async()=>{await single('4writers','4writers.net','0.5.16');
+  await single('good-writers','good-writers.com','1.0.16');
   await dual();await handoff();})().catch(error=>{console.error(error);process.exitCode=1;});
