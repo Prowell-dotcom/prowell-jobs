@@ -50,6 +50,10 @@ jobs:
           node tests/test_order_audio.cjs
           node tests/test_view_only_handoff.cjs
           node tests/test_instant_view_before_storage.cjs
+          node tests/test_repeat_orders.cjs
+          node tests/test_native_confirm.cjs
+          node tests/test_new_tab_handoff.cjs
+          node tests/test_instant_view_before_storage.cjs
           node tests/test_new_tab_handoff.cjs
           node tests/test_auto_accept.cjs
           node tests/test_native_confirm.cjs
