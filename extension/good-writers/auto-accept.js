@@ -286,8 +286,9 @@
         const hasOrderDialog=[...document.querySelectorAll(DIALOGS)].some(el=>
           visible(el) && ((el.innerText||el.textContent||'').includes(String(flow.orderId))||
           Boolean(find('take') && el.contains?.(find('take')))));
-        if(idPresent && (hasOrderDialog || (viewChanged && !listPage) ||
-          (!listPage && Boolean(find('take'))))){
+        if(idPresent && (hasOrderDialog ||
+          (Boolean(find('take')) && (viewChanged || !listPage)) ||
+          (viewChanged && !listPage))){
           const next={...flow,stage:'take',stageStartedAt:Date.now()};
           await chrome.storage.local.set({autoFlow:next});
           flow=next;
