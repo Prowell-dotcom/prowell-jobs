@@ -108,41 +108,64 @@
     throw Error('Order details did not appear after View');
   }
   async function readThrough(stage){
-    const candidates=scrollCandidates(stage,find(stage));
-    if(!candidates.length){
-      // Short details may fit fully without an overflowing container.
-      await chrome.storage.local.set({lastScrollStage:stage,lastScrollSteps:0,
-        lastScrollResult:'no-overflowing-order-pane'});
-      return;
-    }
-    let attempted=false,atBottom=false;
-    for(const root of candidates){
+    // The details can be inside a nested modal, an ordinary page, or a
+    // late-rendered pane. Inspect all visible scrollable descendants rather
+    // than assuming the first matching class is the scrolling container.
+    const deadline=Date.now()+STEP_TIMEOUT;
+    const tried=new Set();
+    let moved=0,foundOverflow=false,rootLabel='none';
+    while(Date.now()<deadline){
       if(!guarded())throw Error('Order workflow stopped');
       if(checkSecurity())throw Error('Security challenge detected');
-      const initialDistance=root.scrollHeight-root.clientHeight-root.scrollTop;
-      if(initialDistance<=3) {atBottom=true;continue;}
-      let steps=0;
-      const started=Date.now();
-      while(steps<100&&Date.now()-started<STEP_TIMEOUT){
-        if(!guarded())throw Error('Order workflow stopped');
-        if(checkSecurity())throw Error('Security challenge detected');
-        if(root.scrollHeight-root.clientHeight-root.scrollTop<=3)break;
-        attempted=true;
-        if(!await move(root,1))break;
-        steps++;
+      const roots=scrollCandidates(stage,find(stage));
+      if(!roots.length){
+        // Scan newly-rendered containers, including unclassified layouts.
+        const fallback=[...document.querySelectorAll('body *')].filter(node=>
+          visible(node) && Number.isFinite(node.scrollHeight) &&
+          Number.isFinite(node.clientHeight) && node.clientHeight>=60 &&
+          node.scrollHeight-node.clientHeight>60 &&
+          /auto|scroll|hidden/i.test(getComputedStyle(node).overflowY||''));
+        const page=document.scrollingElement||document.documentElement;
+        if(page && page.scrollHeight-page.clientHeight>60)fallback.push(page);
+        roots.push(...fallback);
       }
-      if(steps>0&&root.scrollHeight-root.clientHeight-root.scrollTop<=5){
-        await chrome.storage.local.set({lastScrollStage:stage,lastScrollSteps:steps,
-          lastScrollResult:'verified-movement'});
-        return;
+      if(roots.length){
+        foundOverflow=true;
+        for(const root of roots){
+          if(!root || tried.has(root))continue;
+          const distance=(root.scrollHeight||0)-(root.clientHeight||0)-(root.scrollTop||0);
+          if(distance<=3){tried.add(root);continue;}
+          const initial=root.scrollTop||0;
+          let steps=0;
+          while(steps<160 && Date.now()<deadline){
+            if(!guarded()||checkSecurity())throw Error('Scrolling interrupted');
+            if((root.scrollHeight||0)-(root.clientHeight||0)-(root.scrollTop||0)<=3)break;
+            if(!await move(root,1))break;
+            steps++;moved++;
+          }
+          rootLabel=String(root.className||root.tagName||'page').slice(0,100);
+          const remaining=(root.scrollHeight||0)-(root.clientHeight||0)-(root.scrollTop||0);
+          if(remaining<=5 && (root.scrollTop||0)>initial){
+            await chrome.storage.local.set({lastScrollStage:stage,lastScrollSteps:steps,
+              lastScrollResult:'verified-movement',lastScrollContainer:rootLabel,
+              lastScrollAt:Date.now()});
+            return;
+          }
+          tried.add(root);
+        }
       }
+      if(moved>0) break;
+      await sleep(200);
     }
-    if(atBottom&&!attempted){
+    if(!foundOverflow){
+      // Only short details which do not overflow are allowed to skip scrolling.
       await chrome.storage.local.set({lastScrollStage:stage,lastScrollSteps:0,
-        lastScrollResult:'already-at-bottom'});
+        lastScrollResult:'no-overflowing-pane',lastScrollAt:Date.now()});
       return;
     }
-    throw Error(attempted?'Order details scrolling did not reach the bottom':'Could not scroll the order-details panel');
+    await chrome.storage.local.set({lastScrollStage:stage,lastScrollSteps:moved,
+      lastScrollResult:'failed',lastScrollContainer:rootLabel,lastScrollAt:Date.now()});
+    throw Error('Could not verify order-details scrolling; check extension popup diagnostics');
   }
   async function move(root, direction) {
     if (!root || !guarded() || checkSecurity()) return false;
@@ -200,10 +223,11 @@
     flow = null;
   }
   async function execute() {
-    if (busy || !guarded() || !document.body) return;
+    if (busy || !guarded() || !document.body || flow.stage === 'await-view') return;
     busy = true;
     try {
       while (guarded()) {
+        if (flow.stage === 'await-view') break;
         if (checkSecurity()) throw Error('Security challenge detected');
         if (flow.stage === 'take') {
           await waitForOrderDetails();
