@@ -117,7 +117,7 @@ class WritingMarketplaceTests(unittest.TestCase):
         self.assertEqual(self.call('POST',f'/api/writing/orders/{oid}/choose',{'bidId':bid_id},cc,ct)[0],200)
         content=base64.b64encode(b'Corrected example professional writing text.').decode()
         file={'filename':'review.txt','contentBase64':content}
-        self.assertEqual(self.call('POST',f'/api/writing/orders/{oid}/deliver',file,cc,ct)[0],401)
+        self.assertEqual(self.call('POST',f'/api/writing/orders/{oid}/deliver',file,cc,ct)[0],403)
         self.assertEqual(self.call('POST',f'/api/writing/orders/{oid}/deliver',file,wc,wt)[0],201)
         code,my,_=self.call('GET','/api/writing/my',cookie=cc)
         fid=my['deliverables'][-1]['id']
