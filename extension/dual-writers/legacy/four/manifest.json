@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "Prowell 4writers Order Watcher",
+  "version": "0.5.4",
+  "description": "Order detection, modal-aware scrolling and confirmation workflow; processing View preview (beta).",
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://4writers.net/*",
+    "https://www.4writers.net/*",
+    "https://prowelljobs.com/*"
+  ],
+  "action": {
+    "default_title": "Prowell Order Assistant",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://4writers.net/*",
+        "https://www.4writers.net/*"
+      ],
+      "js": [
+        "confirm-main.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://4writers.net/*",
+        "https://www.4writers.net/*"
+      ],
+      "js": [
+        "order-card.js",
+        "content.js",
+        "refresh.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}
