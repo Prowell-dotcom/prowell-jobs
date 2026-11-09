@@ -6,6 +6,7 @@ COPY styles.css membership.css writing.css app.js member.js admin-account.js wri
 COPY server.py notifications.py accounts.py writing_marketplace.py admin_document_sender.py admin_extension_store.py good_writers_reporting.py admin_paraphraser.py ./
 COPY extension/4writers/ ./extension/4writers/
 COPY extension/good-writers/ ./extension/good-writers/
+COPY extension/dual-writers/ ./extension/dual-writers/
 COPY assets/ ./assets/
 EXPOSE 8000
 CMD ["python", "server.py"]
