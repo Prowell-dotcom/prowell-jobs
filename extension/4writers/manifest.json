@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Prowell 4writers Order Watcher",
-  "version": "0.5.9",
-  "description": "Order watcher with explicit opt-in to fixed-wait automated acceptance and manual fallback.",
+  "version": "0.5.10",
+  "description": "Order watcher with explicit opt-in to automatic order-details scrolling with optional acceptance.",
   "permissions": [
     "storage",
     "tabs",
