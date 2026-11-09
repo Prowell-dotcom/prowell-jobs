@@ -85,7 +85,18 @@
       };
       return score(b)-score(a);
     });
-    return selected;
+    // If a real dialog is present, discard background order cards entirely.
+    const dialogs=selected.filter(el=>el.getAttribute?.('role')==='dialog' ||
+      el.getAttribute?.('aria-modal')==='true' ||
+      /(?:^|[\\s_-])(modal|dialog|popup|drawer)(?:$|[\\s_-])/i.test(String(el.className||'')));
+    if(dialogs.length){
+      dialogs.sort((a,b)=>{
+        const sa=getComputedStyle(a),sb=getComputedStyle(b);
+        return (parseInt(sb?.zIndex,10)||0)-(parseInt(sa?.zIndex,10)||0);
+      });
+      return [dialogs[0]];
+    }
+    return selected.length?[selected[0]]:[];
   }
   function dedicatedDetailsPage() {
     const kind=window.__prowellCardDetector?.pageKind?.();
