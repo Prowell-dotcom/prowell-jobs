@@ -11,7 +11,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
 
 async function detect(host,kind){
   const events=[],listeners=[],state={
-    armed:true,claimConsentVersion:'2.0.3',targetTabId:7,autoAcceptEnabled:true,
+    armed:true,claimConsentVersion:'2.0.4',targetTabId:7,autoAcceptEnabled:true,
     soundRunId:'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',autoFlow:null,
     seenOrderIds:[],log:[]};
   const store={
