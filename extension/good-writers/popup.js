@@ -14,7 +14,7 @@ function render(){
  '\nRefresh interval: every 1 second' +
  '\nAction after detection: '+(state.autoAcceptEnabled?'automatic order acceptance (opt-in)':'View + instant scroll for each order; manual acceptance')+
  '\nLast: '+(state.lastResult||'Ready');
- if($('autoAcceptEnabled')){$('autoAcceptEnabled').checked=Boolean(state.autoAcceptEnabled);$('autoAcceptEnabled').disabled=isArmed();}
+ // START AUTO-TAKE itself is the explicit opt-in; all acceptance steps are enabled.
  $('history').textContent=(state.log||[]).slice(-10).reverse().join('\n')||'No events yet.';
  // Automatic scrolling is available independently of order acceptance.
 }
@@ -26,9 +26,8 @@ async function start(){
 }
 $('arm').addEventListener('click',async()=>{
  if(!tab||!valid(tab.url))return;
- await chrome.storage.local.set({autoFlow:null,seenOrderIds:[]});
- await store({armed:true,claimConsentVersion:'1.0.15',targetTabId:tab.id,claim:null,soundRunId:crypto.randomUUID(),lastResult:'Watching continuously; refresh pauses for each order and resumes after closing details'});
- $('notice').textContent=state.autoAcceptEnabled?'Automatic acceptance ON: View, instant jump, Take it and confirmations.':'Automatic scrolling ON; you handle Take it and confirmations manually.';
+ await store({autoFlow:null,seenOrderIds:[],autoAcceptEnabled:true,armed:true,claimConsentVersion:'1.0.15',targetTabId:tab.id,claim:null,soundRunId:crypto.randomUUID(),lastResult:'Watching continuously; refresh pauses for each order and resumes after closing details'});
+ $('notice').textContent='AUTO-TAKE enabled: sound + instant View, details scroll, Take it, OK, I understand.';
 });
 $('stop').addEventListener('click',async()=>{
  await chrome.storage.local.set({autoFlow:null});
@@ -92,16 +91,7 @@ $('testOrderSound')?.addEventListener('click',async()=>{
 });
 start().catch(err=>{$('notice').textContent=err.message;});
 void updateGoodWritersPairingStatus();
-// Automatic acceptance is a separate explicit per-session opt-in.
-$('autoAcceptEnabled')?.addEventListener('change',async event=>{
-  if(isArmed()){event.target.checked=Boolean(state.autoAcceptEnabled);return;}
-  const enabled=event.target.checked;
-  if(enabled && !confirm('Enable automatic Take it, OK and I understand for every eligible available order until STOP? Review the site rules and accept responsibility for order requirements.')){
-    event.target.checked=false;return;
-  }
-  await store({autoAcceptEnabled:enabled,autoFlow:null});
-});
-
+// START AUTO-TAKE enables this flow until STOP. No extra click is needed.
 $('testScrollOnly')?.addEventListener('click',async()=>{
   const btn=$('testScrollOnly');
   btn.disabled=true;
