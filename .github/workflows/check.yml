@@ -30,12 +30,14 @@ jobs:
           node --check extension/4writers/background.js
           node --check extension/4writers/popup.js
           node --check extension/4writers/refresh.js
+          node --check extension/4writers/auto-accept.js
           node --check extension/4writers/popup-refresh.js
           node tests/test_extension_refresh.cjs
           node tests/test_good_writers_refresh.cjs
           node --check extension/good-writers/background.js
           node --check extension/good-writers/content.js
           node --check extension/good-writers/refresh.js
+          node --check extension/good-writers/auto-accept.js
           node --check extension/good-writers/popup.js
           node --check extension/good-writers/popup-refresh.js
           node --check extension/4writers/order-card.js
@@ -47,6 +49,7 @@ jobs:
           node --check extension/good-writers/order-sound.js
           node tests/test_order_audio.cjs
           node tests/test_view_only_handoff.cjs
+          node tests/test_auto_accept.cjs
 
       - name: Run website tests
         run: python -m unittest discover -s tests -v
