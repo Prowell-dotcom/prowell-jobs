@@ -29,7 +29,7 @@ $('arm').addEventListener('click',async()=>{
  if(!tab||!valid(tab.url))return;
  await chrome.storage.local.set({autoFlow:null});
  await store({armed:true,claimConsentVersion:'0.5.9',targetTabId:tab.id,claim:null,soundRunId:crypto.randomUUID(),lastResult:'Watching for orders; will stop after opening View'});
- $('notice').textContent='Order watcher enabled. Leave the 4writers tab open.';
+ $('notice').textContent=state.autoAcceptEnabled?'Automatic acceptance ON: View, gradual scroll, Take it and confirmations.':'VIEW-ONLY mode: to activate automatic scrolling, STOP, check Enable automatic order acceptance, then START WATCHING.';
 });
 $('stop').addEventListener('click',async()=>{
  await chrome.storage.local.set({autoFlow:null});
