@@ -250,8 +250,13 @@
       const genuinelyShort=overlays.length>0 && overlays.every(el=>
         Number.isFinite(el.scrollHeight)&&Number.isFinite(el.clientHeight) &&
         el.scrollHeight-el.clientHeight<=45);
-      if(genuinelyShort || inlineOrderDetails(find(stage)) ||
-          (find(stage) && detailsPage(find(stage))))return;
+      const target=find(stage);
+      const confirmedDetail=Boolean(inlineOrderDetails(target) || detailsPage(target));
+      // A recognized details page alone does not prove scrolling finished.
+      // Skip scrolling only when content is genuinely short or the target is
+      // already visible; never click a hidden Take it behind an unscrolled pane.
+      if((genuinelyShort && (!target || inViewport(target))) ||
+         (target && inViewport(target) && confirmedDetail))return;
       throw Error('Order-details scroll panel not found; background was not scrolled');
     }
     let alreadyAtEnd=0;
