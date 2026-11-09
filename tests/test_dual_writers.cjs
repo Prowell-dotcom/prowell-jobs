@@ -14,7 +14,8 @@ const files=['scoped-store.js','legacy-bridge.js','legacy-order-sound.js',
  'legacy/four/runtime-content.js','legacy/four/runtime-refresh.js',
  'legacy/four/order-card.js','legacy/four/confirm-main.js',
  'legacy/good/runtime-content.js','legacy/good/runtime-refresh.js',
- 'legacy/good/order-card.js','legacy/good/confirm-main.js'];
+ 'legacy/good/order-card.js','legacy/good/confirm-main.js',
+ 'legacy/four/runtime-background.js','legacy/good/runtime-background.js'];
 for(const file of files)new vm.Script(read(file),{filename:file});
 const sources=manifest.content_scripts.flatMap(s=>s.js);
 for(const site of ['four','good']){
