@@ -1,4 +1,4 @@
-# Prowell Dual-Platform Bot v2.1.6
+# Prowell Dual-Platform Bot v2.1.7
 
 ## Source engines and changes
 
@@ -37,10 +37,10 @@ available-order surfaces without rewriting the original Take it workflow:
    processing order uses only the original View/details preview.
 6. It does not switch sections during an active claim, verification challenge
    or unrelated account page. Good-Writers section navigation is untouched.
-7. The extension popup reports the last checked section and the number of
-   section checks. If the site does not expose the Writings/Rewritings links,
-   it explicitly reports that navigation could not be found instead of
-   claiming that both are being monitored.
+7. Refresh diagnostics remain available in per-site storage; the compact
+   popup deliberately shows only the two site headings and their START/STOP
+   buttons. If a section link cannot be found, the bot records the reason
+   instead of claiming both sections were monitored.
 
 **Note:** Your original v0.5.4 script may resume monitoring after a successful
 claim. This was kept intact because you asked to retain that original
@@ -59,9 +59,8 @@ after the gradual scroll finishes.
 **Post-View speed target:** The available-order workflow aims to complete
 View → smooth scroll → Take it → OK → smooth scroll → I understand in
 **2 seconds** after View when the website displays its controls promptly.
-The steps are triggered by real page readiness, not a forced timer. The
-popup reports the actual View-to-last-action duration and whether it met
-the 2-second target. Slow website loading, network responses, and
+The steps are triggered by real page readiness, not a forced timer. The measured View-to-last-action duration is still saved in per-site storage,
+but the compact popup deliberately hides it. Slow website loading, network responses, and
 background-tab timer throttling can exceed 2 seconds. The extension does
 not click buttons that are missing or claim success before website
 confirmation. All other actions remain unchanged:
@@ -106,7 +105,7 @@ report other errors unrelated to these fixes; inspect the extension's
 ## Installation
 
 After ProwellJobs is deployed from the new repository commit, download
-**Dual Bot v2.1.6** from the Prowell administrator dashboard. Remove/disable
+**Dual Bot v2.1.7** from the Prowell administrator dashboard. Remove/disable
 the previous dual and separate bots, extract the new ZIP, and load the folder
 containing `manifest.json` through `chrome://extensions` with Developer Mode
 enabled. Reload the 4writers and Good-Writers site tabs. Press START separately
@@ -116,3 +115,14 @@ Writings or Rewritings; all three are supported.
 CI validates startup, packaging and simulated behavior. Real-site navigation,
 claim timing and availability still depend on the live account and browser;
 an empty “None” order list is not itself a malfunction.
+
+### Minimal popup in v2.1.7
+
+The extension popup has exactly two visible site names, **4writers.net**
+and **good-writers.com**, each with one **START AUTO-TAKE** button and
+one **STOP** button. Detailed status reports, explanations, test sound
+controls and performance statistics were removed from the **popup only**.
+All original refresh, sound, View, gradual scrolling, Take it, OK, and final
+acknowledgement scripts continue to run unchanged. START and STOP remain
+independently scoped to each site. An invisible accessibility status
+message provides button feedback without adding screen clutter.
