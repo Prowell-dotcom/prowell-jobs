@@ -12,12 +12,12 @@
   const sections=window.__prowellFourSections;
   if(!store||!sections)return;
   const VERSION='0.5.4',INTERVAL=2000,RENDER_RECOVERY_MS=12000;
-  let tabId=null,timer=null,startedAt=Date.now(),count=0,lastSection='';
+  let tabId=null,timer=null,timerMode='',startedAt=Date.now(),count=0,lastSection='';
   let status='',local={armed:false,claimConsentVersion:'',targetTabId:null,
     claim:null,attemptedIds:[],completed:[],refreshCount:0};
   const active=()=>Boolean(local.armed && local.claimConsentVersion===VERSION &&
     Number.isInteger(tabId) && local.targetTabId===tabId);
-  const stopTimer=()=>{if(timer!==null)clearTimeout(timer);timer=null;};
+  const stopTimer=()=>{if(timer!==null)clearTimeout(timer);timer=null;timerMode='';};
   function report(message){
     if(message===status)return;
     status=message;
@@ -55,7 +55,7 @@
       .trim().toLowerCase()===target) || null;
   }
   async function cycle(){
-    timer=null;
+    timer=null;timerMode='';
     if(!active()||local.claim||blocked()||unseenOrder()||
        !sections.available()||!listReady()){
       evaluate();return;
@@ -133,12 +133,15 @@
         void store.local.set({refreshStatus:'4writers list is still blank; retrying page load'})
           .then(()=>{if(active()&&!local.claim&&!unseenOrder())location.reload();});
       }else{
-        timer=setTimeout(()=>{timer=null;evaluate();},900);
+        timerMode='render-wait';
+        timer=setTimeout(()=>{timer=null;timerMode='';evaluate();},900);
       }
       return;
     }
+    if(timer!==null && timerMode==='render-wait')stopTimer();
     if(timer!==null)return;
     report('4writers: monitoring Writings + Rewritings; next check in 2 seconds');
+    timerMode='cycle';
     timer=setTimeout(()=>void cycle(),INTERVAL);
   }
   const relevant=new Set(['armed','claimConsentVersion','targetTabId','claim',
