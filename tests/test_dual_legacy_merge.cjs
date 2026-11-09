@@ -30,13 +30,14 @@ for(const site of ['four','good']){
  for(const name of ['content.js','refresh.js','background.js']){
    const original=read('legacy/'+site+'/'+name);
    const runner=read('legacy/'+site+'/runtime-'+name);
-   if(site==='four'&&name==='content.js'){
+   if(name==='content.js'){
      // Archived supplied engine is still exact, but the active wrapper has
      // two necessary, screenshot-grounded fixes: final acknowledgement label
      // and scrolling the acknowledgement modal instead of the background.
-     assert.match(runner,/I understand, take the/);
      assert.match(runner,/const ACCEPT = \/\^i\\s\+understand/);
      assert.match(runner,/lastAcknowledgementScroll/);
+     if(site==='four')assert.match(runner,/I understand, take the/);
+     else assert.match(runner,/Good-Writers acknowledgements/);
      assert.doesNotMatch(original,/lastAcknowledgementScroll/,
        'Original uploaded archive must remain unchanged');
    }else{
