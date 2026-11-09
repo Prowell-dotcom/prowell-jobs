@@ -87,6 +87,7 @@ jobs:
           node tests/test_dual_service_worker_boot.cjs
           node tests/test_dual_four_final_ack.cjs
           node tests/test_dual_good_final_ack.cjs
+          node tests/test_dual_gradual_view_scroll.cjs
           node tests/test_dual_legacy_merge.cjs
 
       - name: Run website tests
