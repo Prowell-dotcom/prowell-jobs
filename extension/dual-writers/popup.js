@@ -41,7 +41,10 @@ async function start(site){
     claim:null,soundRunId:crypto.randomUUID(),
     lastResult:'Watching continuously; each detected order pauses refresh during View and scroll.'
   });
-  notice.textContent=SITES[site].name+': AUTO-TAKE enabled until STOP (sound → View → instant scroll → Take it → OK → I understand).';
+  // Do not block monitoring/automatic clicks while preparing audio.
+  // If audio cannot be prewarmed, the normal order alert still tries playback.
+  void chrome.runtime.sendMessage({type:'PROWELL_PREPARE_ORDER_SOUND'}).catch(()=>{});
+  notice.textContent=SITES[site].name+': Every detected order triggers sound + instant View and scroll; Take it → OK → I understand only when available.';
   await render(site);
 }
 async function stop(site){
