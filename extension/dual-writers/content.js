@@ -28,6 +28,16 @@
            String(el.innerText||el.textContent||'')))return true;
     }
     const text=String(document.body?.innerText||'');
+    // Same-page processing details have no Take it. Keep the watcher paused
+    // until their selected order-details panel closes.
+    for(const panel of document.querySelectorAll?.(
+      '.order-info,.order-details,[class*="order-info"],[class*="order-detail"]')||[]){
+      if(panel.getClientRects?.().length &&
+        /order\s*(?:information|details|requirements|instructions)/i.test(
+          String(panel.innerText||panel.textContent||'')) &&
+        /(?:\border\s*(?:id|#)|\bid\s*[:#])\s*\d{5,16}/i.test(
+          String(panel.innerText||panel.textContent||'')))return true;
+    }
     return /order\s*(?:information|details|requirements|instructions)/i.test(text) &&
       [...(document.querySelectorAll?.(
         'button,a,input[type="button"],input[type="submit"],[role="button"]')||[])]
