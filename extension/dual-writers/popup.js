@@ -22,9 +22,7 @@ async function render(site){
   const running=val('armed')===true&&val('claimConsentVersion')===VERSION;
   document.querySelector('[data-start="'+site+'"]').disabled=!tab||running;
   document.querySelector('[data-stop="'+site+'"]').disabled=!running;
-  const check=document.querySelector('[data-accept="'+site+'"]');
-  check.checked=val('autoAcceptEnabled')===true;
-  check.disabled=running;
+  // START AUTO-TAKE enables acceptance, so no separate checkbox is needed.
   document.querySelector('[data-status="'+site+'"]').textContent=
     (running?'WATCHING TAB #'+val('targetTabId'):'STOPPED')+
     '\n'+(tab?'Signed-in page detected (tab #'+tab.id+')':'Open the official site in a browser tab')+
@@ -34,11 +32,11 @@ async function start(site){
   const tab=await pick(site);
   if(!tab){notice.textContent='Open '+SITES[site].name+' in a tab first.';return;}
   await put(site,{
-    autoFlow:null,seenOrderIds:[],armed:true,claimConsentVersion:VERSION,targetTabId:tab.id,
+    autoFlow:null,seenOrderIds:[],autoAcceptEnabled:true,armed:true,claimConsentVersion:VERSION,targetTabId:tab.id,
     claim:null,soundRunId:crypto.randomUUID(),
     lastResult:'Watching continuously; each detected order pauses refresh during View and scroll.'
   });
-  notice.textContent=SITES[site].name+' monitoring started and will continue after each handled order until STOP.';
+  notice.textContent=SITES[site].name+': AUTO-TAKE enabled until STOP (sound → View → instant scroll → Take it → OK → I understand).';
   await render(site);
 }
 async function stop(site){
@@ -50,18 +48,7 @@ async function stop(site){
 for(const site of Object.keys(SITES)){
   document.querySelector('[data-start="'+site+'"]').addEventListener('click',()=>void start(site));
   document.querySelector('[data-stop="'+site+'"]').addEventListener('click',()=>void stop(site));
-  document.querySelector('[data-accept="'+site+'"]').addEventListener('change',async e=>{
-    const checked=e.target.checked;
-    const raw=await chrome.storage.local.get(key(site,'armed'));
-    if(raw[key(site,'armed')]){await render(site);return;}
-    if(checked&&!confirm('Enable automatic order acceptance for every eligible new order until STOP on '+SITES[site].name+'? Review the platform rules and order responsibilities before continuing.')){
-      e.target.checked=false;return;
-    }
-    await put(site,{autoAcceptEnabled:checked,autoFlow:null});
-    notice.textContent=checked?SITES[site].name+' automatic acceptance enabled for eligible available orders until STOP.':
-      SITES[site].name+' automatic acceptance disabled.';
-    await render(site);
-  });
+
 }
 document.querySelector('#testSound').addEventListener('click',async()=>{
   try{const r=await chrome.runtime.sendMessage({type:'PROWELL_TEST_ORDER_SOUND'});
