@@ -69,6 +69,8 @@ async function test(slug,host,version,tabMessage){
  if(dual){
    assert.equal(events.filter(x=>x==='View:1234567891').length,0,
      'Dual bot must stay stopped, even after autoFlow clears');
+   // A new listing is available after manually closing the previous order.
+   cards=[make('1234567891')];
    await store.local.set({armed:true,targetTabId:12,autoFlow:null,seenOrderIds:[]});
    mutation([]);
    for(let k=0;k<12;k++)await Promise.resolve();
