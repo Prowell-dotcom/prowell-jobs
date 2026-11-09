@@ -14,11 +14,11 @@ label{display:block;margin:10px 0;font-size:12px}.warning{font-size:11px;backgro
 </head>
 <body>
 <h1>Prowell Dual-Platform Instant Bot</h1>
-<small>Version 2.1.4 · 4writers Writings + Rewritings · Good-Writers v1.0.4</small>
-<p>Uses your earlier order-handling scripts and adds sound alerts. On 4writers, it now alternates the Available Orders Writings and Rewritings sections every two seconds after each section loads. It pauses when an order appears. Good-Writers keeps its original refreshing behavior.</p>
+<small>Version 2.1.4 · 4writers Overview + Writings + Rewritings · Good-Writers v1.0.4</small>
+<p>Uses your earlier order-handling scripts and adds sound alerts. On 4writers, the blank Available Orders overview refreshes every 2 seconds; the Writings and Rewritings tabs alternate checks every 2 seconds when their lists are ready. Refreshing stops when an order appears. Good-Writers keeps its original refreshing behavior.</p>
 <section id="four" class="panel" aria-label="4writers settings">
 <h2>4writers.net</h2><div class="actions"><button class="start" data-start="four">START AUTO-TAKE</button><button class="stop" data-stop="four">STOP</button></div>
-<p>Writings + Rewritings monitored. Automatic acceptance ON after START; processing orders are previewed.</p>
+<p>Overview + Writings + Rewritings monitored. Automatic acceptance ON after START; processing orders are previewed.</p>
 <div class="status" data-status="four" role="status">Checking tabs...</div>
 </section>
 <section id="good" class="panel" aria-label="GoodWriters settings">
@@ -26,7 +26,7 @@ label{display:block;margin:10px 0;font-size:12px}.warning{font-size:11px;backgro
 <p>Automatic acceptance ON after START. Available orders only; processing orders are previewed.</p>
 <div class="status" data-status="good" role="status">Checking tabs...</div>
 </section>
-<p class="warning"><strong>Original scripts preserved:</strong> 4writers uses your v0.5.4 order-taking script with a dual-section refresh controller; Good-Writers uses v1.0.4 with its original 2-second refreshing. The separate audio notifier does not click or scroll. Processing orders only preview View/details, with no Take it action. Disable the stand-alone extensions when using this dual extension to prevent duplicate clicks and refreshes. Browser and network delays can affect speed.</p>
+<p class="warning"><strong>Original scripts preserved:</strong> 4writers uses your v0.5.4 order-taking script with a three-screen refresh controller; Good-Writers uses v1.0.4 with its original 2-second refreshing. The separate audio notifier does not click or scroll. Processing orders only preview View/details, with no Take it action. Disable the stand-alone extensions when using this dual extension to prevent duplicate clicks and refreshes. Browser and network delays can affect speed.</p>
 <button id="testSound" type="button">Test notification sound</button>
 <p id="notice" role="status"></p>
 <script src="popup.js"></script>
