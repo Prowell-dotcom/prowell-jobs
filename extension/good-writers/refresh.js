@@ -13,7 +13,7 @@
   let stoppedForVisibleOrder = false;
   let count = 0;
   let status = '';
-  let local = {armed:false,targetTabId:null,claim:null,claimConsentVersion:'',attemptedIds:[],completed:[]};
+  let local = {armed:false,targetTabId:null,claim:null,claimConsentVersion:'',attemptedIds:[],completed:[],autoFlow:null,seenOrderIds:[]};
   const interval = 1000;
   const isActive = () => !stoppedForVisibleOrder && local.armed && local.claimConsentVersion === '1.0.14' && local.targetTabId === tabId;
 
@@ -38,16 +38,42 @@
     return /captcha|verify you are human|unusual activity/i.test(text) ||
       Boolean(document.querySelector('iframe[src*="captcha"],[class*="g-recaptcha"]'));
   }
+  function detailsOpen(){
+    const surfaces=document.querySelectorAll?.(
+      '[role="dialog"],dialog,[aria-modal="true"],.modal,.popup,[class*="drawer"]')||[];
+    for(const el of surfaces){
+      if(el.getClientRects?.().length &&
+         /order\s*(?:information|details|requirements|instructions)|take it/i.test(
+           String(el.innerText||el.textContent||'')))return true;
+    }
+    const text=String(document.body?.innerText||'');
+    return /order\s*(?:information|details|requirements|instructions)/i.test(text) &&
+      [...(document.querySelectorAll?.(
+        'button,a,input[type="button"],input[type="submit"],[role="button"]')||[])]
+      .some(el=>/^take it$/i.test(String(el.innerText||el.textContent||el.value||'').trim()) &&
+        Boolean(el.getClientRects?.().length));
+  }
   function unseenOrderVisible(){
     const cards=window.__prowellCardDetector?.cards()||[];
-    const handled=new Set([...(local.attemptedIds||[]),...(local.completed||[])]);
-    return cards.some(c=>c.type==='processing'||(c.type==='available'&&!handled.has(c.id)));
+    const handled=new Set([...(local.attemptedIds||[]),
+      ...(local.completed||[]),...(local.seenOrderIds||[])]);
+    return cards.some(c=>['processing','available'].includes(c.type)&&!handled.has(String(c.id)));
   }
   function evaluate() {
     if (!isActive()) {
       cancel();
       if(stoppedForVisibleOrder)return;
       setStatus('Stopped — press START WATCHING');
+      return;
+    }
+    if (local.autoFlow?.enabled && Date.now()-Number(local.autoFlow.startedAt||0)<90000) {
+      cancel();
+      setStatus('Paused — handling order #'+local.autoFlow.orderId);
+      return;
+    }
+    if (detailsOpen()) {
+      cancel();
+      setStatus('Paused — order details still open');
       return;
     }
     if (local.claim) {
@@ -79,7 +105,9 @@
     setStatus('Refreshing every 1 second');
     timer = setTimeout(async () => {
       timer = null;
-      if (!isActive() || local.claim || challengeVisible() || !orderListVisible() || unseenOrderVisible()) {
+      if (!isActive() || local.claim || detailsOpen() ||
+          (local.autoFlow?.enabled && Date.now()-Number(local.autoFlow.startedAt||0)<90000) ||
+          challengeVisible() || !orderListVisible() || unseenOrderVisible()) {
         evaluate();
         return;
       }
@@ -91,17 +119,20 @@
         lastRefreshAt:at,
         refreshStatus:'Reloading Available Orders'
       });
-      if (isActive() && !local.claim && !unseenOrderVisible()) location.reload();
+      if (isActive() && !local.claim && !detailsOpen() && !unseenOrderVisible() &&
+          !(local.autoFlow?.enabled && Date.now()-Number(local.autoFlow.startedAt||0)<90000)) location.reload();
     },interval);
   }
-  const relevant = new Set(['armed','claimConsentVersion','targetTabId','claim','attemptedIds','completed']);
+  const relevant = new Set(['armed','claimConsentVersion','targetTabId','claim',
+    'attemptedIds','completed','autoFlow','seenOrderIds']);
   chrome.storage.onChanged.addListener((changes,area) => {
     if (area !== 'local') return;
     let touched = false;
     for (const key of relevant) {
       if (changes[key]) {
         local[key]=changes[key].newValue;
-        if(key==='armed' && changes[key].newValue===true) stoppedForVisibleOrder=false;
+        if((key==='armed' && changes[key].newValue===true) ||
+           (key==='autoFlow' && !changes[key].newValue)) stoppedForVisibleOrder=false;
         touched=true;
       }
     }
@@ -112,7 +143,7 @@
     tabId = res?.tabId ?? null;
     const stored = await chrome.storage.local.get([
       'armed','claimConsentVersion','targetTabId','claim','attemptedIds',
-      'completed','refreshCount'
+      'completed','refreshCount','autoFlow','seenOrderIds'
     ]);
     local={...local,...stored};
     count=Number(stored.refreshCount)||0;
