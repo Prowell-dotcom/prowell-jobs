@@ -140,8 +140,8 @@
     const candidates=[...set].filter(el=>{
       if(!el||!Number.isFinite(el.scrollHeight)||!Number.isFinite(el.clientHeight))return false;
       if(el.clientHeight<60||el.scrollHeight-el.clientHeight<=45)return false;
-      if(overlay&&(el===document.body||el===document.documentElement||
-        el===document.scrollingElement))return false;
+      if(overlay && (el===document.body||el===document.documentElement||
+        el===document.scrollingElement) && !overlay.contains?.(el))return false;
       if(!rendered(el)&&el!==document.scrollingElement&&el!==document.documentElement)return false;
       const st=getComputedStyle(el),overflow=String(st?.overflowY||'');
       return /auto|scroll|overlay|hidden/i.test(overflow) ||
@@ -157,7 +157,7 @@
       if(orderText(el))n+=20;
       if(button&&el.contains?.(button))n+=12;
       if(el===overlay)n-=10;
-      if(el===document.scrollingElement||el===document.documentElement)n-=70;
+      if(!overlay&&(el===document.scrollingElement||el===document.documentElement))n-=70;
       return n;
     };
     candidates.sort((a,b)=>score(b)-score(a));
