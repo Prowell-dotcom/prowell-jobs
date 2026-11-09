@@ -1,4 +1,4 @@
-# Prowell Dual-Platform Bot v2.1.5
+# Prowell Dual-Platform Bot v2.1.6
 
 ## Source engines and changes
 
@@ -49,12 +49,22 @@ processing an order.
 
 ### Gradual scrolling on both websites (only scrolling changed)
 
-Both active dual engines scroll the selected order-information popup in **8
-short increments** (approximately 0.3 seconds total when the browser runs
+Both active dual engines scroll the selected order-information popup in **6
+short increments** (approximately 0.14 seconds total when the browser runs
 timers normally) instead of jumping instantly. This applies to both available
 orders and processing-order previews, and also the long post-OK
 acknowledgement popup. The next Take it or I understand click happens only
-after the gradual scroll finishes. All other actions remain unchanged:
+after the gradual scroll finishes.
+
+**Post-View speed target:** The available-order workflow aims to complete
+View → smooth scroll → Take it → OK → smooth scroll → I understand in
+**2 seconds** after View when the website displays its controls promptly.
+The steps are triggered by real page readiness, not a forced timer. The
+popup reports the actual View-to-last-action duration and whether it met
+the 2-second target. Slow website loading, network responses, and
+background-tab timer throttling can exceed 2 seconds. The extension does
+not click buttons that are missing or claim success before website
+confirmation. All other actions remain unchanged:
 refreshing, sound, View, Take it, OK, acknowledgement, and reporting.
 
 Background tab throttling or page rendering may change the actual scrolling
@@ -96,7 +106,7 @@ report other errors unrelated to these fixes; inspect the extension's
 ## Installation
 
 After ProwellJobs is deployed from the new repository commit, download
-**Dual Bot v2.1.5** from the Prowell administrator dashboard. Remove/disable
+**Dual Bot v2.1.6** from the Prowell administrator dashboard. Remove/disable
 the previous dual and separate bots, extract the new ZIP, and load the folder
 containing `manifest.json` through `chrome://extensions` with Developer Mode
 enabled. Reload the 4writers and Good-Writers site tabs. Press START separately
