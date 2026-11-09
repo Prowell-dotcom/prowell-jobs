@@ -3,7 +3,7 @@
 // A regression here must fail if a future change clicks Take it before scrolling.
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const assert=require('node:assert/strict');
-async function run(site){
+async function run(site,preview=false){
  const host=site==='4writers'?'4writers.net':'good-writers.com';
  const tabMessage=site==='4writers'?'PROWELL_TAB_ID':'GW_TAB_ID';
  const events=[],scrolls=[],listeners=[];
@@ -44,7 +44,7 @@ async function run(site){
    return[pane];
   },addEventListener(){}
  };
- const flow={enabled:true,tabId:17,orderId:'1234567890',startedAt:Date.now(),
+ const flow={enabled:true,mode:preview?'scroll-only':'accept',tabId:17,orderId:'1234567890',startedAt:Date.now(),
   listUrl:'https://'+host+'/free_orders',stage:'await-view',stageStartedAt:Date.now()};
  const storage={autoFlow:flow,log:[],attemptedIds:[]};
  const chrome={
@@ -72,14 +72,21 @@ async function run(site){
  const deadline=Date.now()+8000;
  while(storage.autoFlow&&Date.now()<deadline)await new Promise(r=>setTimeout(r,30));
  assert.equal(storage.autoFlow,null,site+' workflow must finish');
- assert.deepEqual(events.map(x=>x.stage),['take','ok','understand']);
- assert(scrolls.filter(x=>x.stage==='take').length>=3,site+' must scroll before Take it');
- assert(events[0].scroll>0,'Take it cannot happen before scrolling');
- assert(events[1].time-events[0].time>=475,'OK wait must be roughly 0.5s');
- if(site==='4writers')assert(scrolls.some(x=>x.stage==='understand'));
- else assert.equal(scrolls.filter(x=>x.stage==='understand'&&x.pos>0).length,0);
- console.log(site+' View navigation → incremental scroll → confirmations: PASS');
+ if(preview){
+   assert.deepEqual(events,[],site+' scroll-only preview must not click any acceptance controls');
+   assert(scrolls.filter(x=>x.stage==='take').length>=3,site+' scroll-only must move the pane');
+   assert.equal(storage.lastScrollResult,'verified-movement');
+   console.log(site+' View navigation → automatic scroll, NO acceptance clicks: PASS');
+ }else{
+   assert.deepEqual(events.map(x=>x.stage),['take','ok','understand']);
+   assert(scrolls.filter(x=>x.stage==='take').length>=3,site+' must scroll before Take it');
+   assert(events[0].scroll>0,'Take it cannot happen before scrolling');
+   assert(events[1].time-events[0].time>=475,'OK wait must be roughly 0.5s');
+   if(site==='4writers')assert(scrolls.some(x=>x.stage==='understand'));
+   else assert.equal(scrolls.filter(x=>x.stage==='understand'&&x.pos>0).length,0);
+   console.log(site+' View navigation → incremental scroll → confirmations: PASS');
+ }
 }
-Promise.all([run('4writers'),run('good-writers')]).catch(e=>{
+Promise.all([run('4writers'),run('good-writers'),run('4writers',true),run('good-writers',true)]).catch(e=>{
  console.error(e);process.exitCode=1;
 });
