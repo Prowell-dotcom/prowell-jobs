@@ -268,10 +268,43 @@
       busy = false;
     }
   }
+  // View may navigate away before the original page's delayed handoff runs.
+  // Resume pending work only after verifying a distinct order-details view.
+  let viewRecoveryRunning=false;
+  async function resumeAfterView(){
+    if(viewRecoveryRunning || !guarded() || flow.stage!=='await-view')return;
+    viewRecoveryRunning=true;
+    try{
+      const deadline=Date.now()+STEP_TIMEOUT;
+      while(guarded()&&flow.stage==='await-view'&&Date.now()<deadline){
+        if(checkSecurity())throw Error('Security challenge detected after View');
+        const text=document.body?.innerText||'';
+        const idPresent=(text+' '+location.href).includes(String(flow.orderId));
+        const listPage=['available','overview','processing'].includes(
+          window.__prowellCardDetector?.pageKind?.());
+        const viewChanged=Boolean(flow.listUrl && location.href!==flow.listUrl);
+        const hasOrderDialog=[...document.querySelectorAll(DIALOGS)].some(el=>
+          visible(el) && ((el.innerText||el.textContent||'').includes(String(flow.orderId))||
+          Boolean(find('take') && el.contains?.(find('take')))));
+        if(idPresent && (hasOrderDialog || (viewChanged && !listPage) ||
+          (!listPage && Boolean(find('take'))))){
+          const next={...flow,stage:'take',stageStartedAt:Date.now()};
+          await chrome.storage.local.set({autoFlow:next});
+          flow=next;
+          break;
+        }
+        await sleep(150);
+      }
+    }catch(error){
+      await chrome.storage.local.set({lastResult:'Pending order View handoff failed: '+
+        String(error?.message||error)});
+    }finally{viewRecoveryRunning=false;}
+  }
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local' || !changes.autoFlow) return;
     flow = changes.autoFlow.newValue || null;
-    if (flow) void execute();
+    if (flow?.stage==='await-view') void resumeAfterView();
+    else if (flow) void execute();
   });
   // Safe diagnostic: scroll the currently open order-details pane only.
   // This never clicks order-taking or confirmation controls.
@@ -326,7 +359,8 @@
     tabId = response?.tabId ?? null;
     const stored = await chrome.storage.local.get(['autoFlow']);
     flow = stored.autoFlow || null;
-    void execute();
+    if(flow?.stage==='await-view')void resumeAfterView();
+    else void execute();
   });
   document.addEventListener('DOMContentLoaded', () => void execute(), {once: true});
 })();
