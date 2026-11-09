@@ -15,7 +15,7 @@
   let status = '';
   let local = {armed:false,targetTabId:null,claim:null,claimConsentVersion:'',attemptedIds:[],completed:[],autoFlow:null,seenOrderIds:[]};
   const interval = 1000;
-  const isActive = () => !stoppedForVisibleOrder && local.armed && local.claimConsentVersion === '1.0.15' && local.targetTabId === tabId;
+  const isActive = () => !stoppedForVisibleOrder && local.armed && local.claimConsentVersion === '1.0.16' && local.targetTabId === tabId;
 
   function setStatus(message) {
     if (message === status) return;
