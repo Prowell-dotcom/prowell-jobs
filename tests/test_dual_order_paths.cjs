@@ -45,7 +45,8 @@ async function detect(host,kind){
     host+' '+kind+' must stop refresh, alert, and click View in that order');
   assert.equal(state.autoFlow.orderId,id);
   assert.equal(state.autoFlow.mode,kind==='processing'?'processing-preview':'accept');
-  assert.equal(state.armed,true,'later orders remain armed');
+  assert.equal(state.armed,false,'Dual bot must stop until manually restarted');
+  assert.equal(state.targetTabId,null,'Detected order clears the monitoring target');
   assert.deepEqual(Array.from(state.seenOrderIds),[id]);
   console.log(host+' '+kind+': immediate stop + audible alert + View: PASS');
 }
