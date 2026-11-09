@@ -64,8 +64,15 @@ context.importScripts=(...files)=>{
    vm.runInContext(fs.readFileSync(abs,'utf8'),context,{filename:file});
  }
 };
-vm.runInContext(fs.readFileSync(path.join(base,'background.js'),'utf8'),
-  context,{filename:'background.js'});
+const worker=fs.readFileSync(path.join(base,'background.js'),'utf8');
+assert(!/\bimportScripts\s*\(/.test(worker),
+  'Dual worker must have no importScripts dependencies that break registration');
+for(const file of ['order-sound-background.js',
+  'legacy/four/runtime-background.js','legacy/good/runtime-background.js']){
+ assert(worker.includes(fs.readFileSync(path.join(base,file),'utf8')),
+   file+' must be embedded unchanged in the startup script');
+}
+vm.runInContext(worker,context,{filename:'background.js'});
 assert(events.messages.length>=6,'Both original background modules and sound must register');
 assert(events.tabsCreated.length>=3,'Both original new-tab handlers must register');
 function check(type){
