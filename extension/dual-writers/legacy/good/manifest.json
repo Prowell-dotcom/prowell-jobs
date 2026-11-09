@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "Prowell Good-Writers Assistant",
+  "version": "1.0.4",
+  "description": "Order detection, modal-aware scrolling and confirmation workflow; processing View preview (beta).",
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://good-writers.com/*",
+    "https://www.good-writers.com/*",
+    "https://prowelljobs.com/*"
+  ],
+  "action": {
+    "default_title": "Good-Writers Assistant",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://good-writers.com/*",
+        "https://www.good-writers.com/*"
+      ],
+      "js": [
+        "confirm-main.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://good-writers.com/*",
+        "https://www.good-writers.com/*"
+      ],
+      "js": [
+        "order-card.js",
+        "content.js",
+        "refresh.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}
