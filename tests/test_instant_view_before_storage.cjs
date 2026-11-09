@@ -63,10 +63,11 @@ async function simulate(slug,host,version,tabMessage,dual=false){
  assert(events.indexOf('save-start')<events.indexOf('View'));
  assert.equal(staged.autoFlow.stage,'await-view');
  assert.equal(staged.autoFlow.mode,'accept');
- assert.equal(staged.armed,false);
+ assert.equal(staged.armed,undefined,'Continuous watcher must not turn off START');
+ assert.deepEqual(Array.from(staged.seenOrderIds),['1234567890']);
  finishSaving();
  await Promise.resolve();
- assert.equal(state.armed,false);
+ assert.equal(state.armed,true,'Keep watching for the next order');
  console.log(slug+' '+host+': immediate refresh cancel and View before storage completion: PASS');
 }
 (async()=>{
