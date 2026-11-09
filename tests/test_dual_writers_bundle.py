@@ -31,7 +31,11 @@ class DualWritersBundleTests(unittest.TestCase):
                     self.assertEqual(len(script['js']),7 if any(
                         '4writers.net' in host for host in script['matches']) else 6)
                     self.assertTrue(any(name.endswith('/runtime-content.js') for name in script['js']))
-                    self.assertTrue(any(name.endswith('/runtime-refresh.js') for name in script['js']))
+                    if any('4writers.net' in host for host in script['matches']):
+                        self.assertIn('four-section-refresh.js',script['js'])
+                        self.assertIn('four-sections.js',script['js'])
+                    else:
+                        self.assertTrue(any(name.endswith('/runtime-refresh.js') for name in script['js']))
             self.assertIn('dual_four_',z.read('background.js').decode())
             self.assertIn('dual_good_',z.read('background.js').decode())
             self.assertIn('PROWELL_ORDER_SOUND',z.read('legacy-order-sound.js').decode())
