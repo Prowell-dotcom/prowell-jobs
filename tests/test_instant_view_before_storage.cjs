@@ -63,11 +63,17 @@ async function simulate(slug,host,version,tabMessage,dual=false){
  assert(events.indexOf('save-start')<events.indexOf('View'));
  assert.equal(staged.autoFlow.stage,'await-view');
  assert.equal(staged.autoFlow.mode,'accept');
- assert.equal(staged.armed,undefined,'Continuous watcher must not turn off START');
+ if(dual){
+   assert.equal(staged.armed,false,'Dual watcher MUST stop monitoring immediately');
+   assert.equal(staged.targetTabId,null,'Dual bot clears target until manual START');
+ }else{
+   assert.equal(staged.armed,undefined,'Single-site monitoring remains unchanged');
+ }
  assert.deepEqual(Array.from(staged.seenOrderIds),['1234567890']);
  finishSaving();
  await Promise.resolve();
- assert.equal(state.armed,true,'Keep watching for the next order');
+ assert.equal(state.armed,!dual,
+   'Only the dual bot must stay stopped after View until a manual START');
  console.log(slug+' '+host+': immediate refresh cancel and View before storage completion: PASS');
 }
 (async()=>{
