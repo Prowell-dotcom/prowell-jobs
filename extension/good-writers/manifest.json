@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Prowell Good-Writers Assistant",
-  "version": "1.0.10",
-  "description": "Order watcher with explicit opt-in to automatic order-details scrolling with optional acceptance.",
+  "version": "1.0.11",
+  "description": "Order watcher with explicit opt-in to foreground-only order-details scrolling with optional acceptance.",
   "permissions": [
     "storage",
     "tabs",
