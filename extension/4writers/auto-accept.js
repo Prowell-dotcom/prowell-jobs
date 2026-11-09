@@ -48,108 +48,124 @@
     return Boolean(r && r.width > 0 && r.height > 0 &&
       r.bottom > 0 && r.top < (window.innerHeight || 850));
   }
-  // Detect the actual foreground order popup. Never fall back to the webpage
-  // behind a visible popup, even when the background itself is scrollable.
-  const DIALOGS='[role="dialog"],dialog,[aria-modal="true"],.modal,.modal-body,.popup,[class*="modal"],[class*="dialog"],[class*="popup"],[class*="drawer"],[class*="lightbox"],[class*="order-info"],[class*="order-detail"]';
+  // Order details can be a foreground dialog OR the left-side main content
+  // in the writer dashboard. Never confuse the sidebar or hidden background
+  // with the content that contains the order instructions.
+  const DIALOGS='[role="dialog"],dialog,[aria-modal="true"],.modal,.modal-body,.popup,[class*="modal"],[class*="dialog"],[class*="popup"],[class*="drawer"],[class*="lightbox"]';
+  const DETAILS='main,[role="main"],#content,#main,.main,.main-content,.content-body,.order-info,.order-details,[class*="order-info"],[class*="order-detail"],[class*="instructions"],[class*="description"]';
   function rendered(el) {
     if(!visible(el) || el.hidden || el.getAttribute?.('aria-hidden')==='true')return false;
-    const style=getComputedStyle(el);
-    if(style?.display==='none' || style?.visibility==='hidden')return false;
-    const rect=el.getBoundingClientRect?.();
-    if(rect && rect.width===0 && rect.height===0)return false;
+    const st=getComputedStyle(el);
+    if(st?.display==='none'||st?.visibility==='hidden')return false;
+    const r=el.getBoundingClientRect?.();
+    if(r && !(r.width>0&&r.height>0))return false;
     return true;
   }
+  function orderText(el) {
+    const text=String(el?.innerText||el?.textContent||'');
+    return text.includes(String(flow?.orderId||'')) ||
+      /order information|order details|order instructions|order requirements|acknowledg/i.test(text);
+  }
   function foregroundSurfaces(button) {
-    const orderId=String(flow?.orderId||'');
-    const all=[...document.querySelectorAll(DIALOGS)].filter(rendered);
-    const relevant=all.filter(el=>{
-      const t=String(el.innerText||el.textContent||'');
-      return Boolean(button&&el.contains?.(button))||
-        (orderId&&t.includes(orderId))||
-        /order information|order details|order instructions|order requirements|acknowledg/i.test(t);
-    });
-    // Some pages hide the order ID in the modal header. A single visible
-    // dialog still outranks every scrollable element in the background.
-    const selected=relevant.length?relevant:all.length===1?all:[];
-    selected.sort((a,b)=>{
+    const candidates=new Set(document.querySelectorAll(DIALOGS));
+    // Nonstandard overlays can have no modal/dialog class. Identify them by
+    // fixed/absolute placement and actual order content, not page-wide selectors.
+    for(const el of document.querySelectorAll('body *')){
+      if(!rendered(el))continue;
+      const st=getComputedStyle(el);
+      if(!/fixed|absolute/i.test(st?.position||''))continue;
+      if(!orderText(el) && !el.contains?.(button))continue;
+      const r=el.getBoundingClientRect?.();
+      if(r && r.width>=180 && r.height>=120) candidates.add(el);
+    }
+    const matching=[...candidates].filter(el=>rendered(el)&&
+      (orderText(el)||el.contains?.(button)));
+    function validOverlay(el){
+      const st=getComputedStyle(el),r=el.getBoundingClientRect?.();
+      return el.getAttribute?.('role')==='dialog' ||
+        el.getAttribute?.('aria-modal')==='true' ||
+        /modal|dialog|popup|drawer|lightbox/i.test(String(el.className||'')) ||
+        (/fixed|absolute/i.test(st?.position||'') &&
+         Boolean(r && r.width>=180 && r.height>=120));
+    }
+    const surfaces=matching.filter(validOverlay);
+    surfaces.sort((a,b)=>{
       const score=el=>{
-        const text=String(el.innerText||el.textContent||'');
-        const style=getComputedStyle(el);
-        let value=0;
-        if(button&&el.contains?.(button))value+=60;
-        if(orderId&&text.includes(orderId))value+=25;
-        if(el.getAttribute?.('role')==='dialog'||el.getAttribute?.('aria-modal')==='true')value+=45;
-        if(/modal|dialog|popup|drawer/i.test(String(el.className||'')))value+=30;
-        value+=Math.min(100,parseInt(style?.zIndex,10)||0)/10;
-        return value;
+        const st=getComputedStyle(el);
+        let val=0;
+        if(el.contains?.(button))val+=100;
+        if(el.getAttribute?.('aria-modal')==='true')val+=50;
+        if(el.getAttribute?.('role')==='dialog')val+=40;
+        if(orderText(el))val+=20;
+        val+=Math.max(0,Math.min(100000,parseInt(st?.zIndex,10)||0))/100;
+        return val;
       };
       return score(b)-score(a);
     });
-    // If a real dialog is present, discard background order cards entirely.
-    const dialogs=selected.filter(el=>el.getAttribute?.('role')==='dialog' ||
-      el.getAttribute?.('aria-modal')==='true' ||
-      /(?:^|[\\s_-])(modal|dialog|popup|drawer)(?:$|[\\s_-])/i.test(String(el.className||'')));
-    if(dialogs.length){
-      dialogs.sort((a,b)=>{
-        const sa=getComputedStyle(a),sb=getComputedStyle(b);
-        return (parseInt(sb?.zIndex,10)||0)-(parseInt(sa?.zIndex,10)||0);
-      });
-      return [dialogs[0]];
-    }
-    return selected.length?[selected[0]]:[];
+    // Only the highest-priority overlay can control scrolling.
+    return surfaces.length?[surfaces[0]]:[];
   }
-  function dedicatedDetailsPage() {
+  function detailsPage(button) {
     const kind=window.__prowellCardDetector?.pageKind?.();
-    if(['available','overview','processing'].includes(kind))return false;
-    const current=String(location.href||'');
-    const changed=Boolean(flow?.listUrl&&flow.listUrl!==current);
-    const path=String(location.pathname||current);
-    const detailPath=/\/(?:order|view|detail|info)[/_-]/i.test(path);
-    const identified=Boolean(flow?.orderId && ((document.body?.innerText||'')+' '+current).includes(String(flow.orderId)));
-    return Boolean(identified&&(changed||detailPath)&&find('take'));
+    const url=String(location.href||'');
+    const changed=Boolean(flow?.listUrl&&flow.listUrl!==url);
+    const text=(document.body?.innerText||'')+' '+url;
+    const id=String(flow?.orderId||'');
+    const hasOrder=Boolean(id&&text.includes(id));
+    if(!hasOrder)return false;
+    if(button&&rendered(button)){
+      // The Take it action on a real order detail distinguishes this view
+      // from available/overview listings that merely show View links.
+      return changed || !['available','overview','processing'].includes(kind);
+    }
+    return changed && /order information|order details|instructions/i.test(text);
   }
   function scrollCandidates(stage,button) {
-    const surfaces=foregroundSurfaces(button);
-    const set=new Set(), isOverlay=surfaces.length>0;
-    if(isOverlay){
-      for(const surface of surfaces){
-        set.add(surface);
-        for(const node of surface.querySelectorAll?.('*')||[])set.add(node);
-      }
+    const overlays=foregroundSurfaces(button);
+    const set=new Set();
+    const overlay=overlays[0]||null;
+    if(overlay){
+      set.add(overlay);
+      for(const el of overlay.querySelectorAll?.('*')||[])set.add(el);
       for(let p=button?.parentElement;p&&p!==document.body;p=p.parentElement){
-        if(surfaces.some(surface=>surface===p||surface.contains?.(p)))set.add(p);
+        if(overlay===p||overlay.contains?.(p))set.add(p);
       }
-    }else if(dedicatedDetailsPage()){
-      // A genuine full-page order detail can scroll its own document.
-      // Listing pages and pages behind a modal are never eligible.
-      for(const node of document.querySelectorAll('body *'))set.add(node);
+    }else if(detailsPage(button)){
+      // Full-page order details use the page's content column, not sidebar.
+      const content=[...document.querySelectorAll(DETAILS)].filter(el=>
+        rendered(el) && (orderText(el)||el.contains?.(button)));
+      for(const el of content){
+        set.add(el);
+        for(const child of el.querySelectorAll?.('*')||[])set.add(child);
+      }
+      for(let p=button?.parentElement;p&&p!==document.body;p=p.parentElement)set.add(p);
+      // The outer scrollbar is appropriate only on a verified full detail
+      // page where no foreground dialog exists.
       set.add(document.scrollingElement||document.documentElement);
     }else return [];
     const candidates=[...set].filter(el=>{
       if(!el||!Number.isFinite(el.scrollHeight)||!Number.isFinite(el.clientHeight))return false;
-      if(el.clientHeight<60 || el.scrollHeight-el.clientHeight<=45)return false;
-      if(isOverlay&&(el===document.body||el===document.documentElement||
+      if(el.clientHeight<60||el.scrollHeight-el.clientHeight<=45)return false;
+      if(overlay&&(el===document.body||el===document.documentElement||
         el===document.scrollingElement))return false;
-      if(!rendered(el) && el!==document.scrollingElement)return false;
-      const style=getComputedStyle(el);
-      const overflow=String(style?.overflowY||'');
-      return /auto|scroll|hidden|overlay/i.test(overflow)||isOverlay;
+      if(!rendered(el)&&el!==document.scrollingElement&&el!==document.documentElement)return false;
+      const st=getComputedStyle(el),overflow=String(st?.overflowY||'');
+      return /auto|scroll|overlay|hidden/i.test(overflow) ||
+        Boolean(overlay && el===overlay) ||
+        el===document.scrollingElement||el===document.documentElement;
     });
-    function score(el){
-      const style=getComputedStyle(el);
-      const txt=String(el.innerText||el.textContent||'');
-      const cl=String(el.className||'');
-      let value=0;
-      if(isOverlay)value+=120;
-      if(/auto|scroll|overlay/i.test(String(style?.overflowY||'')))value+=55;
-      if(/body|scroll|instructions|description|content|details/i.test(cl))value+=45;
-      if(stage==='take'&&/instructions|description|order information|order details/i.test(txt))value+=20;
-      if(stage==='understand'&&/understand|acknowledg|terms/i.test(txt))value+=20;
-      if(button&&el.contains?.(button))value+=12;
-      if(surfaces.includes(el))value-=8;
-      if(el===document.scrollingElement||el===document.documentElement)value-=60;
-      return value;
-    }
+    const score=el=>{
+      const st=getComputedStyle(el),cl=String(el.className||'');
+      let n=0;
+      if(overlay)n+=120;
+      if(/auto|scroll|overlay/i.test(String(st?.overflowY||'')))n+=60;
+      if(/body|details|instructions|description|content|scroll/i.test(cl))n+=50;
+      if(orderText(el))n+=20;
+      if(button&&el.contains?.(button))n+=12;
+      if(el===overlay)n-=10;
+      if(el===document.scrollingElement||el===document.documentElement)n-=70;
+      return n;
+    };
     candidates.sort((a,b)=>score(b)-score(a));
     return candidates;
   }
