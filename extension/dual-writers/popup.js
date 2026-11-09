@@ -4,7 +4,7 @@ const SITES={
   four:{name:'4writers',prefix:'dual_four_',legacyVersion:'0.5.4',host:/^https:\/\/(?:www\.)?4writers\.net\//i},
   good:{name:'GoodWriters',prefix:'dual_good_',legacyVersion:'1.0.4',host:/^https:\/\/(?:www\.)?good-writers\.com\//i}
 };
-const VERSION='2.1.5';
+const VERSION='2.1.6';
 const notice=document.querySelector('#notice');
 const key=(site,name)=>SITES[site].prefix+name;
 const put=(site,values)=>chrome.storage.local.set(Object.fromEntries(
@@ -18,7 +18,8 @@ async function render(site){
   const obj=SITES[site],tab=await pick(site);
   const names=['armed','claimConsentVersion','targetTabId','autoAcceptEnabled',
     'claim','lastResult','refreshStatus','refreshCount','lastRefreshAt',
-    'fourLastCheckedSection','fourLastCheckedAt','fourCycleCount'];
+    'fourLastCheckedSection','fourLastCheckedAt','fourCycleCount',
+    'lastPostViewDurationMs','lastPostViewWithin2s'];
   const raw=await chrome.storage.local.get(names.map(n=>key(site,n)));
   const val=n=>raw[key(site,n)];
   const running=val('armed')===true&&val('claimConsentVersion')===obj.legacyVersion;
@@ -36,7 +37,11 @@ async function render(site){
         (val('fourLastCheckedAt')?' at '+new Date(val('fourLastCheckedAt')).toLocaleTimeString():'')+
         '\nSection checks: '+(Number(val('fourCycleCount'))||0)
       : '')+
-    '\nLast action: '+(val('lastResult')||'Ready');
+    '\nLast action: '+(val('lastResult')||'Ready')+
+    (typeof val('lastPostViewDurationMs')==='number'
+      ? '\nView → last step: '+(val('lastPostViewDurationMs')/1000).toFixed(2)+
+        's (2s target '+(val('lastPostViewWithin2s')?'met':'exceeded')+')'
+      : '\nView → last step: not measured');
 }
 async function start(site){
   const tab=await pick(site);
@@ -44,6 +49,7 @@ async function start(site){
   await put(site,{
     autoFlow:null,seenOrderIds:[],autoAcceptEnabled:true,armed:true,claimConsentVersion:SITES[site].legacyVersion,targetTabId:tab.id,
     claim:null,soundRunId:crypto.randomUUID(),
+    lastPostViewDurationMs:null,lastPostViewWithin2s:null,
     ...(site==='four'?{fourLastCheckedSection:'',fourLastCheckedAt:null,
       fourCycleCount:0,refreshCount:0,lastRefreshAt:null}:{}),
     lastResult:site==='four'
