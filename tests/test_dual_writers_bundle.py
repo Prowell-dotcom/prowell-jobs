@@ -11,7 +11,7 @@ class DualWritersBundleTests(unittest.TestCase):
         root=Path(__file__).resolve().parents[1]
         data=store.dual_writers_bundle(root)
         self.assertLess(len(data),store.MAX_ZIP_BYTES)
-        self.assertEqual(store.validate_bundle(data),'2.0.5')
+        self.assertEqual(store.validate_bundle(data),'2.1.0')
         self.assertNotEqual(data,store.bundled_extension(root))
         self.assertNotEqual(data,store.good_writers_bundle(root))
         with zipfile.ZipFile(io.BytesIO(data)) as z:
@@ -23,12 +23,21 @@ class DualWritersBundleTests(unittest.TestCase):
             self.assertIn('https://good-writers.com/*',manifest['host_permissions'])
             for script in manifest['content_scripts']:
                 if script.get('world') == 'MAIN':
-                    self.assertIn('confirm-main.js',script['js'])
+                    self.assertEqual(len(script['js']),1)
+                    self.assertTrue(script['js'][0].endswith('/confirm-main.js'))
                 else:
-                    self.assertEqual(script['js'][0],'scoped-store.js')
-                    self.assertIn('auto-accept.js',script['js'])
+                    self.assertEqual(script['js'][:2],['scoped-store.js','legacy-bridge.js'])
+                    self.assertIn('legacy-order-sound.js',script['js'])
+                    self.assertEqual(len(script['js']),6)
+                    self.assertTrue(any(name.endswith('/runtime-content.js') for name in script['js']))
+                    self.assertTrue(any(name.endswith('/runtime-refresh.js') for name in script['js']))
             self.assertIn('dual_four_',z.read('background.js').decode())
             self.assertIn('dual_good_',z.read('background.js').decode())
+            self.assertIn('PROWELL_ORDER_SOUND',z.read('legacy-order-sound.js').decode())
+            self.assertNotIn('auto-accept.js',z.namelist())
+            self.assertNotIn('content.js',z.namelist())
+            self.assertIn('legacy/good/runtime-content.js',z.namelist())
+            self.assertIn('legacy/four/runtime-content.js',z.namelist())
 
     def test_docker_copies_dual_sources(self):
         root=Path(__file__).resolve().parents[1]
