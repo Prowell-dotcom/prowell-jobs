@@ -270,6 +270,55 @@
     flow = changes.autoFlow.newValue || null;
     if (flow) void execute();
   });
+  // Safe diagnostic: scroll the currently open order-details pane only.
+  // This never clicks order-taking or confirmation controls.
+  async function testScrollOnly() {
+    if(checkSecurity())return {ok:false,reason:'Security challenge present'};
+    if(!document.body)return {ok:false,reason:'Document not ready'};
+    const pageText=document.body.innerText||'';
+    if(!find('take')&&!/order information|order details|order requirements/i.test(pageText)){
+      return {ok:false,reason:'Open View on an order-details page first'};
+    }
+    const direct=scrollCandidates('take',find('take'));
+    const roots=[...direct];
+    if(!roots.length){
+      roots.push(...[...document.querySelectorAll('body *')].filter(node=>
+        visible(node)&&Number.isFinite(node.scrollHeight)&&Number.isFinite(node.clientHeight)&&
+        node.clientHeight>=60&&node.scrollHeight-node.clientHeight>60&&
+        /auto|scroll|hidden/i.test(getComputedStyle(node).overflowY||'')));
+      const page=document.scrollingElement||document.documentElement;
+      if(page&&page.scrollHeight-page.clientHeight>60)roots.push(page);
+    }
+    for(const root of roots){
+      let steps=0;
+      const initial=root.scrollTop||0;
+      for(let n=0;n<100;n++){
+        if(checkSecurity())return {ok:false,reason:'Security challenge appeared'};
+        const before=root.scrollTop||0;
+        const limit=Math.max(0,root.scrollHeight-root.clientHeight);
+        if(before>=limit-3)break;
+        root.scrollTop=Math.min(limit,before+140);
+        await sleep(100);
+        if(Math.abs((root.scrollTop||0)-before)<2)break;
+        steps++;
+      }
+      if(steps>0){
+        const result={ok:true,steps,container:String(root.className||root.tagName||'page').slice(0,100)};
+        await chrome.storage.local.set({lastScrollStage:'manual-test',lastScrollResult:'verified-movement',
+          lastScrollSteps:steps,lastScrollContainer:result.container,lastScrollAt:Date.now()});
+        return result;
+      }
+    }
+    const error={ok:false,reason:roots.length?'Found panels but none moved':'No scrollable order-details panel found'};
+    await chrome.storage.local.set({lastScrollStage:'manual-test',lastScrollResult:'failed',
+      lastScrollSteps:0,lastScrollAt:Date.now()});
+    return error;
+  }
+  chrome.runtime.onMessage.addListener((message,sender,respond)=>{
+    if(message?.type!=='PROWELL_SCROLL_TEST')return;
+    void testScrollOnly().then(respond).catch(error=>respond({ok:false,reason:String(error?.message||error)}));
+    return true;
+  });
   chrome.runtime.sendMessage({type: TAB_MESSAGE}, async response => {
     tabId = response?.tabId ?? null;
     const stored = await chrome.storage.local.get(['autoFlow']);
