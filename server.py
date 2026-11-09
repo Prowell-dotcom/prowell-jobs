@@ -1241,6 +1241,10 @@ class Handler(SimpleHTTPRequestHandler):
             return owner_extension.list_report_events(self, db_connection)
         if path == '/api/admin/good-writers/events':
             return good_writers_reports.events(self, db_connection)
+        if path == '/api/admin/dual-writers/extension/status':
+            return owner_extension.dual_writers_status(self, ROOT)
+        if path == '/api/admin/dual-writers/extension/download':
+            return owner_extension.dual_writers_download(self, ROOT)
         if path == '/api/admin/good-writers/extension/status':
             return owner_extension.good_writers_status(self, ROOT)
         if path == '/api/admin/good-writers/extension/download':

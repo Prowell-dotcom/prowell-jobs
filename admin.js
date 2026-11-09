@@ -38,9 +38,9 @@ async function markSectionViewed(section){
  unreadCounts[section]=0;
  renderUnreadBadges();
 }
-function showSignedIn(){signedIn=true;$('#privateParaphraserPanel').hidden=false;$('#paraphraserShortcut').hidden=false;window.updateProwellParaphraser?.();window.dispatchEvent(new CustomEvent('prowell-admin-session',{detail:{signedIn:true}}));$('#activityPanel').hidden=false;$('#externalWriterPanel').hidden=false;$('#ownerExtensionPanel').hidden=false;loadOwnerExtensionStatus().catch(err=>setExtensionStatus(err.message));loadGoodWritersStatus().catch(err=>setGoodWritersStatus(err.message));renderUnreadBadges();$('#keyForm').hidden=true;$('#sessionPanel').hidden=false;$('#notificationDiagnostics').hidden=activeTab!=='notification_outbox';$('#extensionClaimNotifications').hidden=activeTab!=='notification_outbox';$('#goodWritersClaimNotifications').hidden=activeTab!=='notification_outbox';}
+function showSignedIn(){signedIn=true;$('#privateParaphraserPanel').hidden=false;$('#paraphraserShortcut').hidden=false;window.updateProwellParaphraser?.();window.dispatchEvent(new CustomEvent('prowell-admin-session',{detail:{signedIn:true}}));$('#activityPanel').hidden=false;$('#externalWriterPanel').hidden=false;$('#ownerExtensionPanel').hidden=false;loadOwnerExtensionStatus().catch(err=>setExtensionStatus(err.message));loadGoodWritersStatus().catch(err=>setGoodWritersStatus(err.message));loadDualWritersStatus().catch(err=>setDualWritersStatus(err.message));renderUnreadBadges();$('#keyForm').hidden=true;$('#sessionPanel').hidden=false;$('#notificationDiagnostics').hidden=activeTab!=='notification_outbox';$('#extensionClaimNotifications').hidden=activeTab!=='notification_outbox';$('#goodWritersClaimNotifications').hidden=activeTab!=='notification_outbox';}
 function showSignedOut(message='Signed out. Use your administrator account to sign in again.'){
- signedIn=false;$('#privateParaphraserPanel').hidden=true;$('#paraphraserShortcut').hidden=true;window.updateProwellParaphraser?.();window.dispatchEvent(new CustomEvent('prowell-admin-session',{detail:{signedIn:false}}));csrfToken='';unreadCounts={};$('#activityPanel').hidden=true;$('#externalWriterPanel').hidden=true;$('#ownerExtensionPanel').hidden=true;$('#downloadOwnerExtension').disabled=true;$('#downloadGoodWritersExtension').disabled=true;renderUnreadBadges();dataset={jobs:[],applications:[],candidates:[],reviews:[],reports:[],alerts:[],notification_outbox:[]};
+ signedIn=false;$('#privateParaphraserPanel').hidden=true;$('#paraphraserShortcut').hidden=true;window.updateProwellParaphraser?.();window.dispatchEvent(new CustomEvent('prowell-admin-session',{detail:{signedIn:false}}));csrfToken='';unreadCounts={};$('#activityPanel').hidden=true;$('#externalWriterPanel').hidden=true;$('#ownerExtensionPanel').hidden=true;$('#downloadOwnerExtension').disabled=true;$('#downloadGoodWritersExtension').disabled=true;$('#downloadDualWritersExtension').disabled=true;renderUnreadBadges();dataset={jobs:[],applications:[],candidates:[],reviews:[],reports:[],alerts:[],notification_outbox:[]};
  $('#sessionPanel').hidden=true;$('#keyForm').hidden=false;$('#adminKey').value='';
  $('#adminStatus').textContent=message;$('#notificationDiagnostics').hidden=true;$('#extensionClaimNotifications').hidden=true;$('#goodWritersClaimNotifications').hidden=true;render();
 }
@@ -291,6 +291,35 @@ $('#revokeGoodWriters')?.addEventListener('click',async()=>{
   $('#goodWritersPairValue').value='';$('#goodWritersPairPanel').hidden=true;
   $('#goodWritersPairStatus').textContent='Good-Writers reporting code revoked.';
  }catch(err){$('#goodWritersPairStatus').textContent=err.message;}
+});
+
+function setDualWritersStatus(message){
+ const node=$('#dualWritersExtensionStatus');if(node)node.textContent=message;
+}
+async function loadDualWritersStatus(){
+ if(!signedIn)return;
+ const data=await api('/api/admin/dual-writers/extension/status');
+ $('#downloadDualWritersExtension').disabled=!data.available;
+ setDualWritersStatus(data.available
+  ? 'Dual-platform package ready · Version '+data.version+' · '+Math.round(data.sizeBytes/1024)+' KB'
+  : 'Dual-platform package is unavailable.');
+}
+$('#downloadDualWritersExtension')?.addEventListener('click',async()=>{
+ if(!signedIn)return;
+ const button=$('#downloadDualWritersExtension');button.disabled=true;
+ setDualWritersStatus('Preparing your dual-platform bot...');
+ try{
+  const response=await fetch('/api/admin/dual-writers/extension/download',
+   {credentials:'same-origin',cache:'no-store'});
+  if(!response.ok){const error=await response.json();throw Error(error.error||'Download failed.');}
+  const file=await response.blob(),url=URL.createObjectURL(file);
+  const anchor=document.createElement('a');anchor.href=url;
+  anchor.download='prowell-dual-writers-instant-bot.zip';
+  document.body.appendChild(anchor);anchor.click();anchor.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
+  setDualWritersStatus('ZIP downloaded. Extract it, then use Load unpacked in Chrome.');
+ }catch(error){setDualWritersStatus('Download failed: '+error.message);}
+ finally{if(signedIn)button.disabled=false;}
 });
 
 function setGoodWritersStatus(message){

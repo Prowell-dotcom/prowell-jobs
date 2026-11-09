@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prowell Dual-Platform Instant Bot</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:15px;width:355px;background:#f5f8fc;color:#172b48;font:13px/1.45 system-ui,Arial,sans-serif}
+h1{font-size:18px;margin:0}h2{font-size:15px;margin:0 0 8px}p{margin:5px 0 9px;color:#4b617b}
+small{color:#52687d}.panel{border:1px solid #d5e1f0;border-radius:11px;background:#fff;padding:12px;margin-top:12px}
+.actions{display:flex;gap:8px}.actions button{flex:1}.status{white-space:pre-wrap;font-size:12px;color:#344763;margin:8px 0 0}
+button{cursor:pointer;padding:9px;border-radius:8px;border:1px solid #bbcde0;background:#fff;font-weight:700}
+button:disabled{opacity:.5;cursor:default}.start{background:#167751;color:#fff;border-color:#167751}.stop{color:#b52c3b}
+label{display:block;margin:10px 0;font-size:12px}.warning{font-size:11px;background:#fff6e5;padding:10px;border-radius:8px;margin:12px 0}
+</style>
+</head>
+<body>
+<h1>Prowell Dual-Platform Instant Bot</h1>
+<small>Version 2.0.0 · 4writers + GoodWriters</small>
+<p>Both platforms can monitor separately. Refreshes every 1 second; on an order, opens View and jumps directly to the bottom.</p>
+<section id="four" class="panel" aria-label="4writers settings">
+<h2>4writers.net</h2><div class="actions"><button class="start" data-start="four">START</button><button class="stop" data-stop="four">STOP</button></div>
+<label><input type="checkbox" data-accept="four"> Enable instant Take It → OK → I Understand for available orders</label>
+<div class="status" data-status="four" role="status">Checking tabs...</div>
+</section>
+<section id="good" class="panel" aria-label="GoodWriters settings">
+<h2>good-writers.com</h2><div class="actions"><button class="start" data-start="good">START</button><button class="stop" data-stop="good">STOP</button></div>
+<label><input type="checkbox" data-accept="good"> Enable instant Take It → OK → I Understand for available orders</label>
+<div class="status" data-status="good" role="status">Checking tabs...</div>
+</section>
+<p class="warning">Do not run your older single-site extensions on the same tabs at the same time. Automatic acceptance is opt-in for each site and each monitoring session. Security challenges and unclear controls stop acceptance.</p>
+<button id="testSound" type="button">Test notification sound</button>
+<p id="notice" role="status"></p>
+<script src="popup.js"></script>
+</body></html>

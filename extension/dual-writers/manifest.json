@@ -1,0 +1,54 @@
+{
+  "manifest_version": 3,
+  "name": "Prowell Dual-Platform Instant Bot",
+  "version": "2.0.0",
+  "description": "Independent 4writers and GoodWriters order watchers with instant foreground-details scrolling, event-driven opt-in acceptance.",
+  "permissions": [
+    "storage",
+    "tabs",
+    "offscreen"
+  ],
+  "host_permissions": [
+    "https://4writers.net/*",
+    "https://www.4writers.net/*",
+    "https://good-writers.com/*",
+    "https://www.good-writers.com/*"
+  ],
+  "action": {
+    "default_title": "Prowell Dual-Platform Instant Bot",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://4writers.net/*",
+        "https://www.4writers.net/*"
+      ],
+      "js": [
+        "scoped-store.js",
+        "four-order-card.js",
+        "content.js",
+        "refresh.js",
+        "auto-accept.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://good-writers.com/*",
+        "https://www.good-writers.com/*"
+      ],
+      "js": [
+        "scoped-store.js",
+        "good-order-card.js",
+        "content.js",
+        "refresh.js",
+        "auto-accept.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}
