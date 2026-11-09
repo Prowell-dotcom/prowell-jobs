@@ -56,11 +56,13 @@
       // An explicit popup opt-in is required for each monitoring session.
       // Never auto-accept already-assigned processing orders.
       const config=await chrome.storage.local.get({autoAcceptEnabled:false});
-      if(first.type==='available' && config.autoAcceptEnabled===true){
+      const accepts=first.type==='available' && config.autoAcceptEnabled===true;
+      if(accepts){
         await chrome.storage.local.set({autoAcceptEnabled:false}); // one detection per opt-in
+        // Pending until View actually opens. Never run acceptance on the order list.
         await chrome.storage.local.set({autoFlow:{
-          enabled:true,orderId:String(first.id),tabId,startedAt:Date.now(),stage:'take',
-          stageStartedAt:Date.now()
+          enabled:true,orderId:String(first.id),tabId,startedAt:Date.now(),
+          stage:'await-view',stageStartedAt:Date.now()
         }});
       }
       // Persist STOP before the page can navigate. This is the only state
@@ -68,7 +70,20 @@
       await chrome.storage.local.set(updated);
       // Do NOT scroll the list or the opened order-details page.
       // Do NOT click Take it, OK, I understand, or another order.
-      if(first.view.isConnected)first.view.click();
+      if(first.view.isConnected){
+        first.view.click();
+        if(accepts){
+          // Allow the website to open the details modal or its official tab
+          // before asking the acceptance script to find the scrolling pane.
+          await new Promise(resolve=>setTimeout(resolve,350));
+          const f=await chrome.storage.local.get({autoFlow:null});
+          if(f.autoFlow?.orderId===String(first.id) && f.autoFlow.stage==='await-view'){
+            await chrome.storage.local.set({autoFlow:{
+              ...f.autoFlow,stage:'take',stageStartedAt:Date.now()
+            }});
+          }
+        }
+      }
     }catch(error){
       try{
         await chrome.storage.local.set({
