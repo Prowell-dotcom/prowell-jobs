@@ -54,6 +54,28 @@
     return sections.links().find(el=>String(el.innerText||el.textContent||'')
       .trim().toLowerCase()===target) || null;
   }
+  // The neutral 4writers account screen is a separate orders surface. It
+  // has no selected Writings/Rewritings tab, so section switching never
+  // refreshes it. Reload THIS SAME SCREEN every 2 seconds while idle.
+  async function refreshOverview(){
+    timer=null;timerMode='';
+    if(!active()||local.claim||blocked()||unseenOrder()||
+       !sections.overview()||document.readyState!=='complete'){
+      evaluate();return;
+    }
+    const at=Date.now();
+    count+=1;
+    await store.local.set({
+      refreshCount:count,lastRefreshAt:at,
+      fourLastCheckedSection:'overview',fourLastCheckedAt:at,
+      fourCycleCount:count,
+      refreshStatus:'4writers: refreshing neutral Available Orders screen'
+    });
+    status='4writers: refreshing neutral Available Orders screen';
+    if(!active()||local.claim||blocked()||unseenOrder()||
+       !sections.overview())return evaluate();
+    location.reload();
+  }
   async function cycle(){
     timer=null;timerMode='';
     if(!active()||local.claim||blocked()||unseenOrder()||
@@ -119,6 +141,25 @@
       report('4writers order detected — refresh stopped for View');
       return;
     }
+    // The blank default orders screen (neither tab selected) is a genuine
+    // monitoring surface, not a failed section render. It gets its own idle
+    // reload timer and never forces navigation into a Writings/Rewritings tab.
+    if(sections.overview()){
+      if(document.readyState!=='complete'){
+        stopTimer();
+        report('4writers: waiting for neutral Available Orders screen to load');
+        timerMode='render-wait';
+        timer=setTimeout(()=>{timer=null;timerMode='';evaluate();},900);
+        return;
+      }
+      if(timer!==null && timerMode==='render-wait')stopTimer();
+      if(timer!==null&&timerMode==='overview')return;
+      stopTimer();
+      report('4writers: refreshing neutral Available Orders screen every 2 seconds');
+      timerMode='overview';
+      timer=setTimeout(()=>void refreshOverview(),INTERVAL);
+      return;
+    }
     if(!sections.available()){
       stopTimer();
       report('4writers waiting — open Available Orders / Writings or Rewritings');
@@ -138,7 +179,7 @@
       }
       return;
     }
-    if(timer!==null && timerMode==='render-wait')stopTimer();
+    if(timer!==null && (timerMode==='render-wait'||timerMode==='overview'))stopTimer();
     if(timer!==null)return;
     report('4writers: monitoring Writings + Rewritings; next check in 2 seconds');
     timerMode='cycle';
