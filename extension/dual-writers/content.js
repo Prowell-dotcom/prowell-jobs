@@ -16,7 +16,7 @@
   const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,
     soundRunId:'',claim:null,lastResult:'Ready',log:[],autoAcceptEnabled:false,
     autoFlow:null,seenOrderIds:[]};
-  let state={...DEFAULTS},tabId=null,opening=false,queued=false,sawFlow=false;
+  let state={...DEFAULTS},tabId=null,opening=false,queued=false;
   // Preserve the monitoring session while one order is being viewed.
   // Pause further detection while that order panel is still on screen.
   function detailsOpen(){
@@ -67,7 +67,11 @@
       card.view?.isConnected && typeof card.view.click==='function');
     if(!first)return;
     opening=true; // synchronous: prevent all subsequent observer triggers
-    window.__prowellCancelRefresh?.(); // stop reload in this same event-loop turn
+    // Stop this monitoring session immediately. Only a fresh owner START may
+    // arm it again; finishing the selected order must never restart refresh.
+    state.armed=false;
+    state.targetTabId=null;
+    window.__prowellCancelRefresh?.(); // cancel the live refresh timer now
 
     // Request the notification sound immediately and independently of View. The background audio
     // handler stays active after the local armed state is cleared.
@@ -81,13 +85,14 @@
     }
     const processing=first.type==='processing';
     const accepts=!processing && state.autoAcceptEnabled===true;
-    const message='Order #'+first.id+' ('+first.type+') detected; paused refresh and opened View.'+
+    const message='Order #'+first.id+' ('+first.type+') detected; monitoring stopped until START is pressed again; opened View.'+
       (processing?' Processing-order scroll test; Take it is not expected.':
        accepts?' Full automatic acceptance enabled.':' Preview-only scrolling.');
     const entry=new Date().toLocaleTimeString()+' '+message;
     // Synchronous, same-task cancellation. Never wait for storage to stop refresh.
-    // Keep START and the optional consent active for future orders until STOP.
-    // This order is marked seen before View, preventing an endless re-open loop.
+    // Keep the selected order flow active, but leave watching OFF. Its
+    // acceptance permission is captured in flow.mode before stopping.
+    // Remember this ID to avoid duplicate View/sound actions.
     state.seenOrderIds=[...seen,String(first.id)].slice(-150);
     const flow={
       enabled:true,mode:processing?'processing-preview':accepts?'accept':'scroll-only',
@@ -100,8 +105,8 @@
     // The acceptance script observes later storage changes if navigation wins.
     try{
       const saving=store.local.set({
-        autoFlow:flow,seenOrderIds:state.seenOrderIds,
-        refreshStatus:'Paused — handling order #'+first.id,
+        armed:false,targetTabId:null,autoFlow:flow,seenOrderIds:state.seenOrderIds,
+        refreshStatus:'Stopped after order #'+first.id+' — press START to monitor again',
         lastResult:message,log:[...(state.log||[]),entry].slice(-30)
       });
       if(!first.view.isConnected)throw Error('View disappeared before it could be clicked');
@@ -115,11 +120,8 @@
     }
   }
   function schedule(){
-    // Release the single-order handoff after its details close, without
-    // requiring another START click. No duplicate trigger for the seen ID.
-    if(opening && sawFlow && !flowActive() && !detailsOpen()){
-      opening=false;sawFlow=false;
-    }
+    // This is a one-shot START session. Never re-arm after View, scrolling,
+    // confirmations, storage changes or closing the order details.
     if(!active()||opening||flowActive()||detailsOpen()||queued)return;
     queued=true;
     queueMicrotask(()=>{queued=false;void detect().catch(()=>{});});
@@ -130,7 +132,6 @@
       if(Object.prototype.hasOwnProperty.call(DEFAULTS,key))
         state[key]=changed[key].newValue;
     }
-    if(changed.autoFlow?.newValue?.enabled)sawFlow=true;
     schedule();
   });
   chrome.runtime.onMessage.addListener((message,sender,respond)=>{
