@@ -32,7 +32,7 @@ $('arm').addEventListener('click',async()=>{
 });
 $('stop').addEventListener('click',async()=>{
  await chrome.storage.local.set({autoFlow:null});
- await store({armed:false,targetTabId:null,lastResult:'Stopped by owner'});
+ await store({autoAcceptEnabled:false,armed:false,targetTabId:null,lastResult:'Stopped by owner'});
  $('notice').textContent='Monitoring stopped. Any in-progress acceptance workflow was cancelled.';
 });
 chrome.storage.onChanged.addListener((changes,area)=>{
