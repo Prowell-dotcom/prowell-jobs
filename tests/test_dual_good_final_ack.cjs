@@ -37,7 +37,7 @@ async function check(label){
   getClientRects(){return [{}]},
   getAttribute(){return null},
   closest(){return popup},
-  click(){clicked.push('acknowledgement-click')}
+  click(){clicked.push('acknowledgement-click');popupEvents.push('acknowledgement-click')}
  };
  const body={innerText:'ORDER INFORMATION Customer information and conditions',
   scrollHeight:3000,clientHeight:800};
@@ -82,7 +82,7 @@ async function check(label){
   location:{origin:'https://good-writers.com',href:'https://good-writers.com/available_orders'},
   queueMicrotask,MutationObserver:class{observe(){}},
   Event:class{},Date,Promise,Set,URL,Error,
-  setTimeout(){return 1},clearTimeout(){},
+  setTimeout(fn,ms){if(ms===42)queueMicrotask(fn);return 1},clearTimeout(){},
   setInterval(){return 1},
   getComputedStyle(){return {position:'fixed',overflowY:'auto'}},
  };
@@ -98,7 +98,12 @@ async function check(label){
    'Background document must never be scrolled by post-OK step');
  assert.equal(state.lastAcknowledgementScroll,'scrolled-popup',
    'Show evidence of actual popup movement');
- assert.deepEqual(popupEvents,['popup-scroll 1720']);
+ assert.equal(popupEvents.filter(e=>e.startsWith('popup-scroll ')).length,8,
+   'Scrolling must be gradual, not an instant jump');
+ assert.equal(popupEvents.at(-1),'acknowledgement-click',
+   'Final acceptance must occur only after all scrolling steps');
+ assert.equal(popupEvents[0].startsWith('popup-scroll '),true);
+ assert.equal(popupEvents.at(-2),'popup-scroll 1720');
  console.log('Good-Writers post-OK '+label+': popup bottom and final click PASS');
 }
 
