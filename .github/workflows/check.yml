@@ -50,6 +50,7 @@ jobs:
           node tests/test_order_audio.cjs
           node tests/test_view_only_handoff.cjs
           node tests/test_auto_accept.cjs
+          node tests/test_view_navigation_scroll.cjs
 
       - name: Run website tests
         run: python -m unittest discover -s tests -v
