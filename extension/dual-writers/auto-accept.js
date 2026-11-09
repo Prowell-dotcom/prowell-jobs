@@ -146,8 +146,12 @@
     const candidates=[...set].filter(el=>{
       if(!el||!Number.isFinite(el.scrollHeight)||!Number.isFinite(el.clientHeight))return false;
       if(el.clientHeight<60||el.scrollHeight-el.clientHeight<=45)return false;
-      if(overlay&&(el===document.body||el===document.documentElement||
-        el===document.scrollingElement))return false;
+      // Allow an actual descendant of the order overlay, even if a test or
+      // embedded document exposes it as the scrolling element. Never scroll
+      // document roots outside the verified foreground overlay.
+      if(overlay && (el===document.body ||
+        ((el===document.documentElement || el===document.scrollingElement) &&
+         !overlay.contains?.(el))))return false;
       if(!rendered(el)&&el!==document.scrollingElement&&el!==document.documentElement)return false;
       const st=getComputedStyle(el),overflow=String(st?.overflowY||'');
       return /auto|scroll|overlay|hidden/i.test(overflow) ||
