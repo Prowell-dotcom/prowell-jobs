@@ -51,8 +51,8 @@ async function detect(host,kind){
   console.log(host+' '+kind+': immediate stop + audible alert + View: PASS');
 }
 
-async function detailFlow(host,kind){
-  const processing=kind==='processing',events=[],listeners=[];
+async function detailFlow(host,kind,variant='standard'){
+  const processing=kind==='processing',screenshot=variant==='screenshot',events=[],listeners=[];
   const state={autoFlow:{enabled:true,
     mode:processing?'processing-preview':'accept',orderKind:kind,orderId:id,
     tabId:8,startedAt:Date.now(),stage:'await-view',
@@ -82,10 +82,14 @@ async function detailFlow(host,kind){
     top=n;events.push('DETAILS SCROLL:'+n);
   }});
   const modal={
-    isConnected:true,hidden:false,className:'modal order-details',innerText:'ORDER DETAILS ID '+id,
+    isConnected:true,hidden:false,
+    // Screenshot variant: a plain positioned window with ORDER INFORMATION
+    // text and long content, but no class="modal" and no role="dialog".
+    className:screenshot?'unknown-order-window':'modal order-details',
+    innerText:(screenshot?'ORDER INFORMATION Order #':'ORDER DETAILS ID ')+id+' Subject Law Description',
     clientHeight:480,scrollHeight:480,contains(){return true},
     getClientRects(){return[1]},getBoundingClientRect:rect,
-    getAttribute(k){return k==='role'?'dialog':null},
+    getAttribute(k){return screenshot?null:(k==='role'?'dialog':null)},
     querySelectorAll(){return processing?[pane]:[pane,button()]}
   };
   function button(){
@@ -106,7 +110,9 @@ async function detailFlow(host,kind){
     documentElement:null,querySelector(){return null},addEventListener(){},
     querySelectorAll(q){
       if(q.startsWith('button,a,input'))return processing||step==='done'?[]:[button()];
-      if(q.startsWith('[role="dialog"]'))return[modal];
+      if(q.startsWith('[role="dialog"]'))return screenshot?[]:[modal];
+      if(q.startsWith('[class*="assignment"]') || q.startsWith('[id*="order"]'))
+        return screenshot?[modal]:[];
       if(q.startsWith('main,'))return[pane];
       return[];
     }
@@ -146,11 +152,14 @@ async function detailFlow(host,kind){
     assert(events.indexOf('DETAILS SCROLL:910')<events.indexOf('CLICK take'));
   }
   assert(Date.now()-started<1500,'simulated event-driven path should finish without added waits');
-  console.log(host+' '+kind+': '+events.join(' → ')+'; STOP at correct step: PASS');
+  console.log(host+' '+kind+' '+variant+': '+events.join(' → ')+
+    '; popup scroll without background movement: PASS');
 }
 (async()=>{
   for(const host of ['4writers.net','good-writers.com']){
     await detect(host,'available');await detect(host,'processing');
     await detailFlow(host,'available');await detailFlow(host,'processing');
+    await detailFlow(host,'available','screenshot');
+    await detailFlow(host,'processing','screenshot');
   }
 })().catch(error=>{console.error(error);process.exitCode=1;});
