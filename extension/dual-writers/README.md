@@ -1,4 +1,4 @@
-# Prowell Dual-Platform Instant Bot (v2.0.4)
+# Prowell Dual-Platform Instant Bot (v2.0.5)
 
 The combined Chrome/Edge Manifest V3 extension monitors **4writers.net** and
 **good-writers.com** independently. Use only the dual bot if you want both
@@ -16,11 +16,17 @@ selecting the folder with `manifest.json`. Reload the order pages as well.
 - Both Available Orders and Processing Orders lists are monitored with the
   existing one-second reload interval when it is safe to refresh. Browser
   background throttling and site delays may increase actual intervals.
-- Upon detection of a new order ID: synchronously cancel the refresh timer,
-  immediately request an audible notification and click **View** without
-  waiting for sound playback or a storage-write callback.
-- On the selected order details, jump once and instantly to the bottom of the
-  **actual order-details scrolling pane**, not the page behind it.
+- On the **first detected available or processing order** in that START
+  session: synchronously cancel the refresh timer, switch monitoring to
+  **STOPPED**, request the notification sound and immediately click **View**
+  without waiting for sound or storage writes. Once stopped, **refresh never
+  restarts** automatically — not when View closes, after scroll or after
+  Take it/OK/I understand. Only pressing **START AUTO-TAKE** again rearms it.
+- On the selected **ORDER INFORMATION** popup, find its visible, scrollable
+  inner content and jump instantly to its bottom, never the page behind it.
+  Detect the foreground popup by heading, order ID and geometry even if it
+  has no standard modal class. The order description may be any length.
+  If the scroll cannot be confirmed, show a failure rather than a false PASS.
 - An AVAILABLE order card has **Files + View**. After scrolling, click
   **Take it**, then **OK**, then **I understand** as each control becomes
   available. No fixed sleeps or gradual scrolling.
@@ -32,10 +38,11 @@ selecting the folder with `manifest.json`. Reload the order pages as well.
 - A processing preview records PASS/FAIL in the dual extension popup. A
   processing preview is a test of detection, sound, View and scroll, **not**
   a real test of the availability-only Take it / confirmation flow.
-- Already-detected order IDs are skipped until a new START session to avoid
-  repeated notifications and accidental duplicate actions.
-- The workflow returns control to the site after completion and resumes
-  monitoring once its details are closed and a supported orders list is open.
+- Already-detected order IDs are skipped within the current monitoring session
+  to prevent duplicate alerts or actions.
+- After opening a detected order, the watcher remains **STOPPED**. Closing
+  the popup does not resume refreshing. A new START explicitly begins another
+  one-order session and clears the prior handoff latch.
 - STOP turns off all automatic acceptance for its selected site. A security
   challenge, ambiguity or unexpected controls stop that order's action flow.
 
