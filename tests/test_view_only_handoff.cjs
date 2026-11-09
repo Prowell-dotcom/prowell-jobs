@@ -7,7 +7,7 @@ const path=require('node:path');
 
 async function run(slug,kind){
   const site=slug==='4writers'?'4writers.net':'good-writers.com';
-  const version=slug==='4writers'?'0.5.14':'1.0.14';
+  const version=slug==='4writers'?'0.5.15':'1.0.15';
   const tabType=slug==='4writers'?'PROWELL_TAB_ID':'GW_TAB_ID';
   const runId='8a8b7c6d-4e5f-4a29-9012-123456789abc';
   const chronology=[],subscribers=[],clicks=[];
