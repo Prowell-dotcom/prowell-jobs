@@ -36,7 +36,12 @@
     cancel();
     status = 'Stopped — opening detected order';
   };
-  function orderListVisible(){const kind=window.__prowellCardDetector?.pageKind();return kind==='available'||(IS_FOUR&&kind==='overview');}
+  // Continue monitoring both Available and Processing listings. During
+  // View/scroll, the instant cancellation flag stops the active reload timer.
+  function orderListVisible(){
+    const kind=window.__prowellCardDetector?.pageKind();
+    return kind==='available'||kind==='processing'||(IS_FOUR&&kind==='overview');
+  }
   function challengeVisible() {
     const text = document.body?.innerText || '';
     return /captcha|verify you are human|unusual activity/i.test(text) ||
@@ -51,6 +56,16 @@
            String(el.innerText||el.textContent||'')))return true;
     }
     const text=String(document.body?.innerText||'');
+    // Processing detail panels have no Take it. Keep refresh paused while
+    // their details remain open, including same-URL inline order panes.
+    for(const panel of document.querySelectorAll?.(
+      '.order-info,.order-details,[class*="order-info"],[class*="order-detail"]')||[]){
+      if(panel.getClientRects?.().length &&
+        /order\s*(?:information|details|requirements|instructions)/i.test(
+          String(panel.innerText||panel.textContent||'')) &&
+        /(?:\border\s*(?:id|#)|\bid\s*[:#])\s*\d{5,16}/i.test(
+          String(panel.innerText||panel.textContent||'')))return true;
+    }
     return /order\s*(?:information|details|requirements|instructions)/i.test(text) &&
       [...(document.querySelectorAll?.(
         'button,a,input[type="button"],input[type="submit"],[role="button"]')||[])]
@@ -97,7 +112,7 @@
     }
     if (!orderListVisible()) {
       cancel();
-      setStatus('Waiting — open account overview or Available Orders → Writings');
+      setStatus('Waiting — open Available Orders or Processing Orders');
       return;
     }
     if (unseenOrderVisible()) {
