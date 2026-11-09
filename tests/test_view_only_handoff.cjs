@@ -44,7 +44,7 @@ async function run(slug,kind){
     storage:{local:{
       get:async keys=>Object.fromEntries((Array.isArray(keys)?keys:Object.keys(keys)).map(k=>[k,state[k]])),
       async set(delta){
-        chronology.push('stopped stored');
+        chronology.push('watcher state stored');
         Object.assign(state,delta);
         const changes=Object.fromEntries(Object.entries(delta).map(([k,v])=>[k,{newValue:v}]));
         for(const fn of subscribers)fn(changes,'local');
@@ -65,14 +65,16 @@ async function run(slug,kind){
   observer([{target:body}]);
   await new Promise(resolve=>setTimeout(resolve,20));
   assert.deepEqual(clicks,['View'],slug+' '+kind+' must click ONLY View');
-  assert.equal(state.armed,false,'Watcher must stop permanently');
-  assert.equal(state.targetTabId,null,'Stop must clear active tab');
+  assert.equal(state.armed,true,'Watcher must remain armed for the next order');
+  assert.equal(state.targetTabId,7,'Monitoring must remain bound to the original tab');
   assert.equal(state.claim,null,'No claim state should be persisted');
+  assert.equal(state.autoFlow?.orderId,'1234567890','View handoff must target the selected order');
+  assert(Array.from(state.seenOrderIds||[]).includes('1234567890'),'Handled order ID must be remembered');
   assert.equal(chronology[0],'sound requested');
   assert.equal(chronology[1],'refresh cancelled');
-  assert(chronology.indexOf('stopped stored')>0);
-  assert(chronology.indexOf('stopped stored')<chronology.indexOf('View clicked'),
-    'Must stop refreshing before opening View');
+  assert(chronology.indexOf('watcher state stored')>0);
+  assert(chronology.indexOf('watcher state stored')<chronology.indexOf('View clicked'),
+    'Must pause refreshing before opening View');
   assert.equal(chronology.filter(x=>x==='sound requested').length,1);
   assert.equal(chronology.includes('scroll'),false,'Bot must not scroll any page');
   observer([{target:body}]);
