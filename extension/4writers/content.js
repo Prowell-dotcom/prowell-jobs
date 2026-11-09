@@ -8,9 +8,9 @@
   if(window.__prowellViewOnlyV057)return;
   window.__prowellViewOnlyV057=true;
 
-  const VERSION='0.5.13',TAB_MESSAGE='PROWELL_TAB_ID';
+  const VERSION='0.5.14',TAB_MESSAGE='PROWELL_TAB_ID';
   const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,
-    soundRunId:'',claim:null,lastResult:'Ready',log:[]};
+    soundRunId:'',claim:null,lastResult:'Ready',log:[],autoAcceptEnabled:false};
   let state={...DEFAULTS},tabId=null,opening=false,queued=false;
   const active=()=>Boolean(state.armed && state.claimConsentVersion===VERSION &&
     tabId!==null && tabId===state.targetTabId);
@@ -28,6 +28,7 @@
       card.view?.isConnected && typeof card.view.click==='function');
     if(!first)return;
     opening=true; // synchronous: prevent all subsequent observer triggers
+    window.__prowellOrderDetected=true; // cancel refresh in this tab immediately
 
     // Start the sound before stopping the watcher. The background audio
     // handler stays active after the local armed state is cleared.
@@ -50,29 +51,25 @@
       log:[...(state.log||[]),entry].slice(-30)
     };
     try{
-      // An explicit popup opt-in is required for each monitoring session.
-      // Never auto-accept already-assigned processing orders.
-      const config=await chrome.storage.local.get({autoAcceptEnabled:false});
-      const accepts=first.type==='available' && config.autoAcceptEnabled===true;
-      if(accepts) await chrome.storage.local.set({autoAcceptEnabled:false}); // one acceptance per opt-in
-      // Instant details scrolling is ALWAYS enabled, even in manual-acceptance mode.
-      // Only available orders with explicit opt-in proceed to Take it.
-      await chrome.storage.local.set({autoFlow:{
-        enabled:true,mode:accepts?'accept':'scroll-only',orderId:String(first.id),
-        tabId,startedAt:Date.now(),listUrl:location.href,
-        stage:'await-view',stageStartedAt:Date.now()
-      }});
+      // Acceptance consent was loaded when monitoring began. Do not run a
+      // separate storage read and three sequential writes before View.
+      const accepts=first.type==='available' && state.autoAcceptEnabled===true;
+      const now=Date.now();
+      const nextFlow={
+        enabled:true,mode:accepts?'accept':'scroll-only',
+        orderId:String(first.id),tabId,startedAt:now,listUrl:location.href,
+        stage:'await-view',stageStartedAt:now
+      };
+      // ONE atomic transition: disable refresh, save navigation handoff, and
+      // consume single-order consent before opening the site's View control.
+      // No timers, polling pauses, or gradual scrolling are introduced.
+      await chrome.storage.local.set({
+        ...updated,autoFlow:nextFlow,
+        ...(accepts?{autoAcceptEnabled:false}:{})
+      });
+      if(!first.view.isConnected)throw Error('View button disappeared');
+      first.view.click();
 
-      // Persist STOP before the page can navigate. This is the only state
-      // change, and it prevents refresh.js from rearming on the detail page.
-      await chrome.storage.local.set(updated);
-      // Do NOT scroll the list or the opened order-details page.
-      // Do NOT click Take it, OK, I understand, or another order.
-      if(first.view.isConnected){
-        first.view.click();
-        // Auto-accept observes this View immediately, including navigation.
-        // Do not insert a timer: it reacts when the actual details appear.
-      }
     }catch(error){
       try{
         await chrome.storage.local.set({
