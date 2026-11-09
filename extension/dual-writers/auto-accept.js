@@ -77,6 +77,16 @@
     // Never scan every element on the page: that delayed View and recognition
     // on complex writer dashboards. Use real dialogs and the button's ancestors.
     const possible=[...document.querySelectorAll(DIALOGS)];
+    // Processing View often opens a details overlay that is not a <dialog>
+    // or a class literally named "modal". Discover these foreground surfaces
+    // only when the standard dialog search finds no verified order surface.
+    if(previewingProcessing() && !possible.some(el=>rendered(el) && orderText(el))){
+      const extras=document.querySelectorAll?.(
+        '[class*="assignment"],[class*="order"],[class*="detail"],' +
+        '[class*="overlay"],[class*="window"],[style*="position"],' +
+        '[style*="overflow"],[role="main"],main')||[];
+      for(const el of [...extras].slice(0,2000))possible.push(el);
+    }
     for(let node=button?.parentElement,depth=0;node&&depth<14;node=node.parentElement,depth++){
       if(node===document.body)break;
       possible.push(node);
@@ -88,6 +98,10 @@
         el.getAttribute?.('aria-modal')==='true' ||
         /modal|dialog|popup|drawer|lightbox/i.test(String(el.className||'')) ||
         (/fixed|absolute/i.test(String(style?.position||'')) &&
+          Boolean(r && r.width>=180 && r.height>=120)) ||
+        (previewingProcessing() &&
+          /assignment|order-detail|order-info|details-window|scroll-pane/i.test(
+            String(el.className||'')+' '+String(el.id||'')) &&
           Boolean(r && r.width>=180 && r.height>=120));
       return overlay && (el.contains?.(button) || orderText(el));
     });
@@ -179,8 +193,12 @@
          !overlay.contains?.(el))))return false;
       if(!rendered(el)&&el!==document.scrollingElement&&el!==document.documentElement)return false;
       const st=getComputedStyle(el),overflow=String(st?.overflowY||'');
+      // The real details scroll node can be a child of an overlay without
+      // declaring overflow on that exact node (frameworks set it on wrappers).
+      // Probe such descendants safely: only an observed scrollTop change is
+      // accepted. Never probe the document behind an overlay.
       return /auto|scroll|overlay|hidden/i.test(overflow) ||
-        Boolean(overlay && el===overlay) ||
+        Boolean(overlay && (el===overlay || overlay.contains?.(el))) ||
         el===document.scrollingElement||el===document.documentElement;
     });
     const score=el=>{
@@ -265,8 +283,12 @@
       // Skip scrolling only when content is genuinely short or the target is
       // already visible; never click a hidden Take it behind an unscrolled pane.
       if((genuinelyShort && (!target || inViewport(target))) ||
-         (target && inViewport(target) && confirmedDetail))return;
-      throw Error('Order-details scroll panel not found; background was not scrolled');
+         (target && inViewport(target) && confirmedDetail)){
+        void store.local.set({lastScrollStage:stage,lastScrollResult:'no-scroll-needed',
+          lastScrollSteps:0,lastScrollAt:Date.now(),lastScrollContainer:'details fit viewport'});
+        return {result:'no-scroll-needed',pixels:0,container:'details fit viewport'};
+      }
+      throw Error('No scrollable foreground order-details pane recognized; background was protected');
     }
     let alreadyAtEnd=0;
     for(const root of roots){
@@ -280,14 +302,22 @@
       instantScroll(root,bottom);
       const after=Number(root.scrollTop)||0;
       if(after>=bottom-5 && after>before+1){
+        const name=String(root.className||root.tagName||'order-panel').slice(0,100);
         void store.local.set({lastScrollStage:stage,lastScrollSteps:1,
           lastScrollResult:'instant-bottom',lastScrollAt:Date.now(),
-          lastScrollContainer:String(root.className||root.tagName||'order-panel').slice(0,100)});
-        return;
+          lastScrollContainer:name,lastScrollPixels:after-before});
+        return {result:'instant-bottom',pixels:after-before,container:name};
       }
     }
-    if(alreadyAtEnd===roots.length)return;
-    throw Error('Could not jump to the bottom of the order-details panel');
+    if(alreadyAtEnd===roots.length){
+      const root=roots[0];
+      const name=String(root?.className||root?.tagName||'order-panel').slice(0,100);
+      void store.local.set({lastScrollStage:stage,lastScrollSteps:0,
+        lastScrollResult:'already-at-bottom',lastScrollAt:Date.now(),
+        lastScrollContainer:name,lastScrollPixels:0});
+      return {result:'already-at-bottom',pixels:0,container:name};
+    }
+    throw Error('Foreground details pane found but scrollTop did not move');
   }
   async function locate(stage, scrollAllowed) {
     let el=find(stage);
@@ -351,7 +381,7 @@
           // Common fast path for both new and processing orders. Process only
           // once the selected details panel is visible, then instant jump.
           await waitForOrderDetails();
-          await jumpToBottom('take');
+          const scroll=await jumpToBottom('take');
           if(flow.mode==='accept' && !previewingProcessing()){
             await clickTakeNow();
             continue; // OK and I understand fire on readiness, no fixed delay
@@ -359,14 +389,19 @@
           const id=String(flow.orderId);
           const processing=previewingProcessing();
           const details=await store.local.get({log:[],processingPreviewedIds:[]});
+          const moved=scroll.result==='instant-bottom';
           const message=processing
-            ? 'Processing order #'+id+': View and instant scroll completed. No Take it button; stopped at the correct step.'
-            : 'Order #'+id+': order details scrolled; review and accept manually.';
+            ? 'Processing order #'+id+': View opened; '+(moved
+              ? 'scrolled '+scroll.pixels+'px inside '+scroll.container
+              : 'scroll result: '+scroll.result+' ('+scroll.container+')')+
+              '. No Take it expected; processing test ended.'
+            : 'Order #'+id+': details scroll result: '+scroll.result+'; review and accept manually.';
           await store.local.set({
             autoFlow:null,lastResult:message,refreshStatus:message,
             ...(processing?{
               processingPreviewedIds:[...new Set([...(details.processingPreviewedIds||[]),id])].slice(-150),
-              lastProcessingPreview:{orderId:id,result:'scroll-passed',at:Date.now()}
+              lastProcessingPreview:{orderId:id,result:moved?'scroll-passed':scroll.result,
+                container:scroll.container,pixels:scroll.pixels,at:Date.now()}
             }:{}),
             log:[...(details.log||[]),new Date().toLocaleTimeString()+' '+message].slice(-30)
           });
@@ -434,8 +469,16 @@
       updateStage('scroll');
       void execute();
     }catch(error){
-      await store.local.set({lastResult:'View handoff failed: '+
-        String(error?.message||error)});
+      // A missing details wrapper must not leave autoFlow active for 90s,
+      // silently blocking another processing-order test.
+      const id=String(flow?.orderId||'');
+      const reason='View handoff failed: '+String(error?.message||error);
+      const processing=previewingProcessing();
+      await store.local.set({autoFlow:null,lastResult:reason,
+        refreshStatus:reason,
+        ...(processing?{lastProcessingPreview:{orderId:id,
+          result:'scroll-failed',reason,at:Date.now()}}:{})});
+      flow=null;
     }finally{viewRecoveryRunning=false;}
   }
   store.onChanged.addListener((changes, area) => {
