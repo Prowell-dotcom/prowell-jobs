@@ -5,10 +5,10 @@
 (() => {
   'use strict';
   if(window!==window.top || !/^https:\/\/(?:www\.)?good-writers\.com$/i.test(location.origin))return;
-  if(window.__prowellWatcherV1015)return;
-  window.__prowellWatcherV1015=true;
+  if(window.__prowellWatcherV1016)return;
+  window.__prowellWatcherV1016=true;
 
-  const VERSION='1.0.15',TAB_MESSAGE='GW_TAB_ID';
+  const VERSION='1.0.16',TAB_MESSAGE='GW_TAB_ID';
   const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,
     soundRunId:'',claim:null,lastResult:'Ready',log:[],autoAcceptEnabled:false,
     autoFlow:null,seenOrderIds:[]};
