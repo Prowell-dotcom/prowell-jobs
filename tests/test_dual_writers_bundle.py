@@ -38,6 +38,8 @@ class DualWritersBundleTests(unittest.TestCase):
             self.assertNotIn('content.js',z.namelist())
             self.assertIn('legacy/good/runtime-content.js',z.namelist())
             self.assertIn('legacy/four/runtime-content.js',z.namelist())
+            self.assertIn('legacy/four/runtime-background.js',z.namelist())
+            self.assertIn('legacy/good/runtime-background.js',z.namelist())
 
     def test_docker_copies_dual_sources(self):
         root=Path(__file__).resolve().parents[1]
