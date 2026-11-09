@@ -130,7 +130,7 @@
       if(!rendered(el))return false;
       const t=String(el.innerText||el.textContent||'');
       return t.includes(id) &&
-        /order\\s*(?:information|details|instructions|requirements)/i.test(t) &&
+        /order\s*(?:information|details|instructions|requirements)/i.test(t) &&
         (!button||el.contains?.(button));
     });
     candidates.sort((a,b)=>String(a.innerText||'').length-String(b.innerText||'').length);
