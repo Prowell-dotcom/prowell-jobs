@@ -31,7 +31,7 @@ async function render(site){
     '\n'+(val('claim')?'Order workflow: '+String(val('claim').stage||'working'):'No active order')+
     '\nRefresh: '+(val('refreshStatus')||'Not started')+
     (site==='four'
-      ? '\n4writers sections: Writings + Rewritings'+
+      ? '\n4writers screens: Overview + Writings + Rewritings'+
         '\nLast checked: '+(val('fourLastCheckedSection')||'not yet')+
         (val('fourLastCheckedAt')?' at '+new Date(val('fourLastCheckedAt')).toLocaleTimeString():'')+
         '\nSection checks: '+(Number(val('fourCycleCount'))||0)
@@ -47,14 +47,14 @@ async function start(site){
     ...(site==='four'?{fourLastCheckedSection:'',fourLastCheckedAt:null,
       fourCycleCount:0,refreshCount:0,lastRefreshAt:null}:{}),
     lastResult:site==='four'
-      ? 'Monitoring both Writings and Rewritings (2-second section cycle) with audio alerts.'
+      ? 'Monitoring Overview + Writings + Rewritings (2-second idle checks) with audio alerts.'
       : 'Running the supplied original Good-Writers engine with audio alerts.'
   });
   // Do not block monitoring/automatic clicks while preparing audio.
   // If audio cannot be prewarmed, the normal order alert still tries playback.
   void chrome.runtime.sendMessage({type:'PROWELL_PREPARE_ORDER_SOUND'}).catch(()=>{});
   notice.textContent=site==='four'
-    ? '4writers: watching Writings + Rewritings. It switches sections every 2 seconds when the order list is ready.'
+    ? '4writers: monitoring Overview + Writings + Rewritings. The blank Overview reloads every 2 seconds while idle.'
     : 'Good-Writers: original bot activated with a notification sound.';
   await render(site);
 }
