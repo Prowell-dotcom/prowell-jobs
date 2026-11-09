@@ -1,0 +1,43 @@
+'use strict';
+// The dual popup must match the user's supplied screenshots: exactly one
+// site name and one START AUTO-TAKE / STOP pair for each platform, without
+// the old walls of status text. All workflow scripts stay in the manifest.
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const base=path.join(__dirname,'../extension/dual-writers');
+const html=fs.readFileSync(path.join(base,'popup.html'),'utf8');
+const js=fs.readFileSync(path.join(base,'popup.js'),'utf8');
+const manifest=JSON.parse(fs.readFileSync(path.join(base,'manifest.json'),'utf8'));
+assert.equal(manifest.version,'2.1.7');
+const visible=html
+  .replace(/<style>[\s\S]*?<\/style>/g,'')
+  .replace(/<script[^>]*>[\s\S]*?<\/script>/g,'');
+assert.equal((visible.match(/<h2>/g)||[]).length,2);
+assert.match(visible,/<h2>4writers\.net<\/h2>/);
+assert.match(visible,/<h2>good-writers\.com<\/h2>/);
+assert.equal((visible.match(/<button\b/g)||[]).length,4);
+assert.equal((visible.match(/>START AUTO-TAKE<\/button>/g)||[]).length,2);
+assert.equal((visible.match(/>STOP<\/button>/g)||[]).length,2);
+for(const site of ['four','good']){
+  assert.match(visible,new RegExp('data-start="'+site+'"'));
+  assert.match(visible,new RegExp('data-stop="'+site+'"'));
+}
+for(const obsolete of [
+  /data-status=/, /id="testSound"/, /id="notice"/,
+  /<h1>/, /<small>/, /<p(?:\s|>)/,
+  /Writings \+ Rewritings monitored/, /Version 2\.1\./
+])assert.doesNotMatch(visible,obsolete,'No detailed controls or explanations in the popup');
+assert.match(html,/id="sr-notice" class="sr-only"/,'Non-visual feedback remains accessible');
+assert.match(js,/autoAcceptEnabled:true,armed:true/,'START must enable full auto-taking');
+assert.match(js,/autoAcceptEnabled:false/,'STOP must disable automation');
+assert.match(js,/PROWELL_PREPARE_ORDER_SOUND/,'Starting must still prepare audio');
+assert.match(js,/claimConsentVersion:SITES\[site\]\.legacyVersion/);
+assert.match(js,/soundRunId:crypto\.randomUUID\(\)/);
+assert.match(js,/fourLastCheckedSection/,'4writers refresh settings must be preserved');
+for(const script of manifest.content_scripts){
+  assert(!script.js.includes('popup.js'),'Popup must not replace content scripts');
+}
+assert(manifest.content_scripts.some(x=>x.js.includes('legacy/four/runtime-content.js')));
+assert(manifest.content_scripts.some(x=>x.js.includes('legacy/good/runtime-content.js')));
+assert(manifest.content_scripts.some(x=>x.js.includes('four-section-refresh.js')));
+assert(manifest.content_scripts.some(x=>x.js.includes('legacy/good/runtime-refresh.js')));
+console.log('Dual minimal popup: exactly four visible controls, original automation scripts and sound preserved PASS');
