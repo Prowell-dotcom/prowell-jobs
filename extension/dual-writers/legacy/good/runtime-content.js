@@ -19,7 +19,10 @@
   const ID = /\b(?:order\s*)?ID\s*[:#]\s*(\d{5,})\b/i;
   const VIEW = /^view(?:\s+(?:order|details))?$/i;
   const TAKE = /^take\s*it(?:\s*now)?[.!]?$/i;
-  const ACCEPT = /^i\s+understand\s+the\s+order[.!]?$/i;
+  // Good-Writers acknowledgements vary between "I understand" and
+  // "I understand, take the order". Match only these specific final actions,
+  // never unrelated buttons containing the word understand.
+  const ACCEPT = /^i\s+understand(?:\s*,?\s*(?:take\s+(?:the|this)\s+order|the\s+order))?[.!]?$/i;
   const OK = /^(?:ok|okay|confirm|yes)$/i;
   const ACTIONS = 'a,button,input[type="button"],input[type="submit"],[role="button"]';
   let state={...DEFAULTS}, tabId=null, busy=false, pendingScan=false;
@@ -111,12 +114,54 @@
     return false;
   }
   function scrollAcknowledgment(button){
-    if(!active()||!state.claim||!visible(button))return;
-    // This is the acknowledgement screen AFTER confirmation, not the order list.
-    try{button.scrollIntoView?.({behavior:'instant',block:'end'});}catch(_){}
-    const bottom=Math.max(document.body?.scrollHeight||0,document.documentElement?.scrollHeight||0);
-    try{window.scrollTo(0,bottom);}catch(_){}
-    try{document.scrollingElement?.scrollTo(0,bottom);}catch(_){}
+    if(!active()||!state.claim||!visible(button))return false;
+    // After OK the site shows a SECOND, often very long, ORDER INFORMATION
+    // dialog. Its scrollbar belongs to the popup, NOT document/body.
+    // The acknowledgement button is inside the popup footer.
+    const selectors='[role="dialog"],dialog,.modal,.modal-dialog,.modal-content,'+
+      '.ui-dialog,.popup,[class*="modal"],[class*="dialog"],[class*="popup"],'+
+      '[class*="order-info"],[id*="modal"]';
+    let root=button.closest?.(selectors)||null;
+    if(!root){
+      // Some Good-Writers themes use an unnamed fixed window.
+      for(let p=button.parentElement,depth=0;
+          p&&p!==document.body&&depth<14;p=p.parentElement,depth++){
+        const style=getComputedStyle(p);
+        if(/fixed|absolute/i.test(String(style.position||'')) &&
+           Number(p.clientHeight)>140){root=p;break;}
+      }
+    }
+    if(!root)return false;
+    const nodes=new Set([root]);
+    for(const el of root.querySelectorAll?.('*')||[])nodes.add(el);
+    for(let parent=root.parentElement,depth=0;
+        parent&&parent!==document.body&&depth<5;
+        parent=parent.parentElement,depth++){
+      if(Number(parent.scrollHeight)-Number(parent.clientHeight)>10)nodes.add(parent);
+    }
+    let moved=false,alreadyAtBottom=false;
+    for(const el of nodes){
+      if(el===document.body||el===document.documentElement||
+         el===document.scrollingElement)continue;
+      const height=Number(el.scrollHeight)||0;
+      const viewport=Number(el.clientHeight)||0;
+      if(viewport<40||height-viewport<10)continue;
+      const maxTop=Math.max(0,height-viewport);
+      const before=Number(el.scrollTop)||0;
+      if(before>=maxTop-3){alreadyAtBottom=true;continue;}
+      try{
+        // An immediate jump, never animated steps, never window.scrollTo.
+        el.scrollTop=maxTop;
+        if((Number(el.scrollTop)||0)>before+1)moved=true;
+      }catch(_){}
+    }
+    // When the footer is visible without scrolling, it can be clicked now.
+    void chrome.storage.local.set({
+      lastAcknowledgementScroll:moved?'scrolled-popup':
+        alreadyAtBottom?'already-bottom':'popup-did-not-scroll',
+      lastAcknowledgementScrollAt:Date.now()
+    });
+    return moved||alreadyAtBottom;
   }
   function stopRefresh(){if(nextRefresh){clearTimeout(nextRefresh);nextRefresh=null;}}
   // Refresh scheduling is controlled exclusively by refresh.js.
