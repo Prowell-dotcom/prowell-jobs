@@ -1,4 +1,4 @@
-# Prowell Dual-Platform Bot v2.1.4
+# Prowell Dual-Platform Bot v2.1.5
 
 ## Source engines and changes
 
@@ -47,6 +47,20 @@ claim. This was kept intact because you asked to retain that original
 order-handling engine. The dual refresh controller suspends while it is
 processing an order.
 
+### Gradual scrolling on both websites (only scrolling changed)
+
+Both active dual engines scroll the selected order-information popup in **8
+short increments** (approximately 0.3 seconds total when the browser runs
+timers normally) instead of jumping instantly. This applies to both available
+orders and processing-order previews, and also the long post-OK
+acknowledgement popup. The next Take it or I understand click happens only
+after the gradual scroll finishes. All other actions remain unchanged:
+refreshing, sound, View, Take it, OK, acknowledgement, and reporting.
+
+Background tab throttling or page rendering may change the actual scrolling
+duration; the original per-site workflows and security checks remain in
+place. Archived uploaded engine files remain unchanged.
+
 ### Final acknowledgement after OK — both websites
 
 Both sites' original uploaded source files remain unchanged under `legacy/`.
@@ -82,7 +96,7 @@ report other errors unrelated to these fixes; inspect the extension's
 ## Installation
 
 After ProwellJobs is deployed from the new repository commit, download
-**Dual Bot v2.1.4** from the Prowell administrator dashboard. Remove/disable
+**Dual Bot v2.1.5** from the Prowell administrator dashboard. Remove/disable
 the previous dual and separate bots, extract the new ZIP, and load the folder
 containing `manifest.json` through `chrome://extensions` with Developer Mode
 enabled. Reload the 4writers and Good-Writers site tabs. Press START separately
