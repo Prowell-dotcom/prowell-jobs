@@ -13,7 +13,7 @@ class GoodWritersPackageTests(unittest.TestCase):
         original=store.bundled_extension(root)
         self.assertNotEqual(good,original)
         self.assertEqual(store.validate_bundle(good),'1.0.15')
-        self.assertEqual(store.validate_bundle(original),'0.5.14')
+        self.assertEqual(store.validate_bundle(original),'0.5.15')
         with zipfile.ZipFile(io.BytesIO(good)) as pkg:
             manifest=json.loads(pkg.read('manifest.json'))
             self.assertIn('Good-Writers',manifest['name'])
