@@ -62,7 +62,7 @@
         // Pending until View actually opens. Never run acceptance on the order list.
         await chrome.storage.local.set({autoFlow:{
           enabled:true,orderId:String(first.id),tabId,startedAt:Date.now(),
-          stage:'await-view',stageStartedAt:Date.now()
+          listUrl:location.href,stage:'await-view',stageStartedAt:Date.now()
         }});
       }
       // Persist STOP before the page can navigate. This is the only state
