@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Prowell Dual-Platform Instant Bot",
-  "version": "2.1.0",
-  "description": "Unmodified user-provided 4writers v0.5.4 and Good-Writers v1.0.4 engines, independent storage and per-order audio alerts.",
+  "version": "2.1.1",
+  "description": "Earlier supplied 4writers and Good-Writers engines with sound alerts, plus Writings/Rewritings monitoring in 4writers.",
   "permissions": [
     "storage",
     "tabs",
@@ -54,9 +54,10 @@
         "scoped-store.js",
         "legacy-bridge.js",
         "legacy/four/order-card.js",
+        "four-sections.js",
         "legacy-order-sound.js",
         "legacy/four/runtime-content.js",
-        "legacy/four/runtime-refresh.js"
+        "four-section-refresh.js"
       ],
       "run_at": "document_start"
     },
