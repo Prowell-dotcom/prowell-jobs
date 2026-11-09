@@ -132,6 +132,9 @@
       if(Object.prototype.hasOwnProperty.call(DEFAULTS,key))
         state[key]=changed[key].newValue;
     }
+    // Pressing START begins an entirely new one-shot session. Without this
+    // reset, the same page's prior View handoff would block a new START.
+    if(changed.armed?.newValue===true)opening=false;
     schedule();
   });
   chrome.runtime.onMessage.addListener((message,sender,respond)=>{
