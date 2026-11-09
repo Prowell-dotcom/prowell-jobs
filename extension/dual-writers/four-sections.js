@@ -67,6 +67,11 @@
     if(/available\s+(?:orders|writings|rewritings)/i.test(text) &&
        /\b(?:order by|find|show all|search keywords)\b/i.test(text))
       return true;
+    // A page can briefly show the Writings/Rewritings navigation and account
+    // sidebar but no central list at all (user's blank screenshot). Treat
+    // this as the target section in a LOADING state, not an unrelated page.
+    if(links().length>=2 && selected() &&
+       /available\s+orders/i.test(text))return true;
     return original.pageKind()==='available';
   }
   function pageKind(){
