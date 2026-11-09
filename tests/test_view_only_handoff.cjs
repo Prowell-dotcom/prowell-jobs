@@ -70,8 +70,8 @@ async function run(slug,kind){
   assert.equal(state.claim,null,'No claim state should be persisted');
   assert.equal(state.autoFlow?.orderId,'1234567890','View handoff must target the selected order');
   assert(Array.from(state.seenOrderIds||[]).includes('1234567890'),'Handled order ID must be remembered');
-  assert.equal(chronology[0],'sound requested');
-  assert.equal(chronology[1],'refresh cancelled');
+  assert.equal(chronology[0],'refresh cancelled','Stop refreshing before anything else');
+  assert.equal(chronology[1],'sound requested','Sound request must immediately follow stop');
   assert(chronology.indexOf('watcher state stored')>0);
   assert(chronology.indexOf('watcher state stored')<chronology.indexOf('View clicked'),
     'Must pause refreshing before opening View');
