@@ -125,7 +125,7 @@
       };
       return score(b)-score(a);
     });
-    if(hits.length)return [hits[0]];
+    if(hits.length)return hits.slice(0,16);
     // Screenshot-style ORDER INFORMATION windows sometimes have no dialog
     // role or recognizable popup class. Search only after View has opened,
     // anchoring the search to the exact order ID and visible heading.
@@ -148,7 +148,7 @@
     // Choose the smallest matching container, to avoid selecting the main
     // dashboard wrapper that contains the popup *and* background controls.
     fallback.sort((a,b)=>String(a.innerText||'').length-String(b.innerText||'').length);
-    return fallback.length?[fallback[0]]:[];
+    return fallback.slice(0,12);
   }
   function detailsPage(button) {
     const id=String(flow?.orderId||'');
@@ -183,67 +183,77 @@
     candidates.sort((a,b)=>String(a.innerText||'').length-String(b.innerText||'').length);
     return candidates[0]||null;
   }
+  // IMPORTANT: the fixed ORDER INFORMATION window may have an inner scroll
+  // node OR its scrollbar may belong to an ANCESTOR of the element carrying
+  // the heading. Previous versions considered only one popup subtree, so a
+  // perfectly visible popup could remain completely unscrolled.
   function scrollCandidates(stage,button) {
-    const overlays=foregroundSurfaces(button);
-    const set=new Set();
-    const overlay=overlays[0]||null;
-    if(overlay){
-      set.add(overlay);
-      for(const el of overlay.querySelectorAll?.('*')||[])set.add(el);
-      for(let p=button?.parentElement;p&&p!==document.body;p=p.parentElement){
-        if(overlay===p||overlay.contains?.(p))set.add(p);
+    const foreground=foregroundSurfaces(button);
+    const items=new Set();
+    const add=el=>{if(el)items.add(el);};
+    if(foreground.length){
+      for(const root of foreground){
+        add(root);
+        // Descendant scroll panes such as modal-body/scroll-content.
+        for(const child of root.querySelectorAll?.('*')||[])add(child);
+        // Ancestor scroll panes such as dialog/window/modal-container when
+        // the order heading is inside a small fixed header.
+        for(let p=root.parentElement,depth=0;
+            p && p!==document.body && depth<8;p=p.parentElement,depth++){
+          if(p===document.documentElement || p===document.scrollingElement)break;
+          if(rendered(p) &&
+            (orderText(p) || /modal|dialog|popup|order|window|detail/i.test(
+              String(p.className||'')+' '+String(p.id||''))))add(p);
+        }
       }
-    }else if(inlineOrderDetails(button)||detailsPage(button)){
-      // Never scroll the site's background to reveal the red/blue Take it
-      // button inside a separately scrollable order-description panel.
-      const main=inlineOrderDetails(button);
-      const content=main?[main]:[...document.querySelectorAll(DETAILS)].filter(el=>
-        rendered(el) && (orderText(el)||el.contains?.(button)));
-      for(const el of content){
-        set.add(el);
-        for(const child of el.querySelectorAll?.('*')||[])set.add(child);
+    }else{
+      const inline=inlineOrderDetails(button);
+      const full=detailsPage(button);
+      if(!inline&&!full)return [];
+      // The site sometimes uses an entire details page instead of a dialog.
+      const mains=inline?[inline]:[...document.querySelectorAll(DETAILS)]
+        .filter(el=>rendered(el) && (orderText(el) ||
+          (button && el.contains?.(button))));
+      for(const main of mains){
+        add(main);
+        for(const child of main.querySelectorAll?.('*')||[])add(child);
       }
-      // Only a separately navigated, verified full order page may use the
-      // document root when no actual content pane has its own scrollbar.
-      const hasPane=[...set].some(el=>el!==document.scrollingElement &&
-        el!==document.documentElement && Number(el.scrollHeight)>Number(el.clientHeight)+45 &&
-        /auto|scroll|overlay|hidden/i.test(String(getComputedStyle(el)?.overflowY||'')));
-      if(!hasPane && flow?.listUrl!==location.href && detailsPage(button))
-        set.add(document.scrollingElement||document.documentElement);
-    }else return [];
-    const candidates=[...set].filter(el=>{
-      if(!el||!Number.isFinite(el.scrollHeight)||!Number.isFinite(el.clientHeight))return false;
-      if(el.clientHeight<60||el.scrollHeight-el.clientHeight<=45)return false;
-      // Allow an actual descendant of the order overlay, even if a test or
-      // embedded document exposes it as the scrolling element. Never scroll
-      // document roots outside the verified foreground overlay.
-      if(overlay && (el===document.body ||
-        ((el===document.documentElement || el===document.scrollingElement) &&
-         !overlay.contains?.(el))))return false;
-      if(!rendered(el)&&el!==document.scrollingElement&&el!==document.documentElement)return false;
-      const st=getComputedStyle(el),overflow=String(st?.overflowY||'');
-      // The real details scroll node can be a child of an overlay without
-      // declaring overflow on that exact node (frameworks set it on wrappers).
-      // Probe such descendants safely: only an observed scrollTop change is
-      // accepted. Never probe the document behind an overlay.
-      return /auto|scroll|overlay|hidden/i.test(overflow) ||
-        Boolean(overlay && (el===overlay || overlay.contains?.(el))) ||
-        el===document.scrollingElement||el===document.documentElement;
+      const hasInner=[...items].some(el=>el!==document.scrollingElement &&
+        Number(el.scrollHeight)-Number(el.clientHeight)>40);
+      if(!hasInner && flow?.listUrl!==location.href && full)
+        add(document.scrollingElement||document.documentElement);
+    }
+    const pageRoot=document.scrollingElement||document.documentElement;
+    const verified=[...items].filter(el=>{
+      if(!el || el===document.body)return false;
+      if(foreground.length &&
+        (el===pageRoot || el===document.documentElement))return false;
+      if(el!==pageRoot && !rendered(el))return false;
+      const range=Number(el.scrollHeight)-Number(el.clientHeight);
+      if(!Number.isFinite(range)||range<=30||Number(el.clientHeight)<50)return false;
+      // Candidate must be inside or enclosing a confirmed foreground order
+      // popup, or belong to a verified standalone full details page.
+      if(foreground.length &&
+        !foreground.some(root=>root===el ||
+          root.contains?.(el) || el.contains?.(root)))return false;
+      return true;
     });
     const score=el=>{
-      const st=getComputedStyle(el),cl=String(el.className||'');
+      const st=getComputedStyle(el);
+      const cl=String(el.className||'')+' '+String(el.id||'');
       let n=0;
-      if(overlay)n+=120;
-      if(/auto|scroll|overlay/i.test(String(st?.overflowY||'')))n+=60;
-      if(/body|details|instructions|description|content|scroll/i.test(cl))n+=50;
-      if(orderText(el))n+=20;
-      if(button&&el.contains?.(button))n+=12;
-      if(el===overlay)n-=10;
-      if(!overlay&&(el===document.scrollingElement||el===document.documentElement))n-=70;
+      if(/auto|scroll|overlay/i.test(String(st?.overflowY||'')))n+=120;
+      if(/body|detail|description|instruction|scroll|content|window/i.test(cl))n+=75;
+      if(button && el.contains?.(button))n+=20;
+      if(orderText(el))n+=8;
+      if(el===pageRoot)n-=160;
+      // Prefer the nearest inner scrolling pane over an outer wrapper, but
+      // probe all verified scroll nodes in one task, without delays.
+      n-=Math.min(80,(Number(el.clientHeight)||0)/20);
       return n;
     };
-    candidates.sort((a,b)=>score(b)-score(a));
-    return candidates;
+    verified.sort((a,b)=>score(b)-score(a));
+    return verified;
   }
   function waitUntil(getValue, labelText) {
     // No artificial delay: evaluate immediately and then react to DOM changes.
@@ -302,51 +312,49 @@
     const button=previewingProcessing()?null:find(stage);
     const roots=scrollCandidates(stage,button);
     if(!roots.length){
-      const overlays=foregroundSurfaces(button);
-      const genuinelyShort=overlays.length>0 && overlays.every(el=>
-        Number.isFinite(el.scrollHeight)&&Number.isFinite(el.clientHeight) &&
-        el.scrollHeight-el.clientHeight<=45);
+      // Never report PASS from a modal shell alone. The fixed shell can fit
+      // the viewport while the long description inside is still at the top.
       const target=button;
-      const confirmedDetail=Boolean(inlineOrderDetails(target) || detailsPage(target));
-      // A recognized details page alone does not prove scrolling finished.
-      // Skip scrolling only when content is genuinely short or the target is
-      // already visible; never click a hidden Take it behind an unscrolled pane.
-      if((genuinelyShort && (!target || inViewport(target))) ||
-         (target && inViewport(target) && confirmedDetail)){
-        void store.local.set({lastScrollStage:stage,lastScrollResult:'no-scroll-needed',
-          lastScrollSteps:0,lastScrollAt:Date.now(),lastScrollContainer:'details fit viewport'});
-        return {result:'no-scroll-needed',pixels:0,container:'details fit viewport'};
+      if(target && inViewport(target) &&
+          (foregroundSurfaces(target).length ||
+           inlineOrderDetails(target)||detailsPage(target))){
+        void store.local.set({lastScrollStage:stage,lastScrollResult:'button-visible',
+          lastScrollSteps:0,lastScrollAt:Date.now(),lastScrollContainer:'visible Take it'});
+        return {result:'button-visible',pixels:0,container:'visible Take it'};
       }
-      throw Error('No scrollable foreground order-details pane recognized; background was protected');
+      throw Error('ORDER INFORMATION appeared, but its actual scrolling container was not found');
     }
-    let alreadyAtEnd=0;
+    let moved=0,foundAtBottom=0,firstName='';
+    // Jump *all* scrollable surfaces belonging to the verified foreground
+    // popup, including its scrollable ancestors. This is synchronous: no
+    // smooth animation, scroll steps, or delayed probing.
     for(const root of roots){
       if(!guarded())throw Error('Order workflow stopped');
       if(checkSecurity())throw Error('Security challenge detected');
       const before=Number(root.scrollTop)||0;
-      const bottom=Math.max(0,(root.scrollHeight||0)-(root.clientHeight||0));
-      if(bottom-before<=3){alreadyAtEnd++;continue;}
-      // Set the actual foreground pane to its bottom in one synchronous step.
-      // No smooth scrolling, artificial pauses or background-page fallback.
+      const bottom=Math.max(0,Number(root.scrollHeight)-Number(root.clientHeight));
+      if(bottom-before<=3){foundAtBottom++;continue;}
       instantScroll(root,bottom);
       const after=Number(root.scrollTop)||0;
       if(after>=bottom-5 && after>before+1){
-        const name=String(root.className||root.tagName||'order-panel').slice(0,100);
-        void store.local.set({lastScrollStage:stage,lastScrollSteps:1,
-          lastScrollResult:'instant-bottom',lastScrollAt:Date.now(),
-          lastScrollContainer:name,lastScrollPixels:after-before});
-        return {result:'instant-bottom',pixels:after-before,container:name};
+        moved+=after-before;
+        if(!firstName)firstName=String(root.className||root.tagName||'order-panel').slice(0,100);
       }
     }
-    if(alreadyAtEnd===roots.length){
-      const root=roots[0];
-      const name=String(root?.className||root?.tagName||'order-panel').slice(0,100);
+    if(moved>1){
+      void store.local.set({lastScrollStage:stage,lastScrollSteps:1,
+        lastScrollResult:'instant-bottom',lastScrollAt:Date.now(),
+        lastScrollContainer:firstName,lastScrollPixels:moved});
+      return {result:'instant-bottom',pixels:moved,container:firstName};
+    }
+    if(foundAtBottom===roots.length){
+      const name=String(roots[0]?.className||roots[0]?.tagName||'order-panel').slice(0,100);
       void store.local.set({lastScrollStage:stage,lastScrollSteps:0,
         lastScrollResult:'already-at-bottom',lastScrollAt:Date.now(),
         lastScrollContainer:name,lastScrollPixels:0});
       return {result:'already-at-bottom',pixels:0,container:name};
     }
-    throw Error('Foreground details pane found but scrollTop did not move');
+    throw Error('ORDER INFORMATION popup detected, but scrollTop did not change');
   }
   async function locate(stage, scrollAllowed) {
     let el=find(stage);
