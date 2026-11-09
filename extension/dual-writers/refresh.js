@@ -34,7 +34,7 @@
   window.__prowellCancelRefresh = () => {
     stoppedForVisibleOrder = true;
     cancel();
-    status = 'Stopped — opening detected order';
+    status = 'Stopped at detected order — START required to refresh again';
   };
   // Continue monitoring both Available and Processing listings. During
   // View/scroll, the instant cancellation flag stops the active reload timer.
@@ -82,7 +82,7 @@
     if (!isActive()) {
       cancel();
       if(stoppedForVisibleOrder)return;
-      setStatus('Stopped — press START WATCHING');
+      setStatus('Stopped — press START AUTO-TAKE to resume refreshing');
       return;
     }
     if (local.autoFlow?.enabled && Date.now()-Number(local.autoFlow.startedAt||0)<90000) {
@@ -136,7 +136,7 @@
       await store.local.set({
         refreshCount:count,
         lastRefreshAt:at,
-        refreshStatus:'Reloading Available Orders'
+        refreshStatus:'Reloading order list'
       });
       if (isActive() && !local.claim && !detailsOpen() && !unseenOrderVisible() &&
           !(local.autoFlow?.enabled && Date.now()-Number(local.autoFlow.startedAt||0)<90000)) location.reload();
@@ -150,8 +150,10 @@
     for (const key of relevant) {
       if (changes[key]) {
         local[key]=changes[key].newValue;
-        if((key==='armed' && changes[key].newValue===true) ||
-           (key==='autoFlow' && !changes[key].newValue)) stoppedForVisibleOrder=false;
+        // Finishing the order, closing View or clearing autoFlow never
+        // re-arms monitoring. Only a new explicit START clears the stop latch.
+        if(key==='armed' && changes[key].newValue===true)
+          stoppedForVisibleOrder=false;
         touched=true;
       }
     }
