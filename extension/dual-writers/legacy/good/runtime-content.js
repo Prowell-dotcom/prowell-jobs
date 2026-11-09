@@ -225,8 +225,14 @@
       }
       if(current.stage==='take-clicked' && find(OK))
         return clickStage(find(OK),'ok-clicked','Confirmed OK for #'+current.id);
-      if((current.stage==='ok-clicked'||current.stage==='take-clicked') && find(ACCEPT)){
-        return clickStage(find(ACCEPT),'acknowledged','Acknowledged order #'+current.id);
+      if(current.stage==='ok-clicked'||current.stage==='take-clicked'){
+        const acknowledge=find(ACCEPT);
+        if(acknowledge){
+          // Good-Writers also shows a long acknowledgement popup after OK.
+          // Its scrollable body must move before the footer button is clicked.
+          scrollAcknowledgment(acknowledge);
+          return clickStage(acknowledge,'acknowledged','Acknowledged order #'+current.id);
+        }
       }
       if((current.stage==='view-clicked'||current.stage==='take-waiting')){
         // Do not click or scroll until View has shown THIS order's information.
