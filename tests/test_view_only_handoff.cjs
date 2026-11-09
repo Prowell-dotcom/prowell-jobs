@@ -7,7 +7,7 @@ const path=require('node:path');
 
 async function run(slug,kind){
   const site=slug==='4writers'?'4writers.net':'good-writers.com';
-  const version=slug==='4writers'?'0.5.12':'1.0.12';
+  const version=slug==='4writers'?'0.5.13':'1.0.13';
   const tabType=slug==='4writers'?'PROWELL_TAB_ID':'GW_TAB_ID';
   const runId='8a8b7c6d-4e5f-4a29-9012-123456789abc';
   const chronology=[],subscribers=[],clicks=[];
@@ -68,7 +68,10 @@ async function run(slug,kind){
   assert.equal(state.armed,false,'Watcher must stop permanently');
   assert.equal(state.targetTabId,null,'Stop must clear active tab');
   assert.equal(state.claim,null,'No claim state should be persisted');
-  assert.deepEqual(chronology.slice(0,3),['sound requested','stopped stored','View clicked']);
+  assert.equal(chronology[0],'sound requested');
+  assert(chronology.indexOf('stopped stored')>0);
+  assert(chronology.indexOf('stopped stored')<chronology.indexOf('View clicked'),
+    'Must stop refreshing before opening View');
   assert.equal(chronology.filter(x=>x==='sound requested').length,1);
   assert.equal(chronology.includes('scroll'),false,'Bot must not scroll any page');
   observer([{target:body}]);

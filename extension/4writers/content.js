@@ -1,9 +1,6 @@
-/* Prowell View-Only Order Watcher.
- * On the first detected available or processing order:
- *   1. Request an audible alert, 2. stop monitoring and refreshing,
- *   3. click that order's View button, 4. do absolutely nothing else.
- * The user alone scrolls, examines, accepts, and acknowledges orders.
- * This file must not contain automated Take it, OK, or consent actions.
+/* Prowell order watcher: sound, stop refresh, open View, then let the
+ * shared acceptance script instantly scroll the selected order details.
+ * Take it and confirmations require an explicit per-session opt-in.
  */
 (() => {
   'use strict';
@@ -11,7 +8,7 @@
   if(window.__prowellViewOnlyV057)return;
   window.__prowellViewOnlyV057=true;
 
-  const VERSION='0.5.12',TAB_MESSAGE='PROWELL_TAB_ID';
+  const VERSION='0.5.13',TAB_MESSAGE='PROWELL_TAB_ID';
   const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,
     soundRunId:'',claim:null,lastResult:'Ready',log:[]};
   let state={...DEFAULTS},tabId=null,opening=false,queued=false;
@@ -42,7 +39,7 @@
         },()=>void chrome.runtime.lastError);
       }catch(_){}
     }
-    const message='Order #'+first.id+' ('+first.type+') detected; View + automatic gradual scrolling. '+
+    const message='Order #'+first.id+' ('+first.type+') detected; View + automatic instant scrolling. '+
       'Further acceptance steps depend on the opt-in setting.';
     const entry=new Date().toLocaleTimeString()+' '+message;
     state.armed=false;
@@ -58,7 +55,7 @@
       const config=await chrome.storage.local.get({autoAcceptEnabled:false});
       const accepts=first.type==='available' && config.autoAcceptEnabled===true;
       if(accepts) await chrome.storage.local.set({autoAcceptEnabled:false}); // one acceptance per opt-in
-      // Gradual details scrolling is ALWAYS enabled, even in manual-acceptance mode.
+      // Instant details scrolling is ALWAYS enabled, even in manual-acceptance mode.
       // Only available orders with explicit opt-in proceed to Take it.
       await chrome.storage.local.set({autoFlow:{
         enabled:true,mode:accepts?'accept':'scroll-only',orderId:String(first.id),
@@ -73,14 +70,8 @@
       // Do NOT click Take it, OK, I understand, or another order.
       if(first.view.isConnected){
         first.view.click();
-        // Allow the website to open its details modal or official detail tab.
-        await new Promise(resolve=>setTimeout(resolve,350));
-        const f=await chrome.storage.local.get({autoFlow:null});
-        if(f.autoFlow?.orderId===String(first.id) && f.autoFlow.stage==='await-view'){
-          await chrome.storage.local.set({autoFlow:{
-            ...f.autoFlow,stage:accepts?'take':'scroll',stageStartedAt:Date.now()
-          }});
-        }
+        // Auto-accept observes this View immediately, including navigation.
+        // Do not insert a timer: it reacts when the actual details appear.
       }
     }catch(error){
       try{

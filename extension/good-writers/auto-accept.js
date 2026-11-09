@@ -1,4 +1,4 @@
-/* Prowell opt-in order acceptance. Fixed waits and incremental navigation,
+/* Prowell opt-in order acceptance. Instant order-panel navigation,
  * no randomized interaction or bot-detection evasion.
  * Works only on the tab and order selected by the Prowell watcher.
  */
@@ -12,9 +12,6 @@
   const SELECTORS = 'button,a,input[type="button"],input[type="submit"],[role="button"]';
   const RUN_TTL = 90000;
   const STEP_TIMEOUT = 20000;
-  const STEP_PX = 140;
-  const STEP_DELAY = 100;
-  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   let tabId = null, flow = null, busy = false;
   function guarded() {
     return Boolean(flow && flow.enabled === true && Number.isInteger(tabId) &&
@@ -210,6 +207,13 @@
         detailsPage(find('take')) ? true : null;
     },'the selected order details after View');
   }
+  // Request an immediate scroll, never CSS smooth scrolling or timed steps.
+  function instantScroll(root, bottom) {
+    if (typeof root.scrollTo === 'function') {
+      try { root.scrollTo({top: bottom, behavior: 'instant'}); } catch (_) {}
+    }
+    if (Math.abs((Number(root.scrollTop) || 0) - bottom) > 3) root.scrollTop = bottom;
+  }
   async function jumpToBottom(stage) {
     const roots=scrollCandidates(stage,find(stage));
     if(!roots.length){
@@ -229,7 +233,7 @@
       if(bottom-before<=3){alreadyAtEnd++;continue;}
       // Set the actual foreground pane to its bottom in one synchronous step.
       // No smooth scrolling, artificial pauses or background-page fallback.
-      root.scrollTop=bottom;
+      instantScroll(root,bottom);
       const after=Number(root.scrollTop)||0;
       if(after>=bottom-5 && after>before+1){
         void chrome.storage.local.set({lastScrollStage:stage,lastScrollSteps:1,
@@ -371,30 +375,25 @@
     if(!find('take')&&!/order information|order details|order requirements/i.test(pageText)){
       return {ok:false,reason:'Open View on an order-details page first'};
     }
-    const direct=scrollCandidates('take',find('take'));
-    const roots=[...direct];
-    // Never test-scroll the background when foreground order details are open.
+    const roots=scrollCandidates('take',find('take'));
+    // The diagnostic must never move the page behind a foreground order dialog.
     for(const root of roots){
-      let steps=0;
-      const initial=root.scrollTop||0;
-      for(let n=0;n<100;n++){
-        if(checkSecurity())return {ok:false,reason:'Security challenge appeared'};
-        const before=root.scrollTop||0;
-        const limit=Math.max(0,root.scrollHeight-root.clientHeight);
-        if(before>=limit-3)break;
-        root.scrollTop=Math.min(limit,before+140);
-        await sleep(100);
-        if(Math.abs((root.scrollTop||0)-before)<2)break;
-        steps++;
-      }
-      if(steps>0){
-        const result={ok:true,steps,container:String(root.className||root.tagName||'page').slice(0,100)};
-        await chrome.storage.local.set({lastScrollStage:'manual-test',lastScrollResult:'verified-movement',
-          lastScrollSteps:steps,lastScrollContainer:result.container,lastScrollAt:Date.now()});
+      if(checkSecurity())return {ok:false,reason:'Security challenge appeared'};
+      const before=Number(root.scrollTop)||0;
+      const bottom=Math.max(0,root.scrollHeight-root.clientHeight);
+      instantScroll(root,bottom);
+      const after=Number(root.scrollTop)||0;
+      if(after>=bottom-3){
+        const steps=after>before+1?1:0;
+        const result={ok:true,steps,container:String(root.className||root.tagName||'order-panel').slice(0,100)};
+        await chrome.storage.local.set({
+          lastScrollStage:'manual-test',lastScrollResult:steps?'instant-bottom':'already-at-bottom',
+          lastScrollSteps:steps,lastScrollContainer:result.container,lastScrollAt:Date.now()
+        });
         return result;
       }
     }
-    const error={ok:false,reason:roots.length?'Foreground order panel found, but it did not move':'Foreground order details not located; background page was not scrolled'};
+    const error={ok:false,reason:roots.length?'Foreground order panel found, but could not jump to bottom':'Foreground order details not located; background page was not scrolled'};
     await chrome.storage.local.set({lastScrollStage:'manual-test',lastScrollResult:'failed',
       lastScrollSteps:0,lastScrollAt:Date.now()});
     return error;

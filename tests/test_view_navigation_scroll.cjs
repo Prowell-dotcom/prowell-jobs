@@ -74,17 +74,17 @@ async function run(site,preview=false){
  assert.equal(storage.autoFlow,null,site+' workflow must finish');
  if(preview){
    assert.deepEqual(events,[],site+' scroll-only preview must not click any acceptance controls');
-   assert(scrolls.filter(x=>x.stage==='take').length>=3,site+' scroll-only must move the pane');
-   assert.equal(storage.lastScrollResult,'verified-movement');
+   assert.equal(scrolls.filter(x=>x.stage==='take').length,1,site+' scroll-only must jump in one step');
+   assert.equal(storage.lastScrollResult,'instant-bottom');
    console.log(site+' View navigation → automatic scroll, NO acceptance clicks: PASS');
  }else{
    assert.deepEqual(events.map(x=>x.stage),['take','ok','understand']);
-   assert(scrolls.filter(x=>x.stage==='take').length>=3,site+' must scroll before Take it');
+   assert.equal(scrolls.filter(x=>x.stage==='take').length,1,site+' must jump straight to bottom');
    assert(events[0].scroll>0,'Take it cannot happen before scrolling');
-   assert(events[1].time-events[0].time>=475,'OK wait must be roughly 0.5s');
+   assert(events[1].time-events[0].time<450,'OK must be clicked without a deliberate delay');
    if(site==='4writers')assert(scrolls.some(x=>x.stage==='understand'));
    else assert.equal(scrolls.filter(x=>x.stage==='understand'&&x.pos>0).length,0);
-   console.log(site+' View navigation → incremental scroll → confirmations: PASS');
+   console.log(site+' View navigation → instant scroll → confirmations: PASS');
  }
 }
 Promise.all([run('4writers'),run('good-writers'),run('4writers',true),run('good-writers',true)]).catch(e=>{

@@ -5,7 +5,7 @@ const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,refreshMs:10
 let state={...DEFAULTS},tab=null;
 const valid=url=>/^https:\/\/(?:www\.)?4writers\.net\//i.test(url||'');
 const current=()=>Boolean(tab&&valid(tab.url)&&state.targetTabId===tab.id);
-const isArmed=()=>Boolean(state.armed&&state.claimConsentVersion==='0.5.12');
+const isArmed=()=>Boolean(state.armed&&state.claimConsentVersion==='0.5.13');
 async function store(delta){state={...state,...delta};await chrome.storage.local.set(delta);render();}
 function render(){
  $('arm').disabled=!tab||!valid(tab.url)||Boolean(isArmed()&&current());
@@ -13,7 +13,7 @@ function render(){
  $('status').textContent=(isArmed()&&current()?'ARMED — THIS TAB':isArmed()?'ARMED IN ANOTHER TAB':'STOPPED')+
  '\nRefresh interval: every 1 second' +
  '\nSupported: account overview and available orders'+
- '\nAction after detection: '+(state.autoAcceptEnabled?'automatic order acceptance (opt-in)':'View + automatic gradual scroll; manual acceptance')+
+ '\nAction after detection: '+(state.autoAcceptEnabled?'automatic order acceptance (opt-in)':'View + automatic instant jump to bottom; manual acceptance')+
  '\nLast: '+(state.lastResult||'Ready');
  if($('autoAcceptEnabled')){$('autoAcceptEnabled').checked=Boolean(state.autoAcceptEnabled);$('autoAcceptEnabled').disabled=isArmed();}
  $('history').textContent=(state.log||[]).slice(-10).reverse().join('\n')||'No events yet.';
@@ -28,8 +28,8 @@ async function start(){
 $('arm').addEventListener('click',async()=>{
  if(!tab||!valid(tab.url))return;
  await chrome.storage.local.set({autoFlow:null});
- await store({armed:true,claimConsentVersion:'0.5.12',targetTabId:tab.id,claim:null,soundRunId:crypto.randomUUID(),lastResult:'Watching for orders; will stop after opening View'});
- $('notice').textContent=state.autoAcceptEnabled?'Automatic acceptance ON: View, gradual scroll, Take it and confirmations.':'Automatic scrolling ON; you handle Take it and confirmations manually.';
+ await store({armed:true,claimConsentVersion:'0.5.13',targetTabId:tab.id,claim:null,soundRunId:crypto.randomUUID(),lastResult:'Watching for orders; will stop after opening View'});
+ $('notice').textContent=state.autoAcceptEnabled?'Automatic acceptance ON: View, instant jump, Take it and confirmations.':'Automatic scrolling ON; you handle Take it and confirmations manually.';
 });
 $('stop').addEventListener('click',async()=>{
  await chrome.storage.local.set({autoFlow:null});
@@ -85,7 +85,7 @@ $('testScrollOnly')?.addEventListener('click',async()=>{
     if(!activeTab||!valid(activeTab.url))throw Error('Open an order and click View on the correct website.');
     const response=await chrome.tabs.sendMessage(activeTab.id,{type:'PROWELL_SCROLL_TEST'});
     $('notice').textContent=response?.ok?
-      'Scroll test passed: '+response.steps+' gradual movements in '+(response.container||'order panel')+'.':
+      'Scroll test passed: '+(response.steps?'one instant jump':'already at bottom')+' in '+(response.container||'order panel')+'.':
       'Scroll test failed: '+(response?.reason||'Could not reach extension in this tab. Reload the extension and page.');
   }catch(error){$('notice').textContent='Scroll test failed: '+String(error?.message||error);}
   finally{btn.disabled=false;}

@@ -56,7 +56,7 @@ async function run(site){
  assert.equal(typeof handler,'function',site+' must register scroll-test handler');
  const outcome=await new Promise(resolve=>handler({type:'PROWELL_SCROLL_TEST'},{},resolve));
  assert.equal(outcome.ok,true,site+' should move the order description');
- assert(outcome.steps>=3,'must scroll gradually in several increments');
+ assert.equal(outcome.steps,1,'must jump to the bottom in one step');
  assert.equal(backgroundY,0,'must never scroll background behind the order popup');
  assert.equal(orderY,1060,'should scroll the order description to its end');
  assert(changes.every(([which])=>which==='order'),'all scroll mutations must be inside the popup');
