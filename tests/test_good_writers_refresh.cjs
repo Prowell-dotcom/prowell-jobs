@@ -6,7 +6,7 @@ const path=require('node:path');
 async function run(){
   let timeoutId=0,reloadCount=0,observer=()=>{},timer=null,oldTimer=null;
   const subscribers=[];
-  const state={armed:true,claimConsentVersion:'1.0.14',targetTabId:42,claim:null,refreshCount:0,attemptedIds:[],completed:[]};
+  const state={armed:true,claimConsentVersion:'1.0.15',targetTabId:42,claim:null,refreshCount:0,attemptedIds:[],completed:[]};
   let text='Available Orders Writings';
   const doc={
     body:{get innerText(){return text;}},
