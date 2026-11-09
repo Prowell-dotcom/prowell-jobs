@@ -1,6 +1,7 @@
 'use strict';
 /* A single MV3 service worker serving two isolated site workflows. */
 importScripts('order-sound-background.js');
+importScripts('legacy/four/runtime-background.js','legacy/good/runtime-background.js');
 const SITES={
   four:{host:/^https:\/\/(?:www\.)?4writers\.net\//i,prefix:'dual_four_'},
   good:{host:/^https:\/\/(?:www\.)?good-writers\.com\//i,prefix:'dual_good_'}
