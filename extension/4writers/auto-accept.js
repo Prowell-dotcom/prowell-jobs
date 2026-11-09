@@ -66,9 +66,12 @@
   }
   function foregroundSurfaces(button) {
     const candidates=new Set(document.querySelectorAll(DIALOGS));
-    // Nonstandard overlays can have no modal/dialog class. Identify them by
-    // fixed/absolute placement and actual order content, not page-wide selectors.
-    for(const el of document.querySelectorAll('body *')){
+    // Resolve actual named order dialogs first. Scanning the whole dashboard
+    // forces expensive layout work and can select the page behind the order.
+    const foundNamed=[...candidates].some(el=>rendered(el)&&
+      (orderText(el)||el.contains?.(button)));
+    // Only look for unnamed fixed overlays when there is no matching dialog.
+    if(!foundNamed)for(const el of document.querySelectorAll('body *')){
       if(!rendered(el))continue;
       const st=getComputedStyle(el);
       if(!/fixed|absolute/i.test(st?.position||''))continue;
@@ -118,6 +121,21 @@
     }
     return changed && /order information|order details|instructions/i.test(text);
   }
+  function inlineOrderDetails(button) {
+    // A same-URL inline panel is allowed only if it contains the selected ID,
+    // an order-detail heading and (when available) the Take it control.
+    const id=String(flow?.orderId||'');
+    if(!id)return null;
+    const candidates=[...document.querySelectorAll(DETAILS)].filter(el=>{
+      if(!rendered(el))return false;
+      const t=String(el.innerText||el.textContent||'');
+      return t.includes(id) &&
+        /order\\s*(?:information|details|instructions|requirements)/i.test(t) &&
+        (!button||el.contains?.(button));
+    });
+    candidates.sort((a,b)=>String(a.innerText||'').length-String(b.innerText||'').length);
+    return candidates[0]||null;
+  }
   function scrollCandidates(stage,button) {
     const overlays=foregroundSurfaces(button);
     const set=new Set();
@@ -128,18 +146,23 @@
       for(let p=button?.parentElement;p&&p!==document.body;p=p.parentElement){
         if(overlay===p||overlay.contains?.(p))set.add(p);
       }
-    }else if(detailsPage(button)){
-      // Full-page order details use the page's content column, not sidebar.
-      const content=[...document.querySelectorAll(DETAILS)].filter(el=>
+    }else if(inlineOrderDetails(button)||detailsPage(button)){
+      // Never scroll the site's background to reveal the red/blue Take it
+      // button inside a separately scrollable order-description panel.
+      const main=inlineOrderDetails(button);
+      const content=main?[main]:[...document.querySelectorAll(DETAILS)].filter(el=>
         rendered(el) && (orderText(el)||el.contains?.(button)));
       for(const el of content){
         set.add(el);
         for(const child of el.querySelectorAll?.('*')||[])set.add(child);
       }
-      for(let p=button?.parentElement;p&&p!==document.body;p=p.parentElement)set.add(p);
-      // The outer scrollbar is appropriate only on a verified full detail
-      // page where no foreground dialog exists.
-      set.add(document.scrollingElement||document.documentElement);
+      // Only a separately navigated, verified full order page may use the
+      // document root when no actual content pane has its own scrollbar.
+      const hasPane=[...set].some(el=>el!==document.scrollingElement &&
+        el!==document.documentElement && Number(el.scrollHeight)>Number(el.clientHeight)+45 &&
+        /auto|scroll|overlay|hidden/i.test(String(getComputedStyle(el)?.overflowY||'')));
+      if(!hasPane && flow?.listUrl!==location.href && detailsPage(button))
+        set.add(document.scrollingElement||document.documentElement);
     }else return [];
     const candidates=[...set].filter(el=>{
       if(!el||!Number.isFinite(el.scrollHeight)||!Number.isFinite(el.clientHeight))return false;
@@ -208,7 +231,7 @@
       if(!text.includes(String(flow.orderId)))return null;
       // Only the foreground order panel or confirmed full-page order details.
       return foregroundSurfaces(find('take')).length>0 ||
-        detailsPage(find('take')) ? true : null;
+        inlineOrderDetails(find('take')) || detailsPage(find('take')) ? true : null;
     },'the selected order details after View');
   }
   // Request an immediate scroll, never CSS smooth scrolling or timed steps.
@@ -225,7 +248,10 @@
       const genuinelyShort=overlays.length>0 && overlays.every(el=>
         Number.isFinite(el.scrollHeight)&&Number.isFinite(el.clientHeight) &&
         el.scrollHeight-el.clientHeight<=45);
-      if(genuinelyShort)return;
+      // A short order has no scrolling to perform. The visible Take it
+      // button is enough; do not attempt to scroll an unrelated root.
+      if(genuinelyShort || (find(stage) && inViewport(find(stage)) &&
+         (inlineOrderDetails(find(stage)) || detailsPage(find(stage)))))return;
       throw Error('Order-details scroll panel not found; background was not scrolled');
     }
     let alreadyAtEnd=0;
@@ -351,7 +377,7 @@
         const text=(document.body?.innerText||'')+' '+location.href;
         if(!text.includes(String(flow.orderId)))return null;
         const overlayReady=foregroundSurfaces(find('take')).length>0;
-        const fullDetail=detailsPage(find('take'));
+        const fullDetail=inlineOrderDetails(find('take'))||detailsPage(find('take'));
         return overlayReady||fullDetail ? true : null;
       },'the opened order panel');
       if(!guarded()||flow.stage!=='await-view')return;
