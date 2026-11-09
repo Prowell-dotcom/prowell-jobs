@@ -12,7 +12,7 @@ function render(){
  $('stop').disabled=!isArmed();
  $('status').textContent=(isArmed()&&current()?'ARMED — THIS TAB':isArmed()?'ARMED IN ANOTHER TAB':'STOPPED')+
  '\nRefresh interval: every 1 second' +
- '\nAction after detection: '+(state.autoAcceptEnabled?'automatic order acceptance (opt-in)':'View + instant scroll for each order; manual acceptance')+
+ '\nAction after detection: '+(state.autoAcceptEnabled?'FULL AUTO: sound, View, instant scroll, Take it, OK, I understand':'Press START AUTO-TAKE to enable the complete workflow')+
  '\nLast: '+(state.lastResult||'Ready');
  // START AUTO-TAKE itself is the explicit opt-in; all acceptance steps are enabled.
  $('history').textContent=(state.log||[]).slice(-10).reverse().join('\n')||'No events yet.';
