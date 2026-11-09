@@ -1,4 +1,4 @@
-# Prowell Dual-Platform Bot v2.1.1
+# Prowell Dual-Platform Bot v2.1.3
 
 ## Source engines and changes
 
@@ -6,16 +6,16 @@
   `order-card.js`, `confirm-main.js` and background logic are preserved
   unchanged in `legacy/four/`. Its original `refresh.js` is also preserved
   intact there as a backup.
-- **Good-Writers:** user-supplied **v1.0.4** foreground, background,
-  `refresh.js`, click and confirmation engines remain unchanged.
+- **Good-Writers:** user-supplied **v1.0.4** source remains preserved;
+  the active dual runtime adds the final post-OK acknowledgement fix.
 - Both sites have isolated `dual_four_` and `dual_good_` storage.
 - The standalone `legacy-order-sound.js` plays one notification per newly
   seen available or processing order per START session. It never clicks.
 
 ### 4writers: Writings AND Rewritings
 
-The only changed 4writers behavior in this release is the **dual-extension
-refresh controller** (not the original order-taking script):
+The dedicated 4writers refresh controller adds support for both
+available-order sections without rewriting the original Take it workflow:
 
 1. The extension recognizes both **Available Orders → Writings** and
    **Available Orders → Rewritings**, including the top navigation shown in
@@ -42,20 +42,42 @@ claim. This was kept intact because you asked to retain that original
 order-handling engine. The dual refresh controller suspends while it is
 processing an order.
 
+### Final acknowledgement after OK — both websites
+
+Both sites' original uploaded source files remain unchanged under `legacy/`.
+Only their **active dual-extension** runtime wrappers have the final
+acknowledgement fix:
+
+- **4writers:** recognizes "I understand, take the order" and "I understand
+  the order."
+- **Good-Writers:** recognizes "I understand", "I understand, take the order"
+  and "I understand the order."
+
+After an order's **Take it → OK** sequence, the bot finds the acknowledgement
+inside the displayed order-information dialog, jumps the dialog's **internal
+scrolling content** to the bottom without scrolling the background document,
+then clicks the visible acknowledgement button. Processing orders continue to
+stop after View; the acknowledgement click is reserved for available-order
+acceptance.
+
+Both sites now have independent regression tests validating the post-OK
+popup scroll, exact button labels, and final click.
+
 ### Service worker startup fix
 
-The previous dual build had a background-script initialization error:
-`const rawChrome=chrome` read the name `chrome` before a local `const
-chrome` was initialized. Both background wrappers now obtain the browser API
-via `globalThis.chrome`. A regression test executes the **complete** service
-worker imports to catch this startup error, rather than only syntax-checking
-them. Chrome's `service worker (Inactive)` label can be normal when idle;
-the **Errors** detail panel is where actual errors are shown.
+The dual background worker is now **self-contained**, with both original
+background-handler bodies and sound logic embedded directly. It uses no
+`importScripts` dependencies, avoiding an additional extension registration
+failure mode. Both background wrappers also use `globalThis.chrome` to
+avoid the previous local-`chrome` initialization error. Automated tests
+execute the entire worker and verify handler registration. Chrome still may
+report other errors unrelated to these fixes; inspect the extension's
+**Errors** panel for the exact message if registration fails.
 
 ## Installation
 
 After ProwellJobs is deployed from the new repository commit, download
-**Dual Bot v2.1.1** from the Prowell administrator dashboard. Remove/disable
+**Dual Bot v2.1.3** from the Prowell administrator dashboard. Remove/disable
 the previous dual and separate bots, extract the new ZIP, and load the folder
 containing `manifest.json` through `chrome://extensions` with Developer Mode
 enabled. Reload the 4writers and Good-Writers site tabs. Press START separately
