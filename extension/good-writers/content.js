@@ -53,6 +53,15 @@
       log:[...(state.log||[]),entry].slice(-30)
     };
     try{
+      // An explicit popup opt-in is required for each monitoring session.
+      // Never auto-accept already-assigned processing orders.
+      const config=await chrome.storage.local.get({autoAcceptEnabled:false});
+      if(first.type==='available' && config.autoAcceptEnabled===true){
+        await chrome.storage.local.set({autoFlow:{
+          enabled:true,orderId:String(first.id),tabId,startedAt:Date.now(),stage:'take',
+          stageStartedAt:Date.now()
+        }});
+      }
       // Persist STOP before the page can navigate. This is the only state
       // change, and it prevents refresh.js from rearming on the detail page.
       await chrome.storage.local.set(updated);
