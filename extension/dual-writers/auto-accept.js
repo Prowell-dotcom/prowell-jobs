@@ -232,7 +232,8 @@
   // A processing order is already assigned. Its Files + Messages + View
   // details do not have Take it. Never depend on a Take it control to identify
   // or scroll that panel.
-  const previewingProcessing=()=>flow?.mode==='processing-preview';
+  const previewingProcessing=()=>flow?.orderKind==='processing' ||
+    flow?.mode==='processing-preview';
   const detailButton=()=>previewingProcessing()?null:find('take');
   async function waitForOrderDetails() {
     await waitUntil(()=>{
@@ -326,6 +327,19 @@
     });
     flow = null;
   }
+  // The Take it action occurs directly after the successful scroll. This
+  // avoids a second panel search/scroll between those consecutive actions.
+  async function clickTakeNow(){
+    const el=await locate('take',true);
+    const page=(document.body?.innerText||'')+' '+location.href;
+    if(!page.includes(flow.orderId))throw Error('Selected order ID not found in details');
+    nativeOk=false;
+    updateStage('ok'); // persisted without awaiting the storage roundtrip
+    if(!guarded()||!el.isConnected)throw Error('Details changed before Take it');
+    if(typeof Event==='function' && typeof window.dispatchEvent==='function')
+      window.dispatchEvent(new Event('prowell-order-confirm-arm'));
+    el.click();
+  }
   async function execute() {
     if (busy || !guarded() || !document.body || flow.stage === 'await-view') return;
     busy = true;
@@ -334,13 +348,19 @@
         if (flow.stage === 'await-view') break;
         if (checkSecurity()) throw Error('Security challenge detected');
         if (flow.stage === 'scroll') {
+          // Common fast path for both new and processing orders. Process only
+          // once the selected details panel is visible, then instant jump.
           await waitForOrderDetails();
           await jumpToBottom('take');
+          if(flow.mode==='accept' && !previewingProcessing()){
+            await clickTakeNow();
+            continue; // OK and I understand fire on readiness, no fixed delay
+          }
           const id=String(flow.orderId);
           const processing=previewingProcessing();
           const details=await store.local.get({log:[],processingPreviewedIds:[]});
           const message=processing
-            ? 'Processing order #'+id+': preview test passed — View opened, order details scrolled; no Take it expected or clicked.'
+            ? 'Processing order #'+id+': View and instant scroll completed. No Take it button; stopped at the correct step.'
             : 'Order #'+id+': order details scrolled; review and accept manually.';
           await store.local.set({
             autoFlow:null,lastResult:message,refreshStatus:message,
@@ -352,17 +372,10 @@
           });
           flow=null;
         } else if (flow.stage === 'take') {
+          // Resume in-progress workflows created by an earlier extension.
           await waitForOrderDetails();
           await jumpToBottom('take');
-          const el = await locate('take', true);
-          const page = (document.body?.innerText || '') + ' ' + location.href;
-          if (!page.includes(flow.orderId)) throw Error('Selected order ID not found in details');
-          nativeOk=false;
-          updateStage('ok');
-          if (!guarded() || !el.isConnected) throw Error('Details changed before Take it');
-          if(typeof Event==='function' && typeof window.dispatchEvent==='function')
-            window.dispatchEvent(new Event('prowell-order-confirm-arm'));
-          el.click();
+          await clickTakeNow();
         } else if (flow.stage === 'ok') {
           if(nativeOk){
             nativeOk=false;
@@ -417,7 +430,8 @@
         return overlayReady||fullDetail ? true : null;
       },'the opened order panel');
       if(!guarded()||flow.stage!=='await-view')return;
-      updateStage(flow.mode==='accept'?'take':'scroll');
+      // Scroll comes first for every type, even when Take it is absent.
+      updateStage('scroll');
       void execute();
     }catch(error){
       await store.local.set({lastResult:'View handoff failed: '+
