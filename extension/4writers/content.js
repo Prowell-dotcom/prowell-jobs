@@ -6,7 +6,7 @@
   'use strict';
   if(window!==window.top || !/^https:\/\/(?:www\.)?4writers\.net$/i.test(location.origin))return;
   if(window.__prowellWatcherV515)return;
-  window.__prowellWatcherV514=true;
+  window.__prowellWatcherV515=true;
 
   const VERSION='0.5.15',TAB_MESSAGE='PROWELL_TAB_ID';
   const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,
@@ -50,8 +50,9 @@
       card.view?.isConnected && typeof card.view.click==='function');
     if(!first)return;
     opening=true; // synchronous: prevent all subsequent observer triggers
+    window.__prowellCancelRefresh?.(); // stop reload in this same event-loop turn
 
-    // Start the sound before stopping the watcher. The background audio
+    // Request the notification sound immediately and independently of View. The background audio
     // handler stays active after the local armed state is cleared.
     if(state.soundRunId){
       try{
@@ -69,7 +70,6 @@
     // Keep START and the optional consent active for future orders until STOP.
     // This order is marked seen before View, preventing an endless re-open loop.
     state.seenOrderIds=[...seen,String(first.id)].slice(-150);
-    window.__prowellCancelRefresh?.();
     const flow={
       enabled:true,mode:accepts?'accept':'scroll-only',orderId:String(first.id),
       tabId,startedAt:Date.now(),listUrl:location.href,
