@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Prowell Dual-Platform Instant Bot",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Independent 4writers and GoodWriters order watchers with instant foreground-details scrolling, event-driven opt-in acceptance.",
   "permissions": [
     "storage",
