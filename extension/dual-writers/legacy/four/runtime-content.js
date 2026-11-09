@@ -28,7 +28,11 @@
   let nextRefresh=null, statusNode=null, lastAction=0;
   // Only the scroll is paced. No other workflow action receives a delay.
   // Eight visible increments take ~0.3s, regardless of description length.
-  const SCROLL_STEPS=8, SCROLL_STEP_MS=42;
+  // Post-View target: two seconds including scrolling and confirmation.
+  // Keep scrolling visibly gradual but spend only 140 ms on each popup.
+  // Website rendering/confirmation latency is outside the extension's control.
+  const POST_VIEW_TARGET_MS=2000;
+  const SCROLL_STEPS=6, SCROLL_STEP_MS=28;
   let scrolling=false;
   async function gradualScroll(el,bottom){
     if(!el || !Number.isFinite(Number(bottom)))return false;
@@ -86,7 +90,9 @@
     banner('Prowell · '+message);
   }
   async function setClaim(id,stage,other={}){
-    const claim={id,stage,startedAt:state.claim?.startedAt||Date.now(),listUrl:state.claim?.listUrl||location.href,...other};
+    const claim={id,stage,startedAt:state.claim?.startedAt||Date.now(),
+      listUrl:state.claim?.listUrl||location.href,
+      viewClickedAt:state.claim?.viewClickedAt||Date.now(),...other};
     state.claim=claim;
     await chrome.storage.local.set({claim});
   }
@@ -193,7 +199,14 @@
         try{window.dispatchEvent(new Event('prowell-order-confirm-arm'));}catch(_){}
       }
       el.click();
-      await report(message);
+      if(stage==='acknowledged'){
+        // Measure actual user-visible time from View to last click; do not
+        // claim a 2-second result unless the measured value supports it.
+        const elapsedMs=Math.max(0,Date.now()-
+          Number(state.claim?.viewClickedAt||state.claim?.startedAt||Date.now()));
+        await report(message,{lastPostViewDurationMs:elapsedMs,
+          lastPostViewWithin2s:elapsedMs<=POST_VIEW_TARGET_MS});
+      }else await report(message);
     }catch(err){await report('Could not click: '+err.message);}
     finally{busy=false;}
     setTimeout(scheduleScan,0);
@@ -232,10 +245,14 @@
         if(!active()||!state.claim||!sameOrder(state.claim.id,current.id))return;
         if(!opened && Date.now()-current.startedAt<5500)return;
         const seen=[...new Set([...(state.processingPreviewedIds||[]),current.id])].slice(-200);
+        const elapsedMs=Math.max(0,Date.now()-
+          Number(current.viewClickedAt||current.startedAt||Date.now()));
         await report(opened
             ? 'Processing test: clicked View, scrolled order #'+current.id+' details; no acceptance.'
             : 'Processing test: View clicked but order #'+current.id+' details were not found; stopped.',
-          {armed:false,claim:null,processingPreviewedIds:seen});
+          {armed:false,claim:null,processingPreviewedIds:seen,
+            lastPostViewDurationMs:elapsedMs,
+            lastPostViewWithin2s:opened&&elapsedMs<=POST_VIEW_TARGET_MS});
         return;
       }
       if((current.stage==='confirmed'||current.stage==='acknowledged') && success())return finished(true,'Order #'+current.id+': Now you can write the order');
@@ -273,7 +290,8 @@
       const processing=cards.find(c=>c.type==='processing' && !(state.processingPreviewedIds||[]).includes(c.id));
       if(processing){
         // Commit the stage BEFORE triggering navigation, so it survives reload.
-        await setClaim(processing.id,'processing-view-clicked',{listUrl:location.href,startedAt:Date.now()});
+        await setClaim(processing.id,'processing-view-clicked',{listUrl:location.href,
+          startedAt:Date.now(),viewClickedAt:Date.now()});
         processing.view.click();
         // No scroll here: wait for matching Order Information details to render.
         await report('Processing test: clicked View; waiting for #'+processing.id+' details');
@@ -284,7 +302,8 @@
         !(state.completed||[]).includes(c.id));
       if(fresh){
         stopRefresh();
-        await setClaim(fresh.id,'view-clicked',{listUrl:location.href,startedAt:Date.now()});
+        await setClaim(fresh.id,'view-clicked',{listUrl:location.href,
+          startedAt:Date.now(),viewClickedAt:Date.now()});
         lastAction=Date.now();fresh.view.click();
         await report('Opening order #'+fresh.id);
         setTimeout(scheduleScan,0);
