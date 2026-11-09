@@ -5,7 +5,7 @@ const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,refreshMs:10
 let state={...DEFAULTS},tab=null;
 const valid=url=>/^https:\/\/(?:www\.)?4writers\.net\//i.test(url||'');
 const current=()=>Boolean(tab&&valid(tab.url)&&state.targetTabId===tab.id);
-const isArmed=()=>Boolean(state.armed&&state.claimConsentVersion==='0.5.13');
+const isArmed=()=>Boolean(state.armed&&state.claimConsentVersion==='0.5.14');
 async function store(delta){state={...state,...delta};await chrome.storage.local.set(delta);render();}
 function render(){
  $('arm').disabled=!tab||!valid(tab.url)||Boolean(isArmed()&&current());
@@ -28,7 +28,7 @@ async function start(){
 $('arm').addEventListener('click',async()=>{
  if(!tab||!valid(tab.url))return;
  await chrome.storage.local.set({autoFlow:null});
- await store({armed:true,claimConsentVersion:'0.5.13',targetTabId:tab.id,claim:null,soundRunId:crypto.randomUUID(),lastResult:'Watching for orders; will stop after opening View'});
+ await store({armed:true,claimConsentVersion:'0.5.14',targetTabId:tab.id,claim:null,soundRunId:crypto.randomUUID(),lastResult:'Watching for orders; will stop after opening View'});
  $('notice').textContent=state.autoAcceptEnabled?'Automatic acceptance ON: View, instant jump, Take it and confirmations.':'Automatic scrolling ON; you handle Take it and confirmations manually.';
 });
 $('stop').addEventListener('click',async()=>{
