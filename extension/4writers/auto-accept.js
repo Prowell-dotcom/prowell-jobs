@@ -48,48 +48,96 @@
     return Boolean(r && r.width > 0 && r.height > 0 &&
       r.bottom > 0 && r.top < (window.innerHeight || 850));
   }
-  const DIALOGS='[role="dialog"],dialog,[aria-modal="true"],.modal,.modal-body,.popup,[class*="modal"],[class*="order-info"],[class*="order-detail"]';
-  function scrollCandidates(stage, button) {
-    const overlays=[...document.querySelectorAll(DIALOGS)].filter(visible);
+  // Detect the actual foreground order popup. Never fall back to the webpage
+  // behind a visible popup, even when the background itself is scrollable.
+  const DIALOGS='[role="dialog"],dialog,[aria-modal="true"],.modal,.modal-body,.popup,[class*="modal"],[class*="dialog"],[class*="popup"],[class*="drawer"],[class*="lightbox"],[class*="order-info"],[class*="order-detail"]';
+  function rendered(el) {
+    if(!visible(el) || el.hidden || el.getAttribute?.('aria-hidden')==='true')return false;
+    const style=getComputedStyle(el);
+    if(style?.display==='none' || style?.visibility==='hidden')return false;
+    const rect=el.getBoundingClientRect?.();
+    if(rect && rect.width===0 && rect.height===0)return false;
+    return true;
+  }
+  function foregroundSurfaces(button) {
     const orderId=String(flow?.orderId||'');
-    const prioritized=overlays.filter(el=>{
-      const text=el.innerText||el.textContent||'';
-      return text.includes(orderId)||Boolean(button&&el.contains?.(button))||
-        /order information|order details|instructions|acknowledg/i.test(text);
+    const all=[...document.querySelectorAll(DIALOGS)].filter(rendered);
+    const relevant=all.filter(el=>{
+      const t=String(el.innerText||el.textContent||'');
+      return Boolean(button&&el.contains?.(button))||
+        (orderId&&t.includes(orderId))||
+        /order information|order details|order instructions|order requirements|acknowledg/i.test(t);
     });
-    const scope=prioritized.length?prioritized:overlays;
-    const pool=new Set();
-    // Search inside the opened order overlay before considering page scrolling.
-    for(const el of scope) {
-      pool.add(el);
-      for(const inner of el.querySelectorAll?.('*')||[]) pool.add(inner);
-    }
-    for(let parent=button?.parentElement;parent&&parent!==document.body;parent=parent.parentElement)pool.add(parent);
-    if(!scope.length){
-      for(const el of document.querySelectorAll(
-        '[style*="overflow"],[class*="scroll"],[class*="description"],[class*="details"],[class*="content"]')) pool.add(el);
-      pool.add(document.scrollingElement||document.documentElement);
-    }
-    const candidates=[...pool].filter(el=>{
+    // Some pages hide the order ID in the modal header. A single visible
+    // dialog still outranks every scrollable element in the background.
+    const selected=relevant.length?relevant:all.length===1?all:[];
+    selected.sort((a,b)=>{
+      const score=el=>{
+        const text=String(el.innerText||el.textContent||'');
+        const style=getComputedStyle(el);
+        let value=0;
+        if(button&&el.contains?.(button))value+=60;
+        if(orderId&&text.includes(orderId))value+=25;
+        if(el.getAttribute?.('role')==='dialog'||el.getAttribute?.('aria-modal')==='true')value+=45;
+        if(/modal|dialog|popup|drawer/i.test(String(el.className||'')))value+=30;
+        value+=Math.min(100,parseInt(style?.zIndex,10)||0)/10;
+        return value;
+      };
+      return score(b)-score(a);
+    });
+    return selected;
+  }
+  function dedicatedDetailsPage() {
+    const kind=window.__prowellCardDetector?.pageKind?.();
+    if(['available','overview','processing'].includes(kind))return false;
+    const current=String(location.href||'');
+    const changed=Boolean(flow?.listUrl&&flow.listUrl!==current);
+    const path=String(location.pathname||current);
+    const detailPath=/\/(?:order|view|detail|info)[/_-]/i.test(path);
+    const identified=Boolean(flow?.orderId && ((document.body?.innerText||'')+' '+current).includes(String(flow.orderId)));
+    return Boolean(identified&&(changed||detailPath)&&find('take'));
+  }
+  function scrollCandidates(stage,button) {
+    const surfaces=foregroundSurfaces(button);
+    const set=new Set(), isOverlay=surfaces.length>0;
+    if(isOverlay){
+      for(const surface of surfaces){
+        set.add(surface);
+        for(const node of surface.querySelectorAll?.('*')||[])set.add(node);
+      }
+      for(let p=button?.parentElement;p&&p!==document.body;p=p.parentElement){
+        if(surfaces.some(surface=>surface===p||surface.contains?.(p)))set.add(p);
+      }
+    }else if(dedicatedDetailsPage()){
+      // A genuine full-page order detail can scroll its own document.
+      // Listing pages and pages behind a modal are never eligible.
+      for(const node of document.querySelectorAll('body *'))set.add(node);
+      set.add(document.scrollingElement||document.documentElement);
+    }else return [];
+    const candidates=[...set].filter(el=>{
       if(!el||!Number.isFinite(el.scrollHeight)||!Number.isFinite(el.clientHeight))return false;
-      if(el.clientHeight<60||el.scrollHeight-el.clientHeight<=60)return false;
-      if(!scope.length&&el===(document.scrollingElement||document.documentElement))return true;
-      if(!visible(el))return false;
-      const overflow=getComputedStyle(el).overflowY||'';
-      return /auto|scroll|hidden/i.test(overflow)||scope.includes(el);
+      if(el.clientHeight<60 || el.scrollHeight-el.clientHeight<=45)return false;
+      if(isOverlay&&(el===document.body||el===document.documentElement||
+        el===document.scrollingElement))return false;
+      if(!rendered(el) && el!==document.scrollingElement)return false;
+      const style=getComputedStyle(el);
+      const overflow=String(style?.overflowY||'');
+      return /auto|scroll|hidden|overlay/i.test(overflow)||isOverlay;
     });
-    function score(node){
-      const text=node.innerText||node.textContent||'';
-      let points=0;
-      if(scope.some(overlay=>overlay===node||overlay.contains?.(node)))points+=80;
-      if(text.includes(orderId))points+=20;
-      if(stage==='take'&&/instructions|description|order information|order details/i.test(text))points+=30;
-      if(stage==='understand'&&/understand|acknowledg|terms|instructions/i.test(text))points+=30;
-      if(button&&node.contains?.(button))points+=8;
-      const cl=String(node.className||'');
-      if(/body|content|description|details|scroll|instructions/i.test(cl))points+=10;
-      if(node===(document.scrollingElement||document.documentElement))points-=25;
-      return points;
+    function score(el){
+      const style=getComputedStyle(el);
+      const txt=String(el.innerText||el.textContent||'');
+      const cl=String(el.className||'');
+      let value=0;
+      if(isOverlay)value+=120;
+      if(/auto|scroll|overlay/i.test(String(style?.overflowY||'')))value+=55;
+      if(/body|scroll|instructions|description|content|details/i.test(cl))value+=45;
+      if(stage==='take'&&/instructions|description|order information|order details/i.test(txt))value+=20;
+      if(stage==='understand'&&/understand|acknowledg|terms/i.test(txt))value+=20;
+      if(button&&el.contains?.(button))value+=12;
+      if(surfaces.includes(el))value-=8;
+      if(el===document.scrollingElement||el===document.documentElement)value-=60;
+      return value;
     }
     candidates.sort((a,b)=>score(b)-score(a));
     return candidates;
@@ -118,17 +166,8 @@
       if(!guarded())throw Error('Order workflow stopped');
       if(checkSecurity())throw Error('Security challenge detected');
       const roots=scrollCandidates(stage,find(stage));
-      if(!roots.length){
-        // Scan newly-rendered containers, including unclassified layouts.
-        const fallback=[...document.querySelectorAll('body *')].filter(node=>
-          visible(node) && Number.isFinite(node.scrollHeight) &&
-          Number.isFinite(node.clientHeight) && node.clientHeight>=60 &&
-          node.scrollHeight-node.clientHeight>60 &&
-          /auto|scroll|hidden/i.test(getComputedStyle(node).overflowY||''));
-        const page=document.scrollingElement||document.documentElement;
-        if(page && page.scrollHeight-page.clientHeight>60)fallback.push(page);
-        roots.push(...fallback);
-      }
+      // Deliberately no background-page fallback when an order dialog is open.
+      // A missing foreground scroll root is an actionable diagnostic failure.
       if(roots.length){
         foundOverflow=true;
         for(const root of roots){
@@ -161,10 +200,21 @@
       await sleep(200);
     }
     if(!foundOverflow){
-      // Only short details which do not overflow are allowed to skip scrolling.
+      const surfaces=foregroundSurfaces(find(stage));
+      const hasIframe=surfaces.some(el=>Boolean(el.querySelector?.('iframe')));
+      // Short content inside a verified popup may not need scrolling.
+      const short=surfaces.length>0 && !hasIframe &&
+        surfaces.every(el=>!Number.isFinite(el.scrollHeight)||
+          el.scrollHeight<=el.clientHeight+45);
+      if(short && find(stage)){
+        await chrome.storage.local.set({lastScrollStage:stage,lastScrollSteps:0,
+          lastScrollResult:'verified-short-order-popup',lastScrollAt:Date.now()});
+        return;
+      }
       await chrome.storage.local.set({lastScrollStage:stage,lastScrollSteps:0,
-        lastScrollResult:'no-overflowing-pane',lastScrollAt:Date.now()});
-      return;
+        lastScrollResult:'foreground-scroll-pane-not-found',lastScrollAt:Date.now()});
+      throw Error(hasIframe?'Order details appear inside an iframe; inspect that frame':
+        'Foreground order-details pane not found — background page was left untouched');
     }
     await chrome.storage.local.set({lastScrollStage:stage,lastScrollSteps:moved,
       lastScrollResult:'failed',lastScrollContainer:rootLabel,lastScrollAt:Date.now()});
@@ -333,14 +383,7 @@
     }
     const direct=scrollCandidates('take',find('take'));
     const roots=[...direct];
-    if(!roots.length){
-      roots.push(...[...document.querySelectorAll('body *')].filter(node=>
-        visible(node)&&Number.isFinite(node.scrollHeight)&&Number.isFinite(node.clientHeight)&&
-        node.clientHeight>=60&&node.scrollHeight-node.clientHeight>60&&
-        /auto|scroll|hidden/i.test(getComputedStyle(node).overflowY||'')));
-      const page=document.scrollingElement||document.documentElement;
-      if(page&&page.scrollHeight-page.clientHeight>60)roots.push(page);
-    }
+    // Never test-scroll the background when foreground order details are open.
     for(const root of roots){
       let steps=0;
       const initial=root.scrollTop||0;
@@ -361,7 +404,7 @@
         return result;
       }
     }
-    const error={ok:false,reason:roots.length?'Found panels but none moved':'No scrollable order-details panel found'};
+    const error={ok:false,reason:roots.length?'Foreground order panel found, but it did not move':'Foreground order details not located; background page was not scrolled'};
     await chrome.storage.local.set({lastScrollStage:'manual-test',lastScrollResult:'failed',
       lastScrollSteps:0,lastScrollAt:Date.now()});
     return error;
