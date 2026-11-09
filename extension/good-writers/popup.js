@@ -101,3 +101,18 @@ $('autoAcceptEnabled')?.addEventListener('change',async event=>{
   }
   await store({autoAcceptEnabled:enabled,autoFlow:null});
 });
+
+$('testScrollOnly')?.addEventListener('click',async()=>{
+  const btn=$('testScrollOnly');
+  btn.disabled=true;
+  $('notice').textContent='Checking order-details scrolling; no acceptance buttons will be clicked…';
+  try{
+    const [activeTab]=await chrome.tabs.query({active:true,currentWindow:true});
+    if(!activeTab||!valid(activeTab.url))throw Error('Open an order and click View on the correct website.');
+    const response=await chrome.tabs.sendMessage(activeTab.id,{type:'PROWELL_SCROLL_TEST'});
+    $('notice').textContent=response?.ok?
+      'Scroll test passed: '+response.steps+' gradual movements in '+(response.container||'order panel')+'.':
+      'Scroll test failed: '+(response?.reason||'Could not reach extension in this tab. Reload the extension and page.');
+  }catch(error){$('notice').textContent='Scroll test failed: '+String(error?.message||error);}
+  finally{btn.disabled=false;}
+});
