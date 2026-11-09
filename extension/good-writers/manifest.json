@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Prowell Good-Writers Assistant",
   "version": "1.0.8",
-  "description": "View-only order watcher: detect, stop, sound alert, and open View for manual order review.",
+  "description": "Order watcher with explicit opt-in to fixed-wait automated acceptance and manual fallback.",
   "permissions": [
     "storage",
     "tabs",
@@ -29,7 +29,8 @@
       "js": [
         "order-card.js",
         "content.js",
-        "refresh.js"
+        "refresh.js",
+        "auto-accept.js"
       ],
       "run_at": "document_start"
     }
