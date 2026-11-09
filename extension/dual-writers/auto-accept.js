@@ -57,8 +57,8 @@
   // Order details can be a foreground dialog OR the left-side main content
   // in the writer dashboard. Never confuse the sidebar or hidden background
   // with the content that contains the order instructions.
-  const DIALOGS='[role="dialog"],dialog,[aria-modal="true"],.modal,.modal-body,.popup,[class*="modal"],[class*="dialog"],[class*="popup"],[class*="drawer"],[class*="lightbox"]';
-  const DETAILS='main,[role="main"],#content,#main,.main,.main-content,.content-body,.order-info,.order-details,[class*="order-info"],[class*="order-detail"],[class*="instructions"],[class*="description"]';
+  const DIALOGS='[role="dialog"],dialog,[aria-modal="true"],.modal,.modal-body,.popup,[class*="modal"],[class*="dialog"],[class*="popup"],[class*="drawer"],[class*="lightbox"],[class*="order-detail"],[class*="order-info"],[class*="assignment-detail"],[class*="order-window"],[class*="scroll-pane"]';
+  const DETAILS='main,[role="main"],#content,#main,.main,.main-content,.content-body,.order-info,.order-details,[class*="order-info"],[class*="order-detail"],[class*="assignment-detail"],[class*="instructions"],[class*="description"]';
   function rendered(el) {
     if(!visible(el) || el.hidden || el.getAttribute?.('aria-hidden')==='true')return false;
     const st=getComputedStyle(el);
@@ -67,25 +67,28 @@
     if(r && !(r.width>0&&r.height>0))return false;
     return true;
   }
+  const DETAILS_HEADING=/order\s*(?:information|info|details?|instructions?|requirements?)|assignment\s*(?:details?|information)|order\s*description/i;
   function orderText(el) {
     const text=String(el?.innerText||el?.textContent||'');
     const id=String(flow?.orderId||'');
-    return (Boolean(id)&&text.includes(id)) ||
-      /order\s*(?:information|details|instructions|requirements)|acknowledg/i.test(text);
+    // The order ID is still visible on the listing *behind* View.
+    // Never treat that ID alone as proof that the opened details loaded.
+    return Boolean(DETAILS_HEADING.test(text) &&
+      (text.includes(id) || /subject|deadline|instructions|description|files/i.test(text)));
   }
   function foregroundSurfaces(button) {
     // Never scan every element on the page: that delayed View and recognition
     // on complex writer dashboards. Use real dialogs and the button's ancestors.
     const possible=[...document.querySelectorAll(DIALOGS)];
-    // Processing View often opens a details overlay that is not a <dialog>
-    // or a class literally named "modal". Discover these foreground surfaces
-    // only when the standard dialog search finds no verified order surface.
-    if(previewingProcessing() && !possible.some(el=>rendered(el) && orderText(el))){
+    // The details popup can use different wrapper names on different orders.
+    // Look for visible foreground content if the standard dialog selector
+    // has no selected order details. Do not scan the entire DOM as a first step.
+    if(!possible.some(el=>rendered(el) && orderText(el))){
       const extras=document.querySelectorAll?.(
-        '[class*="assignment"],[class*="order"],[class*="detail"],' +
-        '[class*="overlay"],[class*="window"],[style*="position"],' +
+        '[class*="assignment"],[class*="detail"],[class*="overlay"],' +
+        '[class*="window"],[class*="order"],[style*="position"],' +
         '[style*="overflow"],[role="main"],main')||[];
-      for(const el of [...extras].slice(0,2000))possible.push(el);
+      for(const el of [...extras].slice(0,1500))possible.push(el);
     }
     for(let node=button?.parentElement,depth=0;node&&depth<14;node=node.parentElement,depth++){
       if(node===document.body)break;
@@ -99,11 +102,13 @@
         /modal|dialog|popup|drawer|lightbox/i.test(String(el.className||'')) ||
         (/fixed|absolute/i.test(String(style?.position||'')) &&
           Boolean(r && r.width>=180 && r.height>=120)) ||
-        (previewingProcessing() &&
-          /assignment|order-detail|order-info|details-window|scroll-pane/i.test(
+        (/assignment-detail|order-detail|order-info|details-window|scroll-pane/i.test(
             String(el.className||'')+' '+String(el.id||'')) &&
           Boolean(r && r.width>=180 && r.height>=120));
-      return overlay && (el.contains?.(button) || orderText(el));
+      const hasButton=Boolean(button && el.contains?.(button));
+      // A visible dialog with the selected order-details heading is enough.
+      // Unrelated order-list cards, menus, and page backgrounds are excluded.
+      return overlay && (hasButton || orderText(el));
     });
     hits.sort((a,b)=>{
       const score=el=>{
@@ -111,7 +116,9 @@
         if(button && el.contains?.(button))n+=100;
         if(el.getAttribute?.('aria-modal')==='true')n+=80;
         if(el.getAttribute?.('role')==='dialog')n+=60;
-        if(orderText(el))n+=30;
+        if(orderText(el))n+=80;
+        if(/modal|popup|dialog|order-detail|order-info|assignment-detail/i.test(
+          String(el.className||'')))n+=25;
         const z=parseInt(getComputedStyle(el)?.zIndex,10)||0;
         n+=Math.max(0,Math.min(10000,z))/100;
         return n;
@@ -131,15 +138,14 @@
     return changed || Boolean(button && rendered(button) && detailsLabel);
   }
   function inlineOrderDetails(button) {
-    // A same-URL inline panel is allowed only if it contains the selected ID,
-    // an order-detail heading and (when available) the Take it control.
+    // A same-URL inline panel is allowed only with selected ID and a
+    // real order-details heading; it must not be a listing card.
     const id=String(flow?.orderId||'');
     if(!id)return null;
     const candidates=[...document.querySelectorAll(DETAILS)].filter(el=>{
       if(!rendered(el))return false;
       const t=String(el.innerText||el.textContent||'');
-      return t.includes(id) &&
-        /order\s*(?:information|details|instructions|requirements)/i.test(t) &&
+      return t.includes(id) && DETAILS_HEADING.test(t) &&
         (!button||el.contains?.(button));
     });
     // Frameworks sometimes use unlabelled wrappers. Walk up from Take it
@@ -148,7 +154,7 @@
       if(!rendered(p))continue;
       const t=String(p.innerText||p.textContent||'');
       if(t.length>50000)break;
-      if(t.includes(id) && /order\s*(?:information|details|instructions|requirements)/i.test(t))
+      if(t.includes(id) && DETAILS_HEADING.test(t))
         candidates.push(p);
     }
     candidates.sort((a,b)=>String(a.innerText||'').length-String(b.innerText||'').length);
