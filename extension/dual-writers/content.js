@@ -48,6 +48,9 @@
     // The first eligible card in page order, regardless of whether it is
     // a new order or a previously assigned processing order.
     const seen=new Set((state.seenOrderIds||[]).map(String));
+    // Processing: Files + Messages + View. Available: Files + View.
+    // The detector verifies these card controls; never mistake an existing
+    // processing order for a new order that could be accepted again.
     const first=cards.find(card=>['available','processing'].includes(card?.type) &&
       !seen.has(String(card.id||'')) &&
       /^\d{5,16}$/.test(String(card.id||'')) &&
@@ -66,16 +69,19 @@
         },()=>void chrome.runtime.lastError);
       }catch(_){}
     }
-    const accepts=first.type==='available' && state.autoAcceptEnabled===true;
+    const processing=first.type==='processing';
+    const accepts=!processing && state.autoAcceptEnabled===true;
     const message='Order #'+first.id+' ('+first.type+') detected; paused refresh and opened View.'+
-      (accepts?' Auto acceptance enabled.':' Instant details scroll only.');
+      (processing?' Processing-order scroll test; Take it is not expected.':
+       accepts?' Full automatic acceptance enabled.':' Preview-only scrolling.');
     const entry=new Date().toLocaleTimeString()+' '+message;
     // Synchronous, same-task cancellation. Never wait for storage to stop refresh.
     // Keep START and the optional consent active for future orders until STOP.
     // This order is marked seen before View, preventing an endless re-open loop.
     state.seenOrderIds=[...seen,String(first.id)].slice(-150);
     const flow={
-      enabled:true,mode:accepts?'accept':'scroll-only',orderId:String(first.id),
+      enabled:true,mode:processing?'processing-preview':accepts?'accept':'scroll-only',
+      orderKind:first.type,orderId:String(first.id),
       tabId,startedAt:Date.now(),listUrl:location.href,
       stage:'await-view',stageStartedAt:Date.now()
     };
