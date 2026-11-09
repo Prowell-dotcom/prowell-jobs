@@ -27,6 +27,35 @@
   const ACTIONS = 'a,button,input[type="button"],input[type="submit"],[role="button"]';
   let state={...DEFAULTS}, tabId=null, busy=false, pendingScan=false;
   let nextRefresh=null, statusNode=null, lastAction=0;
+  // Only the scroll is paced. No other workflow action receives a delay.
+  // Eight visible increments take ~0.3s, regardless of description length.
+  const SCROLL_STEPS=8, SCROLL_STEP_MS=42;
+  let scrolling=false;
+  async function gradualScroll(el,bottom){
+    if(!el || !Number.isFinite(Number(bottom)))return false;
+    const start=Number(el.scrollTop)||0;
+    const end=Math.max(start,Number(bottom));
+    if(end-start<=2)return false;
+    for(let step=1;step<=SCROLL_STEPS;step++){
+      if(!active() || !state.claim)return false;
+      const t=step/SCROLL_STEPS;
+      const eased=t*t*(3-2*t);
+      try{el.scrollTop=start+(end-start)*eased;}catch(_){return false;}
+      if(step<SCROLL_STEPS)
+        await new Promise(resolve=>setTimeout(resolve,SCROLL_STEP_MS));
+    }
+    return Number(el.scrollTop)>start+1;
+  }
+  async function gradualTargets(nodes){
+    const targets=[...new Set(nodes)].filter(el=>el && el!==document.body &&
+      el!==document.documentElement && el!==document.scrollingElement &&
+      Number(el.clientHeight)>40 &&
+      Number(el.scrollHeight)-Number(el.clientHeight)>10);
+    const results=await Promise.all(targets.map(el=>
+      gradualScroll(el,Math.max(0,Number(el.scrollHeight)-Number(el.clientHeight)))));
+    return results.some(Boolean);
+  }
+
   const sendResult = (payload) => chrome.runtime.sendMessage({type:'GOOD_WRITERS_RESULT',payload},()=>void chrome.runtime.lastError);
 
   const label = el => (el?.getAttribute?.('aria-label') || el?.value ||
@@ -83,37 +112,32 @@
     }
     return null;
   }
-  function scrollOpenedOrder(claim){
-    if(!active() || !state.claim || !sameOrder(state.claim.id,claim.id))return false;
+  async function scrollOpenedOrder(claim){
+    if(!active()||!state.claim||!sameOrder(state.claim.id,claim.id))return false;
     const panel=matchedDetailsPanel(claim);
     if(panel){
-      // Scroll inside the visible order popup, *not* the page behind it.
+      // Scroll only inside the verified ORDER INFORMATION popup.
       const descendants=typeof panel.querySelectorAll==='function'
-        ? [...panel.querySelectorAll('.modal-body,.modal-content,[class*="scroll"],[style*="overflow"],[data-order-details]')]
-        : [];
-      for(const el of [...new Set([panel,...descendants])]){
-        try{
-          if(typeof el.scrollTo==='function')el.scrollTo(0,el.scrollHeight||0);
-          else el.scrollTop=el.scrollHeight||0;
-        }catch(_){try{el.scrollTop=el.scrollHeight||0;}catch(__){}}
-      }
-      return true;
+        ?[...panel.querySelectorAll('.modal-body,.modal-content,[class*="scroll"],[style*="overflow"],[data-order-details]')]:[];
+      await gradualTargets([panel,...descendants]);
+      return active() && state.claim && sameOrder(state.claim.id,claim.id);
     }
-    // Some View links navigate to an entire details page instead of a modal.
-    // A changed URL alone is insufficient; verify the order ID is displayed.
+    // For real full-page View navigation, scroll that details page instead.
     if(location.href!==claim.listUrl){
       const txt=String(document.body?.innerText||'');
       ID_IN_DETAILS.lastIndex=0;
       if([...txt.matchAll(ID_IN_DETAILS)].some(hit=>sameOrder(hit[1],claim.id))){
-        const bottom=Math.max(document.body?.scrollHeight||0,document.documentElement?.scrollHeight||0);
-        try{window.scrollTo(0,bottom);}catch(_){}
-        try{document.scrollingElement?.scrollTo(0,bottom);}catch(_){}
-        return true;
+        const root=document.scrollingElement||document.documentElement;
+        const bottom=Math.max(0,Number(root?.scrollHeight||document.body?.scrollHeight||0)
+          -Number(root?.clientHeight||window.innerHeight||0));
+        if(root)await gradualScroll(root,bottom);
+        else try{window.scrollTo({top:bottom,behavior:'smooth'});}catch(_){}
+        return active()&&state.claim&&sameOrder(state.claim.id,claim.id);
       }
     }
     return false;
   }
-  function scrollAcknowledgment(button){
+  async function scrollAcknowledgment(button){
     if(!active()||!state.claim||!visible(button))return false;
     // After OK the site shows a SECOND, often very long, ORDER INFORMATION
     // dialog. Its scrollbar belongs to the popup, NOT document/body.
@@ -139,22 +163,15 @@
         parent=parent.parentElement,depth++){
       if(Number(parent.scrollHeight)-Number(parent.clientHeight)>10)nodes.add(parent);
     }
-    let moved=false,alreadyAtBottom=false;
-    for(const el of nodes){
-      if(el===document.body||el===document.documentElement||
-         el===document.scrollingElement)continue;
-      const height=Number(el.scrollHeight)||0;
-      const viewport=Number(el.clientHeight)||0;
-      if(viewport<40||height-viewport<10)continue;
-      const maxTop=Math.max(0,height-viewport);
-      const before=Number(el.scrollTop)||0;
-      if(before>=maxTop-3){alreadyAtBottom=true;continue;}
-      try{
-        // An immediate jump, never animated steps, never window.scrollTo.
-        el.scrollTop=maxTop;
-        if((Number(el.scrollTop)||0)>before+1)moved=true;
-      }catch(_){}
-    }
+    // Scroll popup contents over short visible steps, while protecting the
+    // background page. Advance to I understand once the steps finish.
+    const scrollables=[...nodes].filter(el=>el!==document.body &&
+      el!==document.documentElement && el!==document.scrollingElement &&
+      Number(el.clientHeight)>40 &&
+      Number(el.scrollHeight)-Number(el.clientHeight)>10);
+    const alreadyAtBottom=scrollables.some(el=>
+      Number(el.scrollTop)>=Number(el.scrollHeight)-Number(el.clientHeight)-3);
+    const moved=await gradualTargets(scrollables);
     // When the footer is visible without scrolling, it can be clicked now.
     void chrome.storage.local.set({
       lastAcknowledgementScroll:moved?'scrolled-popup':
@@ -199,7 +216,7 @@
     }else scheduleRefresh();
   }
   async function scan(){
-    if(!active()||busy||!document.body)return;
+    if(!active()||busy||scrolling||!document.body)return;
     if(challenge()){
       stopRefresh();
       if(state.claim)sendResult({eventKey:'security_'+state.claim.id+'_'+state.claim.startedAt,orderId:state.claim.id,outcome:'uncertain',stage:'security',elapsedMs:Date.now()-state.claim.startedAt,detail:'Security challenge appeared; automation paused.'});
@@ -209,7 +226,11 @@
       const current=state.claim;
       if(current.stage==='processing-view-clicked'){
         // Processing orders: View -> detail-popup scroll -> stop, no acceptance.
-        const opened=scrollOpenedOrder(current);
+        scrolling=true;
+        let opened=false;
+        try{opened=await scrollOpenedOrder(current);}
+        finally{scrolling=false;}
+        if(!active()||!state.claim||!sameOrder(state.claim.id,current.id))return;
         if(!opened && Date.now()-current.startedAt<5500)return;
         const seen=[...new Set([...(state.processingPreviewedIds||[]),current.id])].slice(-200);
         await report(opened
@@ -230,13 +251,20 @@
         if(acknowledge){
           // Good-Writers also shows a long acknowledgement popup after OK.
           // Its scrollable body must move before the footer button is clicked.
-          scrollAcknowledgment(acknowledge);
+          scrolling=true;
+          try{await scrollAcknowledgment(acknowledge);}
+          finally{scrolling=false;}
+          if(!active()||!state.claim||!sameOrder(state.claim.id,current.id))return;
           return clickStage(acknowledge,'acknowledged','Acknowledged order #'+current.id);
         }
       }
       if((current.stage==='view-clicked'||current.stage==='take-waiting')){
         // Do not click or scroll until View has shown THIS order's information.
-        if(!scrollOpenedOrder(current))return;
+        scrolling=true;
+        let opened=false;
+        try{opened=await scrollOpenedOrder(current);}
+        finally{scrolling=false;}
+        if(!active()||!state.claim||!sameOrder(state.claim.id,current.id)||!opened)return;
         const take=find(TAKE);
         if(take)return clickStage(take,'take-clicked','Clicked Take it for #'+current.id);
       }
