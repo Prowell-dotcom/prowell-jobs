@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Prowell Dual-Platform Instant Bot",
-  "version": "2.0.5",
-  "description": "Independent 4writers and GoodWriters order watchers with instant foreground-details scrolling, event-driven opt-in acceptance.",
+  "version": "2.1.0",
+  "description": "Unmodified user-provided 4writers v0.5.4 and Good-Writers v1.0.4 engines, independent storage and per-order audio alerts.",
   "permissions": [
     "storage",
     "tabs",
@@ -12,7 +12,8 @@
     "https://4writers.net/*",
     "https://www.4writers.net/*",
     "https://good-writers.com/*",
-    "https://www.good-writers.com/*"
+    "https://www.good-writers.com/*",
+    "https://prowelljobs.com/*"
   ],
   "action": {
     "default_title": "Prowell Dual-Platform Instant Bot",
@@ -28,7 +29,7 @@
         "https://www.4writers.net/*"
       ],
       "js": [
-        "confirm-main.js"
+        "legacy/four/confirm-main.js"
       ],
       "world": "MAIN",
       "run_at": "document_start"
@@ -39,7 +40,7 @@
         "https://www.good-writers.com/*"
       ],
       "js": [
-        "confirm-main.js"
+        "legacy/good/confirm-main.js"
       ],
       "world": "MAIN",
       "run_at": "document_start"
@@ -51,10 +52,11 @@
       ],
       "js": [
         "scoped-store.js",
-        "four-order-card.js",
-        "content.js",
-        "refresh.js",
-        "auto-accept.js"
+        "legacy-bridge.js",
+        "legacy/four/order-card.js",
+        "legacy-order-sound.js",
+        "legacy/four/runtime-content.js",
+        "legacy/four/runtime-refresh.js"
       ],
       "run_at": "document_start"
     },
@@ -65,10 +67,11 @@
       ],
       "js": [
         "scoped-store.js",
-        "good-order-card.js",
-        "content.js",
-        "refresh.js",
-        "auto-accept.js"
+        "legacy-bridge.js",
+        "legacy/good/order-card.js",
+        "legacy-order-sound.js",
+        "legacy/good/runtime-content.js",
+        "legacy/good/runtime-refresh.js"
       ],
       "run_at": "document_start"
     }
