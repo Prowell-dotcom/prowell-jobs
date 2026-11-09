@@ -5,7 +5,7 @@ const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,refreshMs:10
 let state={...DEFAULTS},tab=null;
 const valid=url=>/^https:\/\/(?:www\.)?good-writers\.com\//i.test(url||'');
 const current=()=>Boolean(tab&&valid(tab.url)&&state.targetTabId===tab.id);
-const isArmed=()=>Boolean(state.armed&&state.claimConsentVersion==='1.0.15');
+const isArmed=()=>Boolean(state.armed&&state.claimConsentVersion==='1.0.16');
 async function store(delta){state={...state,...delta};await chrome.storage.local.set(delta);render();}
 function render(){
  $('arm').disabled=!tab||!valid(tab.url)||Boolean(isArmed()&&current());
@@ -26,7 +26,7 @@ async function start(){
 }
 $('arm').addEventListener('click',async()=>{
  if(!tab||!valid(tab.url))return;
- await store({autoFlow:null,seenOrderIds:[],autoAcceptEnabled:true,armed:true,claimConsentVersion:'1.0.15',targetTabId:tab.id,claim:null,soundRunId:crypto.randomUUID(),lastResult:'Watching continuously; refresh pauses for each order and resumes after closing details'});
+ await store({autoFlow:null,seenOrderIds:[],autoAcceptEnabled:true,armed:true,claimConsentVersion:'1.0.16',targetTabId:tab.id,claim:null,soundRunId:crypto.randomUUID(),lastResult:'Watching continuously; refresh pauses for each order and resumes after closing details'});
  $('notice').textContent='AUTO-TAKE enabled: sound + instant View, details scroll, Take it, OK, I understand.';
 });
 $('stop').addEventListener('click',async()=>{
