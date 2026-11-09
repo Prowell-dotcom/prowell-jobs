@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Prowell Dual-Platform Instant Bot",
-  "version": "2.1.5",
+  "version": "2.1.6",
   "description": "Earlier supplied 4writers and Good-Writers engines with sound alerts, plus Writings/Rewritings monitoring in 4writers.",
   "permissions": [
     "storage",
