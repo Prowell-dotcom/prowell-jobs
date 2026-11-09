@@ -5,7 +5,7 @@ const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,refreshMs:10
 let state={...DEFAULTS},tab=null;
 const valid=url=>/^https:\/\/(?:www\.)?4writers\.net\//i.test(url||'');
 const current=()=>Boolean(tab&&valid(tab.url)&&state.targetTabId===tab.id);
-const isArmed=()=>Boolean(state.armed&&state.claimConsentVersion==='0.5.9');
+const isArmed=()=>Boolean(state.armed&&state.claimConsentVersion==='0.5.10');
 async function store(delta){state={...state,...delta};await chrome.storage.local.set(delta);render();}
 function render(){
  $('arm').disabled=!tab||!valid(tab.url)||Boolean(isArmed()&&current());
@@ -13,11 +13,11 @@ function render(){
  $('status').textContent=(isArmed()&&current()?'ARMED — THIS TAB':isArmed()?'ARMED IN ANOTHER TAB':'STOPPED')+
  '\nRefresh interval: every 1 second' +
  '\nSupported: account overview and available orders'+
- '\nAction after detection: '+(state.autoAcceptEnabled?'automatic order acceptance (opt-in)':'View only; manual review')+
+ '\nAction after detection: '+(state.autoAcceptEnabled?'automatic order acceptance (opt-in)':'View + automatic gradual scroll; manual acceptance')+
  '\nLast: '+(state.lastResult||'Ready');
  if($('autoAcceptEnabled')){$('autoAcceptEnabled').checked=Boolean(state.autoAcceptEnabled);$('autoAcceptEnabled').disabled=isArmed();}
  $('history').textContent=(state.log||[]).slice(-10).reverse().join('\n')||'No events yet.';
- // No auto-return: opening View hands control to the user.
+ // Automatic scrolling is available independently of order acceptance.
 }
 async function start(){
  [tab]=await chrome.tabs.query({active:true,currentWindow:true});
@@ -28,8 +28,8 @@ async function start(){
 $('arm').addEventListener('click',async()=>{
  if(!tab||!valid(tab.url))return;
  await chrome.storage.local.set({autoFlow:null});
- await store({armed:true,claimConsentVersion:'0.5.9',targetTabId:tab.id,claim:null,soundRunId:crypto.randomUUID(),lastResult:'Watching for orders; will stop after opening View'});
- $('notice').textContent=state.autoAcceptEnabled?'Automatic acceptance ON: View, gradual scroll, Take it and confirmations.':'VIEW-ONLY mode: to activate automatic scrolling, STOP, check Enable automatic order acceptance, then START WATCHING.';
+ await store({armed:true,claimConsentVersion:'0.5.10',targetTabId:tab.id,claim:null,soundRunId:crypto.randomUUID(),lastResult:'Watching for orders; will stop after opening View'});
+ $('notice').textContent=state.autoAcceptEnabled?'Automatic acceptance ON: View, gradual scroll, Take it and confirmations.':'Automatic scrolling ON; you handle Take it and confirmations manually.';
 });
 $('stop').addEventListener('click',async()=>{
  await chrome.storage.local.set({autoFlow:null});
