@@ -22,12 +22,14 @@ for(const site of ['four','good']){
    'legacy/'+site+'/order-card.js','legacy-order-sound.js',
    'legacy/'+site+'/runtime-content.js','legacy/'+site+'/runtime-refresh.js'
  ],'Do not run any experimental order-clicking engine');
- for(const name of ['content.js','refresh.js']){
+ for(const name of ['content.js','refresh.js','background.js']){
    const original=read('legacy/'+site+'/'+name);
    const runner=read('legacy/'+site+'/runtime-'+name);
    assert(runner.includes(original),
      'Original '+site+' '+name+' must appear byte-for-byte in wrapper');
-   assert.match(runner,/const chrome=window\.__prowellLegacyChrome/);
+   if(name==='background.js')
+     assert.match(runner,/const chrome=\{runtime:rawChrome\.runtime/);
+   else assert.match(runner,/const chrome=window\.__prowellLegacyChrome/);
  }
  for(const file of ['content.js','refresh.js','order-card.js','confirm-main.js',
    'background.js','popup.js','popup.html','popup-refresh.js','manifest.json'])
