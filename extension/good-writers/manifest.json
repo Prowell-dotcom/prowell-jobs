@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Prowell Good-Writers Assistant",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Order watcher with explicit opt-in to fixed-wait automated acceptance and manual fallback.",
   "permissions": [
     "storage",
