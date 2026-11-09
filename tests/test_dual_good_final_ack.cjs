@@ -69,7 +69,7 @@ async function check(label){
  const chrome={
   runtime:{lastError:null,onMessage:{addListener(){}},
    sendMessage(message,callback){
-    if(message.type==='PROWELL_TAB_ID')callback({tabId:17});
+    if(message.type==='GW_TAB_ID')callback({tabId:17});
     else if(callback)callback({ok:true});
    }},
   storage:{local:store,onChanged:{addListener(fn){listeners.push(fn)}}}
