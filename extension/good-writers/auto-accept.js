@@ -48,76 +48,101 @@
     return Boolean(r && r.width > 0 && r.height > 0 &&
       r.bottom > 0 && r.top < (window.innerHeight || 850));
   }
-  function scrollRoot(el, stage = 'take') {
-    // Read the order's actual scrolling content, not just the fixed footer
-    // holding Take it / I understand. Those buttons can already be visible.
-    const overlays = [...document.querySelectorAll(
-      '[role="dialog"],dialog,[aria-modal="true"],.modal,.modal-body,.popup,[class*="modal"],[class*="order-info"],[class*="order-detail"]'
-    )].filter(visible);
-    const related = [];
-    for (const overlay of overlays) {
-      related.push(overlay);
-      related.push(...overlay.querySelectorAll('*'));
-    }
-    const other = [...document.querySelectorAll(
-      '[style*="overflow"],[class*="scroll"],[class*="description"],[class*="details"],[class*="content"]'
-    )];
-    const parents = [];
-    for (let p = el?.parentElement; p && p !== document.body; p = p.parentElement) parents.push(p);
-    const candidates = [...new Set([...related, ...parents, ...other])].filter(node => {
-      if (!visible(node) || !Number.isFinite(node.scrollHeight) || !Number.isFinite(node.clientHeight)) return false;
-      if (node.clientHeight < 80 || node.scrollHeight <= node.clientHeight + 60) return false;
-      const overflow = getComputedStyle(node).overflowY || '';
-      return /auto|scroll|hidden/i.test(overflow) || related.includes(node);
+  const DIALOGS='[role="dialog"],dialog,[aria-modal="true"],.modal,.modal-body,.popup,[class*="modal"],[class*="order-info"],[class*="order-detail"]';
+  function scrollCandidates(stage, button) {
+    const overlays=[...document.querySelectorAll(DIALOGS)].filter(visible);
+    const orderId=String(flow?.orderId||'');
+    const prioritized=overlays.filter(el=>{
+      const text=el.innerText||el.textContent||'';
+      return text.includes(orderId)||Boolean(button&&el.contains?.(button))||
+        /order information|order details|instructions|acknowledg/i.test(text);
     });
-    const score = node => {
-      const text = node.innerText || '';
-      const role = node.closest?.('[role="dialog"],dialog,[aria-modal="true"],.modal,.popup,[class*="modal"]');
-      let result = 0;
-      if (related.includes(node)) result += 25;
-      if (role) result += 30;
-      if (stage === 'take' && text.includes(String(flow?.orderId || ''))) result += 20;
-      if (stage === 'understand' && /understand|acknowledge|order (?:rules|terms)/i.test(text)) result += 20;
-      if (node.contains?.(el)) result += 8;
-      // Favor the inner scrollable reading pane over a large outer panel.
-      if (node.clientHeight < 850) result += 3;
-      return result;
-    };
-    candidates.sort((a,b) => score(b) - score(a));
-    return candidates[0] || document.scrollingElement || document.documentElement;
+    const scope=prioritized.length?prioritized:overlays;
+    const pool=new Set();
+    // Search inside the opened order overlay before considering page scrolling.
+    for(const el of scope) {
+      pool.add(el);
+      for(const inner of el.querySelectorAll?.('*')||[]) pool.add(inner);
+    }
+    for(let parent=button?.parentElement;parent&&parent!==document.body;parent=parent.parentElement)pool.add(parent);
+    if(!scope.length){
+      for(const el of document.querySelectorAll(
+        '[style*="overflow"],[class*="scroll"],[class*="description"],[class*="details"],[class*="content"]')) pool.add(el);
+      pool.add(document.scrollingElement||document.documentElement);
+    }
+    const candidates=[...pool].filter(el=>{
+      if(!el||!Number.isFinite(el.scrollHeight)||!Number.isFinite(el.clientHeight))return false;
+      if(el.clientHeight<60||el.scrollHeight-el.clientHeight<=60)return false;
+      if(!scope.length&&el===(document.scrollingElement||document.documentElement))return true;
+      if(!visible(el))return false;
+      const overflow=getComputedStyle(el).overflowY||'';
+      return /auto|scroll|hidden/i.test(overflow)||scope.includes(el);
+    });
+    function score(node){
+      const text=node.innerText||node.textContent||'';
+      let points=0;
+      if(scope.some(overlay=>overlay===node||overlay.contains?.(node)))points+=80;
+      if(text.includes(orderId))points+=20;
+      if(stage==='take'&&/instructions|description|order information|order details/i.test(text))points+=30;
+      if(stage==='understand'&&/understand|acknowledg|terms|instructions/i.test(text))points+=30;
+      if(button&&node.contains?.(button))points+=8;
+      const cl=String(node.className||'');
+      if(/body|content|description|details|scroll|instructions/i.test(cl))points+=10;
+      if(node===(document.scrollingElement||document.documentElement))points-=25;
+      return points;
+    }
+    candidates.sort((a,b)=>score(b)-score(a));
+    return candidates;
   }
   async function waitForOrderDetails() {
-    const started = Date.now();
-    while (Date.now() - started < STEP_TIMEOUT) {
-      if (!guarded()) throw Error('Order workflow expired while opening View');
-      if (checkSecurity()) throw Error('Security challenge detected');
-      const page = (document.body?.innerText || '') + ' ' + location.href;
-      if (page.includes(String(flow.orderId)) && find('take')) return;
+    const started=Date.now();
+    while(Date.now()-started<STEP_TIMEOUT){
+      if(!guarded())throw Error('Order workflow expired while opening View');
+      if(checkSecurity())throw Error('Security challenge detected');
+      const page=(document.body?.innerText||'')+' '+location.href;
+      const detailsReady=find('take')||
+        /order information|order details|instructions|requirements/i.test(document.body?.innerText||'');
+      if(page.includes(String(flow.orderId))&&detailsReady)return;
       await sleep(150);
     }
-    throw Error('Order details or Take it button did not appear after View');
+    throw Error('Order details did not appear after View');
   }
-  async function readThrough(stage) {
-    const root = scrollRoot(find(stage), stage);
-    if (!root) throw Error('No scrollable order details container found');
-    let steps = 0;
-    const maximumSteps = 100;
-    const startedAt = Date.now();
-    while (steps < maximumSteps && Date.now() - startedAt < STEP_TIMEOUT) {
-      if (!guarded()) throw Error('Order workflow was stopped or expired');
-      if (checkSecurity()) throw Error('Security challenge detected');
-      const distance = (root.scrollHeight || 0) - (root.clientHeight || 0) - (root.scrollTop || 0);
-      if (distance <= 3) break;
-      if (!await move(root, 1)) break;
-      steps++;
+  async function readThrough(stage){
+    const candidates=scrollCandidates(stage,find(stage));
+    if(!candidates.length){
+      // Short details may fit fully without an overflowing container.
+      await chrome.storage.local.set({lastScrollStage:stage,lastScrollSteps:0,
+        lastScrollResult:'no-overflowing-order-pane'});
+      return;
     }
-    if ((root.scrollHeight || 0) - (root.clientHeight || 0) - (root.scrollTop || 0) > 5)
-      throw Error('Could not finish scrolling through ' + stage + ' information');
-    await chrome.storage.local.set({
-      lastScrollStage: stage,
-      lastScrollSteps: steps,
-      lastScrollAt: Date.now()
-    });
+    let attempted=false,atBottom=false;
+    for(const root of candidates){
+      if(!guarded())throw Error('Order workflow stopped');
+      if(checkSecurity())throw Error('Security challenge detected');
+      const initialDistance=root.scrollHeight-root.clientHeight-root.scrollTop;
+      if(initialDistance<=3) {atBottom=true;continue;}
+      let steps=0;
+      const started=Date.now();
+      while(steps<100&&Date.now()-started<STEP_TIMEOUT){
+        if(!guarded())throw Error('Order workflow stopped');
+        if(checkSecurity())throw Error('Security challenge detected');
+        if(root.scrollHeight-root.clientHeight-root.scrollTop<=3)break;
+        attempted=true;
+        if(!await move(root,1))break;
+        steps++;
+      }
+      if(steps>0&&root.scrollHeight-root.clientHeight-root.scrollTop<=5){
+        await chrome.storage.local.set({lastScrollStage:stage,lastScrollSteps:steps,
+          lastScrollResult:'verified-movement'});
+        return;
+      }
+    }
+    if(atBottom&&!attempted){
+      await chrome.storage.local.set({lastScrollStage:stage,lastScrollSteps:0,
+        lastScrollResult:'already-at-bottom'});
+      return;
+    }
+    throw Error(attempted?'Order details scrolling did not reach the bottom':'Could not scroll the order-details panel');
   }
   async function move(root, direction) {
     if (!root || !guarded() || checkSecurity()) return false;
@@ -127,7 +152,7 @@
     if (Math.abs(next - initial) < 1) return false;
     root.scrollTop = next;
     await sleep(STEP_DELAY);
-    return true;
+    return Math.abs((root.scrollTop || 0) - initial) >= 2;
   }
   async function locate(stage, scrollAllowed) {
     const start = Date.now();
@@ -141,12 +166,12 @@
         if (!scrollAllowed) throw Error(stage + ' control is not visible; no automatic scrolling allowed');
         const rect = el.getBoundingClientRect();
         const direction = rect.top >= (window.innerHeight || 850) ? 1 : -1;
-        if (steps < 90 && await move(scrollRoot(el), direction)) {
+        if (steps < 90 && await move(scrollCandidates(stage,el)[0], direction)) {
           steps++;
           continue;
         }
       } else if (scrollAllowed && steps < 90) {
-        if (await move(scrollRoot(null), 1)) {
+        if (await move(scrollCandidates(stage,null)[0], 1)) {
           steps++;
           continue;
         }
