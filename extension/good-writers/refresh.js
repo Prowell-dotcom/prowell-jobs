@@ -14,7 +14,7 @@
   let status = '';
   let local = {armed:false,targetTabId:null,claim:null,claimConsentVersion:'',attemptedIds:[],completed:[]};
   const interval = 1000;
-  const isActive = () => local.armed && local.claimConsentVersion === '1.0.13' && local.targetTabId === tabId;
+  const isActive = () => local.armed && local.claimConsentVersion === '1.0.14' && local.targetTabId === tabId;
 
   function setStatus(message) {
     if (message === status) return;
@@ -32,11 +32,15 @@
       Boolean(document.querySelector('iframe[src*="captcha"],[class*="g-recaptcha"]'));
   }
   function unseenOrderVisible(){
+    if(window.__prowellOrderDetected)return true;
     const cards=window.__prowellCardDetector?.cards()||[];
     const handled=new Set([...(local.attemptedIds||[]),...(local.completed||[])]);
     return cards.some(c=>c.type==='processing'||(c.type==='available'&&!handled.has(c.id)));
   }
   function evaluate() {
+    // The watcher sets this synchronously when an order appears, before the
+    // storage event and before the View handoff can race the reload timer.
+    if(window.__prowellOrderDetected){cancel();return;}
     if (!isActive()) {
       cancel();
       setStatus('Stopped — press START WATCHING');
