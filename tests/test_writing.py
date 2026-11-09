@@ -26,6 +26,26 @@ class WritingMarketplaceTests(unittest.TestCase):
         cls.port=cls.httpd.server_address[1]
         cls.worker=threading.Thread(target=cls.httpd.serve_forever,daemon=True)
         cls.worker.start()
+        # Authenticate through the real one-time owner setup instead of using
+        # the retired bearer-key shortcut after an owner account is created.
+        setup={
+            'setupKey':server.ADMIN_KEY,
+            'email':'test-owner@example.test',
+            'fullName':'Test Marketplace Owner',
+            'password':'Local test-only owner passphrase 123!',
+            'confirmPassword':'Local test-only owner passphrase 123!'
+        }
+        request=Request(
+            f'http://127.0.0.1:{cls.port}/api/admin/bootstrap',
+            data=json.dumps(setup).encode(),
+            headers={'Content-Type':'application/json'},
+            method='POST'
+        )
+        with urlopen(request,timeout=10) as response:
+            assert response.status==200, 'Writing tests require a real admin session'
+            payload=json.loads(response.read())
+            cls.admin_cookie=response.headers['Set-Cookie'].split(';')[0]
+            cls.admin_csrf=payload['csrfToken']
 
     @classmethod
     def tearDownClass(cls):
@@ -47,7 +67,10 @@ class WritingMarketplaceTests(unittest.TestCase):
         if payload is not None:headers['Content-Type']='application/json'
         if cookie:headers['Cookie']=cookie
         if csrf:headers['X-Member-CSRF']=csrf
-        if admin:headers['Authorization']='Bearer '+server.ADMIN_KEY
+        if admin:
+            headers['Cookie']=self.admin_cookie
+            if method in ('POST','PATCH','PUT','DELETE'):
+                headers['X-Admin-CSRF']=self.admin_csrf
         req=Request(f'http://127.0.0.1:{self.port}{path}',
                     data=json.dumps(payload).encode() if payload is not None else None,
                     headers=headers,method=method)
