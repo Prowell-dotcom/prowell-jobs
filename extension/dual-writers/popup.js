@@ -4,7 +4,7 @@ const SITES={
   four:{name:'4writers',prefix:'dual_four_',legacyVersion:'0.5.4',host:/^https:\/\/(?:www\.)?4writers\.net\//i},
   good:{name:'GoodWriters',prefix:'dual_good_',legacyVersion:'1.0.4',host:/^https:\/\/(?:www\.)?good-writers\.com\//i}
 };
-const VERSION='2.1.0';
+const VERSION='2.1.1';
 const notice=document.querySelector('#notice');
 const key=(site,name)=>SITES[site].prefix+name;
 const put=(site,values)=>chrome.storage.local.set(Object.fromEntries(
@@ -16,7 +16,9 @@ const pick=async site=>{
 };
 async function render(site){
   const obj=SITES[site],tab=await pick(site);
-  const names=['armed','claimConsentVersion','targetTabId','autoAcceptEnabled','claim','lastResult','refreshStatus','refreshCount'];
+  const names=['armed','claimConsentVersion','targetTabId','autoAcceptEnabled',
+    'claim','lastResult','refreshStatus','refreshCount','lastRefreshAt',
+    'fourLastCheckedSection','fourLastCheckedAt','fourCycleCount'];
   const raw=await chrome.storage.local.get(names.map(n=>key(site,n)));
   const val=n=>raw[key(site,n)];
   const running=val('armed')===true&&val('claimConsentVersion')===obj.legacyVersion;
@@ -27,7 +29,14 @@ async function render(site){
     (running?'WATCHING TAB #'+val('targetTabId'):'STOPPED')+
     '\n'+(tab?'Signed-in page detected (tab #'+tab.id+')':'Open the official site in a browser tab')+
     '\n'+(val('claim')?'Order workflow: '+String(val('claim').stage||'working'):'No active order')+
-    '\n'+(val('lastResult')||val('refreshStatus')||'Ready');
+    '\nRefresh: '+(val('refreshStatus')||'Not started')+
+    (site==='four'
+      ? '\n4writers sections: Writings + Rewritings'+
+        '\nLast checked: '+(val('fourLastCheckedSection')||'not yet')+
+        (val('fourLastCheckedAt')?' at '+new Date(val('fourLastCheckedAt')).toLocaleTimeString():'')+
+        '\nSection checks: '+(Number(val('fourCycleCount'))||0)
+      : '')+
+    '\nLast action: '+(val('lastResult')||'Ready');
 }
 async function start(site){
   const tab=await pick(site);
@@ -35,12 +44,18 @@ async function start(site){
   await put(site,{
     autoFlow:null,seenOrderIds:[],autoAcceptEnabled:true,armed:true,claimConsentVersion:SITES[site].legacyVersion,targetTabId:tab.id,
     claim:null,soundRunId:crypto.randomUUID(),
-    lastResult:'Running the supplied original '+SITES[site].name+' bot with a separate order-notification sound.'
+    ...(site==='four'?{fourLastCheckedSection:'',fourLastCheckedAt:null,
+      fourCycleCount:0,refreshCount:0,lastRefreshAt:null}:{}),
+    lastResult:site==='four'
+      ? 'Monitoring both Writings and Rewritings (2-second section cycle) with audio alerts.'
+      : 'Running the supplied original Good-Writers engine with audio alerts.'
   });
   // Do not block monitoring/automatic clicks while preparing audio.
   // If audio cannot be prewarmed, the normal order alert still tries playback.
   void chrome.runtime.sendMessage({type:'PROWELL_PREPARE_ORDER_SOUND'}).catch(()=>{});
-  notice.textContent=SITES[site].name+': Original bot activated with a notification sound. Its existing order actions are unchanged.';
+  notice.textContent=site==='four'
+    ? '4writers: watching Writings + Rewritings. It switches sections every 2 seconds when the order list is ready.'
+    : 'Good-Writers: original bot activated with a notification sound.';
   await render(site);
 }
 async function stop(site){
