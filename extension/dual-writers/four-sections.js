@@ -54,6 +54,36 @@
     if(/writings|free.?orders|available.?orders/.test(url))return 'writings';
     return null;
   }
+  // Neutral account screen shown in the user's screenshot: the top-level
+  // Writings and Rewritings links are visible, but neither is selected and
+  // the middle column is blank. Available orders can appear here too.
+  // Treat it separately from a slow-loading selected section.
+  function overview(){
+    if(original.pageKind()==='processing')return false;
+    const path=String(location.pathname||'').toLowerCase();
+    if(/(?:processing|current|my|late)[_-]?(?:orders?|rewritings?)/.test(path))
+      return false;
+    const tabs=links();
+    const names=new Set(tabs.map(el=>label(el).toLowerCase()));
+    if(!names.has('writings')||!names.has('rewritings'))return false;
+    // An explicit active tab means this is a selected listing in a loading
+    // state, not the neutral screen. Ignore URL fallback selection here.
+    if(tabs.some(el=>/(?:^|\s)(?:active|selected|current)(?:\s|$)/i.test(
+      String(el.className||'')+' '+String(el.parentElement?.className||'')) ||
+      el.getAttribute?.('aria-selected')==='true'))return false;
+    const text=String(document.body?.innerText||'');
+    if(!/available\s+orders/i.test(text) ||
+       !/(?:my\s+current\s+orders|processing\s+orders|rewritings)/i.test(text))
+      return false;
+    const heads=[...document.querySelectorAll('h1,h2,h3,[role="heading"]')]
+      .filter(visible).map(label);
+    if(heads.some(t=>/^available\s+(?:orders|writings|rewritings)$/i.test(t)))
+      return false;
+    // Search controls and sorting appear in a fully rendered section but not
+    // in this blank overview. Existing order cards can nevertheless appear.
+    if(/\b(?:order by|search keywords|show all)\b/i.test(text))return false;
+    return true;
+  }
   function available(){
     const text=String(document.body?.innerText||'');
     const path=(location.pathname||'').toLowerCase();
@@ -72,7 +102,7 @@
     // this as the target section in a LOADING state, not an unrelated page.
     if(links().length>=2 && selected() &&
        /available\s+orders/i.test(text))return true;
-    return original.pageKind()==='available';
+    return overview()||original.pageKind()==='available';
   }
   function pageKind(){
     const base=original.pageKind();
@@ -87,5 +117,5 @@
       :cards;
   }
   window.__prowellCardDetector={...original,pageKind,cards};
-  window.__prowellFourSections={links,selected,available};
+  window.__prowellFourSections={links,selected,available,overview};
 })();
