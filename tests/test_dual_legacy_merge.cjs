@@ -6,7 +6,7 @@ const vm=require('node:vm'),path=require('node:path');
 const base=path.join(__dirname,'../extension/dual-writers');
 const read=p=>fs.readFileSync(path.join(base,p),'utf8');
 const manifest=JSON.parse(read('manifest.json'));
-assert.equal(manifest.version,'2.1.0');
+assert.equal(manifest.version,'2.1.1');
 const scripts=manifest.content_scripts;
 assert.equal(scripts.length,4);
 for(const site of ['four','good']){
@@ -17,11 +17,16 @@ for(const site of ['four','good']){
  const expected=scripts.find(item=>item.world!=='MAIN'&&
    item.matches.some(x=>x.includes(origin)));
  assert(expected,'Missing isolated legacy site script');
- assert.deepEqual(expected.js,[
+ if(site==='four')assert.deepEqual(expected.js,[
    'scoped-store.js','legacy-bridge.js',
-   'legacy/'+site+'/order-card.js','legacy-order-sound.js',
-   'legacy/'+site+'/runtime-content.js','legacy/'+site+'/runtime-refresh.js'
- ],'Do not run any experimental order-clicking engine');
+   'legacy/four/order-card.js','four-sections.js','legacy-order-sound.js',
+   'legacy/four/runtime-content.js','four-section-refresh.js'
+ ],'4writers must monitor both order sections');
+ else assert.deepEqual(expected.js,[
+   'scoped-store.js','legacy-bridge.js',
+   'legacy/good/order-card.js','legacy-order-sound.js',
+   'legacy/good/runtime-content.js','legacy/good/runtime-refresh.js'
+ ],'Good-Writers must use its unchanged engine');
  for(const name of ['content.js','refresh.js','background.js']){
    const original=read('legacy/'+site+'/'+name);
    const runner=read('legacy/'+site+'/runtime-'+name);
