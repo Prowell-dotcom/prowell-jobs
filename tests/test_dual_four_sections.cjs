@@ -5,7 +5,7 @@ const assert=require('node:assert/strict');
 const dir=path.join(__dirname,'../extension/dual-writers');
 const read=p=>fs.readFileSync(path.join(dir,p),'utf8');
 const manifest=JSON.parse(read('manifest.json'));
-assert.equal(manifest.version,'2.1.3');
+assert.equal(manifest.version,'2.1.4');
 const four=manifest.content_scripts.find(x=>x.world!=='MAIN'&&
   x.matches.some(m=>m.includes('4writers.net')));
 const good=manifest.content_scripts.find(x=>x.world!=='MAIN'&&
