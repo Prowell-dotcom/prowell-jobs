@@ -2,7 +2,9 @@
  * separate Chrome storage namespace. Embedded original is unmodified.
  */
 (() => {
-  const rawChrome=chrome;
+  // Resolve the actual Chrome API explicitly: the `const chrome`
+  // below shadows the global name and must not be accessed before init.
+  const rawChrome=globalThis.chrome;
   const storagePrefix='dual_four_';
   const scopedLocal={
     get(request,callback){
