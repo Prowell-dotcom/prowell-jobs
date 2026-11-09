@@ -13,7 +13,7 @@ function render(){
  $('status').textContent=(isArmed()&&current()?'ARMED — THIS TAB':isArmed()?'ARMED IN ANOTHER TAB':'STOPPED')+
  '\nRefresh interval: every 1 second' +
  '\nSupported: account overview and available orders'+
- '\nAction after detection: '+(state.autoAcceptEnabled?'automatic order acceptance (opt-in)':'View + automatic instant jump to bottom; manual acceptance')+
+ '\nAction after detection: '+(state.autoAcceptEnabled?'automatic order acceptance (opt-in)':'View + instant scroll for each order; manual acceptance')+
  '\nLast: '+(state.lastResult||'Ready');
  if($('autoAcceptEnabled')){$('autoAcceptEnabled').checked=Boolean(state.autoAcceptEnabled);$('autoAcceptEnabled').disabled=isArmed();}
  $('history').textContent=(state.log||[]).slice(-10).reverse().join('\n')||'No events yet.';
@@ -27,8 +27,8 @@ async function start(){
 }
 $('arm').addEventListener('click',async()=>{
  if(!tab||!valid(tab.url))return;
- await chrome.storage.local.set({autoFlow:null});
- await store({armed:true,claimConsentVersion:'0.5.14',targetTabId:tab.id,claim:null,soundRunId:crypto.randomUUID(),lastResult:'Watching for orders; will stop after opening View'});
+ await chrome.storage.local.set({autoFlow:null,seenOrderIds:[]});
+ await store({armed:true,claimConsentVersion:'0.5.14',targetTabId:tab.id,claim:null,soundRunId:crypto.randomUUID(),lastResult:'Watching continuously; refresh pauses for each order and resumes after closing details'});
  $('notice').textContent=state.autoAcceptEnabled?'Automatic acceptance ON: View, instant jump, Take it and confirmations.':'Automatic scrolling ON; you handle Take it and confirmations manually.';
 });
 $('stop').addEventListener('click',async()=>{
@@ -70,7 +70,7 @@ start().catch(err=>{$('notice').textContent=err.message;});
 $('autoAcceptEnabled')?.addEventListener('change',async event=>{
   if(isArmed()){event.target.checked=Boolean(state.autoAcceptEnabled);return;}
   const enabled=event.target.checked;
-  if(enabled && !confirm('Enable automatic Take it, OK and I understand for available orders on this platform? Review the site rules and accept responsibility for order requirements.')){
+  if(enabled && !confirm('Enable automatic Take it, OK and I understand for every eligible available order until STOP? Review the site rules and accept responsibility for order requirements.')){
     event.target.checked=false;return;
   }
   await store({autoAcceptEnabled:enabled,autoFlow:null});
