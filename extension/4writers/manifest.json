@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Prowell 4writers Order Watcher",
-  "version": "0.5.15",
+  "version": "0.5.16",
   "description": "Order watcher with explicit opt-in to foreground-only order-details scrolling with optional acceptance.",
   "permissions": [
     "storage",
