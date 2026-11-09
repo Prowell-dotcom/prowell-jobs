@@ -7,12 +7,12 @@ const vm=require('node:vm');
 const dir=path.join(__dirname,'../extension/dual-writers');
 const source=name=>fs.readFileSync(path.join(dir,name),'utf8');
 const manifest=JSON.parse(source('manifest.json'));
-assert.equal(manifest.version,'2.0.0');
-assert.equal(manifest.content_scripts.length,2);
+assert.equal(manifest.version,'2.0.1');
+assert.equal(manifest.content_scripts.length,4);
 assert(manifest.host_permissions.some(h=>h.includes('4writers.net')));
 assert(manifest.host_permissions.some(h=>h.includes('good-writers.com')));
 const jsFiles=['scoped-store.js','content.js','refresh.js','auto-accept.js',
- 'background.js','popup.js','four-order-card.js','good-order-card.js',
+ 'background.js','popup.js','four-order-card.js','good-order-card.js','confirm-main.js',
  'order-sound-background.js','order-sound.js'];
 for(const file of jsFiles)new vm.Script(source(file),{filename:file});
 const auto=source('auto-accept.js');

@@ -10,30 +10,56 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
   if(message?.type==='PROWELL_TAB_ID'||message?.type==='GW_TAB_ID')
     reply({tabId:sender.tab?.id??null});
 });
-// Preserve the selected order when the official View link opens a new tab.
-chrome.tabs.onCreated.addListener(async tab=>{
-  if(!Number.isInteger(tab.openerTabId))return;
+chrome.tabs.onCreated.addListener(async tab => {
+  if(!Number.isInteger(tab.openerTabId)||!Number.isInteger(tab.id))return;
   let opener;
-  try{opener=await chrome.tabs.get(tab.openerTabId);}catch(_){return;}
+  try{opener=await chrome.tabs.get(tab.openerTabId)}catch(_){return;}
   const site=siteOf(opener?.url||opener?.pendingUrl);
   if(!site)return;
   const key=SITES[site].prefix+'autoFlow';
-  const saved=await chrome.storage.local.get(key);
-  const flow=saved[key];
-  if(!flow||flow.enabled!==true||flow.tabId!==tab.openerTabId||
-     Date.now()-flow.startedAt>=90000)return;
-  const onUpdate=async(id,changed,current)=>{
-    if(id!==tab.id)return;
-    const url=current?.url||changed.url||'';
-    if(siteOf(url)===site){
-      chrome.tabs.onUpdated.removeListener(onUpdate);
-      const latest=(await chrome.storage.local.get(key))[key];
-      if(latest?.enabled===true&&latest.orderId===flow.orderId&&
-         latest.tabId===tab.openerTabId){
-        await chrome.storage.local.set({[key]:{...latest,tabId:tab.id}});
-      }
-    }else if(/^https?:\/\//i.test(url))chrome.tabs.onUpdated.removeListener(onUpdate);
+  const matches=url=>siteOf(url)===site;
+  const newId=tab.id,openerId=tab.openerTabId;
+  let finished=false,transferring=false,rerunRequested=false;
+  let expiry=null;
+  const cleanup=()=>{
+    if(finished)return;
+    finished=true;
+    if(expiry!==null)clearTimeout(expiry);
+    chrome.storage.onChanged.removeListener(onStorage);
+    chrome.tabs.onUpdated.removeListener(onUpdated);
+    chrome.tabs.onRemoved.removeListener(onRemoved);
   };
-  chrome.tabs.onUpdated.addListener(onUpdate);
-  if(siteOf(tab.url||tab.pendingUrl)===site)void onUpdate(tab.id,{},tab);
+  const maybeTransfer=async()=>{
+    if(finished)return;
+    if(transferring){rerunRequested=true;return;}
+    transferring=true;
+    try{
+      const flow=(await chrome.storage.local.get(key))[key];
+      if(!flow||flow.enabled!==true||flow.tabId!==openerId||
+          Date.now()-flow.startedAt>=90000)return;
+      let opened;
+      try{opened=await chrome.tabs.get(newId)}catch(_){cleanup();return;}
+      if(!matches(opened?.url||opened?.pendingUrl))return;
+      const latest=(await chrome.storage.local.get(key))[key];
+      if(!latest||latest.orderId!==flow.orderId||latest.tabId!==openerId)return;
+      await chrome.storage.local.set({[key]:{...latest,tabId:newId}});
+      cleanup();
+    }catch(_){
+      // Keep the short-lived observer for the next official tab or storage update.
+    }finally{
+      transferring=false;
+      if(rerunRequested&&!finished){rerunRequested=false;void maybeTransfer();}
+    }
+  };
+  const onStorage=(changes,area)=>{
+    if(area==='local'&&changes[key])void maybeTransfer();
+  };
+  const onUpdated=(id)=>{if(id===newId)void maybeTransfer();};
+  const onRemoved=(id)=>{if(id===newId)cleanup();};
+  chrome.storage.onChanged.addListener(onStorage);
+  chrome.tabs.onUpdated.addListener(onUpdated);
+  chrome.tabs.onRemoved.addListener(onRemoved);
+  // Cleanup timer never delays a click. It only releases unused listeners.
+  expiry=setTimeout(cleanup,30000);
+  void maybeTransfer();
 });

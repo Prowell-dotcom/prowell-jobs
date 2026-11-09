@@ -7,18 +7,19 @@
   if (window !== window.top || !/^https:\/\/(?:www\.)?(?:4writers\.net|good-writers\.com)$/i.test(location.origin)) return;
   if (window.__prowellDualRefreshLoaded) return;
   window.__prowellDualRefreshLoaded = true;
+
   const IS_FOUR=/(?:^|\.)4writers\.net$/i.test(location.hostname);
   const TAB_MESSAGE=IS_FOUR?'PROWELL_TAB_ID':'GW_TAB_ID';
   const store=window.__prowellDualStorage;
   if(!store)return;
-
   let tabId = null;
   let timer = null;
+  let stoppedForVisibleOrder = false;
   let count = 0;
   let status = '';
   let local = {armed:false,targetTabId:null,claim:null,claimConsentVersion:'',attemptedIds:[],completed:[]};
   const interval = 1000;
-  const isActive = () => local.armed && local.claimConsentVersion === '2.0.1' && local.targetTabId === tabId;
+  const isActive = () => !stoppedForVisibleOrder && local.armed && local.claimConsentVersion === '2.0.1' && local.targetTabId === tabId;
 
   function setStatus(message) {
     if (message === status) return;
@@ -29,6 +30,12 @@
     if (timer !== null) clearTimeout(timer);
     timer = null;
   }
+  // Called synchronously from the detection observer before any storage roundtrip.
+  window.__prowellCancelRefresh = () => {
+    stoppedForVisibleOrder = true;
+    cancel();
+    status = 'Stopped — opening detected order';
+  };
   function orderListVisible(){const kind=window.__prowellCardDetector?.pageKind();return kind==='available'||(IS_FOUR&&kind==='overview');}
   function challengeVisible() {
     const text = document.body?.innerText || '';
@@ -36,17 +43,14 @@
       Boolean(document.querySelector('iframe[src*="captcha"],[class*="g-recaptcha"]'));
   }
   function unseenOrderVisible(){
-    if(window.__prowellOrderDetected)return true;
     const cards=window.__prowellCardDetector?.cards()||[];
     const handled=new Set([...(local.attemptedIds||[]),...(local.completed||[])]);
     return cards.some(c=>c.type==='processing'||(c.type==='available'&&!handled.has(c.id)));
   }
   function evaluate() {
-    // The watcher sets this synchronously when an order appears, before the
-    // storage event and before the View handoff can race the reload timer.
-    if(window.__prowellOrderDetected){cancel();return;}
     if (!isActive()) {
       cancel();
+      if(stoppedForVisibleOrder)return;
       setStatus('Stopped — press START WATCHING');
       return;
     }
@@ -99,7 +103,11 @@
     if (area !== 'local') return;
     let touched = false;
     for (const key of relevant) {
-      if (changes[key]) {local[key]=changes[key].newValue; touched=true;}
+      if (changes[key]) {
+        local[key]=changes[key].newValue;
+        if(key==='armed' && changes[key].newValue===true) stoppedForVisibleOrder=false;
+        touched=true;
+      }
     }
     if (touched) evaluate();
     if (changes.refreshCount) count = Math.max(0,Number(changes.refreshCount.newValue)||0);

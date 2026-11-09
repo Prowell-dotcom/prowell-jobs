@@ -28,6 +28,28 @@
         "https://www.4writers.net/*"
       ],
       "js": [
+        "confirm-main.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://good-writers.com/*",
+        "https://www.good-writers.com/*"
+      ],
+      "js": [
+        "confirm-main.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://4writers.net/*",
+        "https://www.4writers.net/*"
+      ],
+      "js": [
         "scoped-store.js",
         "four-order-card.js",
         "content.js",

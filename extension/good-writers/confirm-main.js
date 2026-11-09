@@ -12,7 +12,7 @@
   window.addEventListener('prowell-order-confirm-arm',arm);
   window.confirm=function(message){
     const text=String(message??'').trim();
-    if(Date.now()<=armedUntil && /^are you sure\b/i.test(text)){
+    if(Date.now()<=armedUntil && /^(?:are you sure|are you certain|confirm (?:accept|taking)|do you (?:want|wish) to (?:take|accept))\b/i.test(text)){
       armedUntil=0;
       window.dispatchEvent(new Event('prowell-order-confirm-accepted'));
       return true;

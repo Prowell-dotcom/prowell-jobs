@@ -11,19 +11,22 @@ class DualWritersBundleTests(unittest.TestCase):
         root=Path(__file__).resolve().parents[1]
         data=store.dual_writers_bundle(root)
         self.assertLess(len(data),store.MAX_ZIP_BYTES)
-        self.assertEqual(store.validate_bundle(data),'2.0.0')
+        self.assertEqual(store.validate_bundle(data),'2.0.1')
         self.assertNotEqual(data,store.bundled_extension(root))
         self.assertNotEqual(data,store.good_writers_bundle(root))
         with zipfile.ZipFile(io.BytesIO(data)) as z:
             self.assertEqual(set(z.namelist()),set(store.DUAL_WRITERS_FILES))
             manifest=json.loads(z.read('manifest.json'))
             self.assertEqual(manifest['manifest_version'],3)
-            self.assertEqual(len(manifest['content_scripts']),2)
+            self.assertEqual(len(manifest['content_scripts']),4)
             self.assertIn('https://4writers.net/*',manifest['host_permissions'])
             self.assertIn('https://good-writers.com/*',manifest['host_permissions'])
             for script in manifest['content_scripts']:
-                self.assertEqual(script['js'][0],'scoped-store.js')
-                self.assertIn('auto-accept.js',script['js'])
+                if script.get('world') == 'MAIN':
+                    self.assertIn('confirm-main.js',script['js'])
+                else:
+                    self.assertEqual(script['js'][0],'scoped-store.js')
+                    self.assertIn('auto-accept.js',script['js'])
             self.assertIn('dual_four_',z.read('background.js').decode())
             self.assertIn('dual_good_',z.read('background.js').decode())
 

@@ -90,27 +90,52 @@ chrome.tabs.onCreated.addListener(tab=>{
  });
 });
 
-// Carry a single explicitly opted-in order workflow into an official View tab.
 chrome.tabs.onCreated.addListener(tab => {
-  if (!Number.isInteger(tab.openerTabId)) return;
-  chrome.storage.local.get(['autoFlow'], state => {
-    const flow=state.autoFlow;
-    if(!flow || flow.enabled!==true || flow.tabId!==tab.openerTabId ||
-       Date.now()-flow.startedAt>90000) return;
-    const createdId=tab.id;
-    const listener=(id,change,current)=>{
-      if(id!==createdId) return;
-      const url=(current&&current.url)||change.url||'';
-      if(/^https:\/\/(?:www\.)?good-writers\.com\//i.test(url)){
-        chrome.tabs.onUpdated.removeListener(listener);
-        chrome.storage.local.get(['autoFlow'], latest=>{
-          const currentFlow=latest.autoFlow;
-          if(currentFlow && currentFlow.orderId===flow.orderId && currentFlow.tabId===flow.tabId){
-            chrome.storage.local.set({autoFlow:{...currentFlow,tabId:createdId}});
-          }
-        });
-      }else if(/^https?:\/\//i.test(url)) chrome.tabs.onUpdated.removeListener(listener);
-    };
-    chrome.tabs.onUpdated.addListener(listener);
-  });
+  if(!Number.isInteger(tab.openerTabId)||!Number.isInteger(tab.id))return;
+  const key='autoFlow';
+  const matches=url=>/^https:\/\/(?:www\.)?good-writers\.com\//i.test(url||'');
+  const newId=tab.id,openerId=tab.openerTabId;
+  let finished=false,transferring=false,rerunRequested=false;
+  let expiry=null;
+  const cleanup=()=>{
+    if(finished)return;
+    finished=true;
+    if(expiry!==null)clearTimeout(expiry);
+    chrome.storage.onChanged.removeListener(onStorage);
+    chrome.tabs.onUpdated.removeListener(onUpdated);
+    chrome.tabs.onRemoved.removeListener(onRemoved);
+  };
+  const maybeTransfer=async()=>{
+    if(finished)return;
+    if(transferring){rerunRequested=true;return;}
+    transferring=true;
+    try{
+      const flow=(await chrome.storage.local.get(key))[key];
+      if(!flow||flow.enabled!==true||flow.tabId!==openerId||
+          Date.now()-flow.startedAt>=90000)return;
+      let opened;
+      try{opened=await chrome.tabs.get(newId)}catch(_){cleanup();return;}
+      if(!matches(opened?.url||opened?.pendingUrl))return;
+      const latest=(await chrome.storage.local.get(key))[key];
+      if(!latest||latest.orderId!==flow.orderId||latest.tabId!==openerId)return;
+      await chrome.storage.local.set({[key]:{...latest,tabId:newId}});
+      cleanup();
+    }catch(_){
+      // Keep the short-lived observer for the next official tab or storage update.
+    }finally{
+      transferring=false;
+      if(rerunRequested&&!finished){rerunRequested=false;void maybeTransfer();}
+    }
+  };
+  const onStorage=(changes,area)=>{
+    if(area==='local'&&changes[key])void maybeTransfer();
+  };
+  const onUpdated=(id)=>{if(id===newId)void maybeTransfer();};
+  const onRemoved=(id)=>{if(id===newId)cleanup();};
+  chrome.storage.onChanged.addListener(onStorage);
+  chrome.tabs.onUpdated.addListener(onUpdated);
+  chrome.tabs.onRemoved.addListener(onRemoved);
+  // Cleanup timer never delays a click. It only releases unused listeners.
+  expiry=setTimeout(cleanup,30000);
+  void maybeTransfer();
 });

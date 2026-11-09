@@ -1,4 +1,4 @@
-# Prowell Dual-Platform Instant Bot (v2.0.0)
+# Prowell Dual-Platform Instant Bot (v2.0.1)
 
 This is a separate Chrome/Edge Manifest V3 extension. It monitors **4writers.net**
 and **good-writers.com** independently using one browser extension.

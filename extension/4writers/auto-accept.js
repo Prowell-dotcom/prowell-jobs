@@ -12,7 +12,14 @@
   const SELECTORS = 'button,a,input[type="button"],input[type="submit"],[role="button"]';
   const RUN_TTL = 90000;
   const STEP_TIMEOUT = 20000;
-  let tabId = null, flow = null, busy = false;
+  let tabId = null, flow = null, busy = false, nativeOk = false;
+  let pendingWrites = Promise.resolve();
+  const rank = { 'await-view':0, scroll:1, take:1, ok:2, understand:3, verify:4 };
+  // The MAIN-world helper reports a native browser confirmation as soon as
+  // the site's confirm() returns. The next stage does not wait for a DOM OK.
+  window.addEventListener?.('prowell-order-confirm-accepted',()=>{
+    if(guarded() && flow.stage==='ok')nativeOk=true;
+  });
   function guarded() {
     return Boolean(flow && flow.enabled === true && Number.isInteger(tabId) &&
       flow.tabId === tabId && /^\d{5,16}$/.test(String(flow.orderId || '')) &&
@@ -65,61 +72,47 @@
       /order\s*(?:information|details|instructions|requirements)|acknowledg/i.test(text);
   }
   function foregroundSurfaces(button) {
-    const candidates=new Set(document.querySelectorAll(DIALOGS));
-    // Resolve actual named order dialogs first. Scanning the whole dashboard
-    // forces expensive layout work and can select the page behind the order.
-    const foundNamed=[...candidates].some(el=>rendered(el)&&
-      (orderText(el)||el.contains?.(button)));
-    // Only look for unnamed fixed overlays when there is no matching dialog.
-    if(!foundNamed)for(const el of document.querySelectorAll('body *')){
-      if(!rendered(el))continue;
-      const st=getComputedStyle(el);
-      if(!/fixed|absolute/i.test(st?.position||''))continue;
-      if(!orderText(el) && !el.contains?.(button))continue;
-      const r=el.getBoundingClientRect?.();
-      if(r && r.width>=180 && r.height>=120) candidates.add(el);
+    // Never scan every element on the page: that delayed View and recognition
+    // on complex writer dashboards. Use real dialogs and the button's ancestors.
+    const possible=[...document.querySelectorAll(DIALOGS)];
+    for(let node=button?.parentElement,depth=0;node&&depth<14;node=node.parentElement,depth++){
+      if(node===document.body)break;
+      possible.push(node);
     }
-    const matching=[...candidates].filter(el=>rendered(el)&&
-      (orderText(el)||el.contains?.(button)));
-    function validOverlay(el){
-      const st=getComputedStyle(el),r=el.getBoundingClientRect?.();
-      return el.getAttribute?.('role')==='dialog' ||
+    const hits=[...new Set(possible)].filter(el=>{
+      if(!rendered(el))return false;
+      const style=getComputedStyle(el),r=el.getBoundingClientRect?.();
+      const overlay=el.getAttribute?.('role')==='dialog' ||
         el.getAttribute?.('aria-modal')==='true' ||
         /modal|dialog|popup|drawer|lightbox/i.test(String(el.className||'')) ||
-        (/fixed|absolute/i.test(st?.position||'') &&
-         Boolean(r && r.width>=180 && r.height>=120));
-    }
-    const surfaces=matching.filter(validOverlay);
-    surfaces.sort((a,b)=>{
+        (/fixed|absolute/i.test(String(style?.position||'')) &&
+          Boolean(r && r.width>=180 && r.height>=120));
+      return overlay && (el.contains?.(button) || orderText(el));
+    });
+    hits.sort((a,b)=>{
       const score=el=>{
-        const st=getComputedStyle(el);
-        let val=0;
-        if(el.contains?.(button))val+=100;
-        if(el.getAttribute?.('aria-modal')==='true')val+=50;
-        if(el.getAttribute?.('role')==='dialog')val+=40;
-        if(orderText(el))val+=20;
-        val+=Math.max(0,Math.min(100000,parseInt(st?.zIndex,10)||0))/100;
-        return val;
+        let n=0;
+        if(button && el.contains?.(button))n+=100;
+        if(el.getAttribute?.('aria-modal')==='true')n+=80;
+        if(el.getAttribute?.('role')==='dialog')n+=60;
+        if(orderText(el))n+=30;
+        const z=parseInt(getComputedStyle(el)?.zIndex,10)||0;
+        n+=Math.max(0,Math.min(10000,z))/100;
+        return n;
       };
       return score(b)-score(a);
     });
-    // Only the highest-priority overlay can control scrolling.
-    return surfaces.length?[surfaces[0]]:[];
+    return hits.length?[hits[0]]:[];
   }
   function detailsPage(button) {
-    const kind=window.__prowellCardDetector?.pageKind?.();
-    const url=String(location.href||'');
-    const changed=Boolean(flow?.listUrl&&flow.listUrl!==url);
-    const text=(document.body?.innerText||'')+' '+url;
     const id=String(flow?.orderId||'');
-    const hasOrder=Boolean(id&&text.includes(id));
-    if(!hasOrder)return false;
-    if(button&&rendered(button)){
-      // The Take it action on a real order detail distinguishes this view
-      // from available/overview listings that merely show View links.
-      return changed || !['available','overview','processing'].includes(kind);
-    }
-    return changed && /order information|order details|instructions/i.test(text);
+    const text=document.body?.innerText||'';
+    if(!id || !(text+' '+location.href).includes(id))return false;
+    const changed=Boolean(flow?.listUrl && flow.listUrl!==location.href);
+    const detailsLabel=/order\s*(?:information|details|instructions|requirements)|assignment\s*details/i.test(text);
+    // View may replace the listing *in place* without changing the URL.
+    // A real Take it button plus selected order details is sufficient proof.
+    return changed || Boolean(button && rendered(button) && detailsLabel);
   }
   function inlineOrderDetails(button) {
     // A same-URL inline panel is allowed only if it contains the selected ID,
@@ -197,7 +190,7 @@
       if(orderText(el))n+=20;
       if(button&&el.contains?.(button))n+=12;
       if(el===overlay)n-=10;
-      if(el===document.scrollingElement||el===document.documentElement)n-=70;
+      if(!overlay&&(el===document.scrollingElement||el===document.documentElement))n-=70;
       return n;
     };
     candidates.sort((a,b)=>score(b)-score(a));
@@ -257,10 +250,8 @@
       const genuinelyShort=overlays.length>0 && overlays.every(el=>
         Number.isFinite(el.scrollHeight)&&Number.isFinite(el.clientHeight) &&
         el.scrollHeight-el.clientHeight<=45);
-      // A short order has no scrolling to perform. The visible Take it
-      // button is enough; do not attempt to scroll an unrelated root.
-      if(genuinelyShort || (find(stage) && inViewport(find(stage)) &&
-         (inlineOrderDetails(find(stage)) || detailsPage(find(stage)))))return;
+      if(genuinelyShort || inlineOrderDetails(find(stage)) ||
+          (find(stage) && detailsPage(find(stage))))return;
       throw Error('Order-details scroll panel not found; background was not scrolled');
     }
     let alreadyAtEnd=0;
@@ -289,20 +280,26 @@
     if(!el)el=await waitUntil(()=>find(stage),stage+' button');
     if(!guarded())throw Error('Workflow stopped before '+stage);
     if(!el?.isConnected||!visible(el))throw Error(stage+' button disappeared');
-    if(!inViewport(el)){
-      if(!scrollAllowed)throw Error(stage+' control is outside the visible dialog');
+    if(!inViewport(el) && scrollAllowed){
       await jumpToBottom(stage);
       el=find(stage);
-      if(!el || !inViewport(el))throw Error(stage+' button is not visible after scrolling');
     }
+    // A programmatic click works on a connected button inside an overflow
+    // pane even when its viewport rectangle is out of date after a jump.
+    if(!el || !visible(el))throw Error(stage+' control is not ready');
     return el;
   }
-  async function updateStage(stage) {
+  function updateStage(stage) {
     if (!guarded()) throw Error('Workflow stopped');
-    flow = {...flow, stage, stageStartedAt: Date.now()};
-    await chrome.storage.local.set({autoFlow: flow});
+    flow={...flow,stage,stageStartedAt:Date.now()};
+    const next=flow;
+    // Initiate persistence *before* the click, but do not artificially delay
+    // any click for a storage callback. Changes are tracked for finalization.
+    const write=chrome.storage.local.set({autoFlow:next});
+    pendingWrites=Promise.allSettled([pendingWrites,write]);
   }
   async function end(message, outcome) {
+    await pendingWrites;
     const current = await chrome.storage.local.get({log: [], attemptedIds: []});
     const entry = new Date().toLocaleTimeString() + ' ' + message;
     const attemptedIds = [...new Set([...(current.attemptedIds || []), String(flow?.orderId || '')])].filter(Boolean).slice(-100);
@@ -339,22 +336,26 @@
           const el = await locate('take', true);
           const page = (document.body?.innerText || '') + ' ' + location.href;
           if (!page.includes(flow.orderId)) throw Error('Selected order ID not found in details');
-          await updateStage('ok');
+          nativeOk=false;
+          updateStage('ok');
           if (!guarded() || !el.isConnected) throw Error('Details changed before Take it');
+          if(typeof Event==='function' && typeof window.dispatchEvent==='function')
+            window.dispatchEvent(new Event('prowell-order-confirm-arm'));
           el.click();
         } else if (flow.stage === 'ok') {
-          const el = await locate('ok', false);
-          await updateStage('understand');
+          if(nativeOk){
+            nativeOk=false;
+            updateStage('understand');
+            continue;
+          }
+          const el = await locate('ok', true);
+          updateStage('understand');
           if (!guarded() || !el.isConnected) throw Error('Confirmation changed before OK');
           el.click();
         } else if (flow.stage === 'understand') {
-          if (IS_FOUR) {
-            await waitUntil(()=>foregroundSurfaces(find('understand')).length>0,
-              'the acknowledgment panel');
-            await jumpToBottom('understand');
-          }
-          const el = await locate('understand', IS_FOUR);
-          await updateStage('verify');
+          const el = await locate('understand', true);
+          // Only scroll the acknowledgment if the button actually requires it.
+          updateStage('verify');
           if (!guarded() || !el.isConnected) throw Error('Acknowledgment changed before I understand');
           el.click();
         } else if (flow.stage === 'verify') {
@@ -390,10 +391,8 @@
         return overlayReady||fullDetail ? true : null;
       },'the opened order panel');
       if(!guarded()||flow.stage!=='await-view')return;
-      const next={...flow,stage:flow.mode==='scroll-only'?'scroll':'take',
-        stageStartedAt:Date.now()};
-      await chrome.storage.local.set({autoFlow:next});
-      flow=next;
+      updateStage(flow.mode==='scroll-only'?'scroll':'take');
+      void execute();
     }catch(error){
       await chrome.storage.local.set({lastResult:'View handoff failed: '+
         String(error?.message||error)});
@@ -401,7 +400,10 @@
   }
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local' || !changes.autoFlow) return;
-    flow = changes.autoFlow.newValue || null;
+    const next=changes.autoFlow.newValue || null;
+    if(next && flow && next.orderId===flow.orderId &&
+      next.startedAt===flow.startedAt && rank[next.stage]<rank[flow.stage])return;
+    flow=next;
     if (flow?.stage==='await-view') void resumeAfterView();
     else if (flow) void execute();
   });
@@ -449,5 +451,8 @@
     if(flow?.stage==='await-view')void resumeAfterView();
     else void execute();
   });
-  document.addEventListener('DOMContentLoaded', () => void execute(), {once: true});
+  document.addEventListener('DOMContentLoaded', () => {
+    if(flow?.stage==='await-view')void resumeAfterView();
+    else void execute();
+  }, {once:true});
 })();

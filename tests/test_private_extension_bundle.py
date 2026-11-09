@@ -14,7 +14,7 @@ class PrivateExtensionBundleTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         data = store.bundled_extension(root)
         self.assertLess(len(data), store.MAX_ZIP_BYTES)
-        self.assertEqual(store.validate_bundle(data), '0.5.13')
+        self.assertEqual(store.validate_bundle(data), '0.5.14')
         with zipfile.ZipFile(io.BytesIO(data)) as zipped:
             names = set(zipped.namelist())
             self.assertTrue({'manifest.json','content.js','popup.js','popup.html','background.js','refresh.js','popup-refresh.js','order-sound-background.js','order-sound.js','order-sound.html'} <= names)
@@ -23,7 +23,8 @@ class PrivateExtensionBundleTests(unittest.TestCase):
             self.assertIn('offscreen',manifest['permissions'])
             self.assertIn('https://4writers.net/*', manifest['host_permissions'])
             scripts=[name for item in manifest['content_scripts'] for name in item['js']]
-            self.assertNotIn('confirm-main.js',scripts)
+            self.assertIn('confirm-main.js',scripts)
+            self.assertIn('confirm-main.js',names)
             self.assertNotIn('order-sound-watch.js',scripts)
 
     def test_release_is_built_from_repository(self):
@@ -31,7 +32,7 @@ class PrivateExtensionBundleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             data, source = store.selected_bundle(Path(tmp) / 'database.sqlite3', root)
         self.assertEqual(source, 'github-bundled')
-        self.assertEqual(store.validate_bundle(data), '0.5.13')
+        self.assertEqual(store.validate_bundle(data), '0.5.14')
 
     def test_docker_image_includes_source_files(self):
         root = Path(__file__).resolve().parents[1]

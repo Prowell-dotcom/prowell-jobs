@@ -26,6 +26,15 @@
         "https://good-writers.com/*",
         "https://www.good-writers.com/*"
       ],
+      "js": ["confirm-main.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://good-writers.com/*",
+        "https://www.good-writers.com/*"
+      ],
       "js": [
         "order-card.js",
         "content.js",

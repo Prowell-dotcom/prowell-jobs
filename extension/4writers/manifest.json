@@ -26,6 +26,15 @@
         "https://4writers.net/*",
         "https://www.4writers.net/*"
       ],
+      "js": ["confirm-main.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://4writers.net/*",
+        "https://www.4writers.net/*"
+      ],
       "js": [
         "order-card.js",
         "content.js",

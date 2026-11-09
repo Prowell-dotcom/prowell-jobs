@@ -5,8 +5,8 @@
 (() => {
   'use strict';
   if(window!==window.top || !/^https:\/\/(?:www\.)?(?:4writers\.net|good-writers\.com)$/i.test(location.origin))return;
-  if(window.__prowellViewOnlyV057)return;
-  window.__prowellViewOnlyV057=true;
+  if(window.__prowellDualWatcherV201)return;
+  window.__prowellDualWatcherV201=true;
 
   const VERSION='2.0.1';
   const IS_FOUR=/(?:^|\.)4writers\.net$/i.test(location.hostname);
@@ -32,7 +32,6 @@
       card.view?.isConnected && typeof card.view.click==='function');
     if(!first)return;
     opening=true; // synchronous: prevent all subsequent observer triggers
-    window.__prowellOrderDetected=true; // cancel refresh in this tab immediately
 
     // Start the sound before stopping the watcher. The background audio
     // handler stays active after the local armed state is cleared.
@@ -44,43 +43,36 @@
         },()=>void chrome.runtime.lastError);
       }catch(_){}
     }
-    const message='Order #'+first.id+' ('+first.type+') detected; View + automatic instant scrolling. '+
-      'Further acceptance steps depend on the opt-in setting.';
+    const accepts=first.type==='available' && state.autoAcceptEnabled===true;
+    const message='Order #'+first.id+' ('+first.type+') detected; stopped refresh and opened View.'+
+      (accepts?' Auto acceptance enabled.':' Instant details scroll only.');
     const entry=new Date().toLocaleTimeString()+' '+message;
+    // Synchronous, same-task cancellation. Never wait for storage to stop refresh.
     state.armed=false;
-    const updated={
-      armed:false,targetTabId:null,claim:null,
-      refreshStatus:'Stopped — detected order #'+first.id,
-      lastResult:message,
-      log:[...(state.log||[]),entry].slice(-30)
+    state.autoAcceptEnabled=false;
+    window.__prowellCancelRefresh?.();
+    const flow={
+      enabled:true,mode:accepts?'accept':'scroll-only',orderId:String(first.id),
+      tabId,startedAt:Date.now(),listUrl:location.href,
+      stage:'await-view',stageStartedAt:Date.now()
     };
+    // Cancel refresh first, then initiate the single persistence write.
+    // Click View immediately; do not wait for storage to finish.
+    // The acceptance script observes later storage changes if navigation wins.
     try{
-      // Acceptance consent was loaded when monitoring began. Do not run a
-      // separate storage read and three sequential writes before View.
-      const accepts=first.type==='available' && state.autoAcceptEnabled===true;
-      const now=Date.now();
-      const nextFlow={
-        enabled:true,mode:accepts?'accept':'scroll-only',
-        orderId:String(first.id),tabId,startedAt:now,listUrl:location.href,
-        stage:'await-view',stageStartedAt:now
-      };
-      // ONE atomic transition: disable refresh, save navigation handoff, and
-      // consume single-order consent before opening the site's View control.
-      // No timers, polling pauses, or gradual scrolling are introduced.
-      await store.local.set({
-        ...updated,autoFlow:nextFlow,
-        ...(accepts?{autoAcceptEnabled:false}:{})
+      const saving=store.local.set({
+        armed:false,targetTabId:null,claim:null,autoAcceptEnabled:false,
+        autoFlow:flow,refreshStatus:'Stopped — detected order #'+first.id,
+        lastResult:message,log:[...(state.log||[]),entry].slice(-30)
       });
-      if(!first.view.isConnected)throw Error('View button disappeared');
+      if(!first.view.isConnected)throw Error('View disappeared before it could be clicked');
       first.view.click();
-
+      await saving;
     }catch(error){
-      try{
-        await store.local.set({
-          armed:false,targetTabId:null,
-          lastResult:'Stopped; could not open View: '+String(error?.message||error)
-        });
-      }catch(_){}
+      await store.local.set({
+        armed:false,targetTabId:null,autoFlow:null,
+        lastResult:'Stopped; could not open View: '+String(error?.message||error)
+      }).catch(()=>{});
     }
   }
   function schedule(){

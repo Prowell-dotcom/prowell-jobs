@@ -6,7 +6,7 @@
  'use strict';
  if (window.__prowellCardDetector) return;
  const ACTIONS='a,button,input[type="button"],input[type="submit"],[role="button"]';
- const ID=/\b(?:order\s*)?ID\s*[:#]?\s*(\d{5,16})\b/i;
+ const ID=/(?:\b(?:order\s*)?ID\s*[:#]?|\border\s*(?:number|no\.?|#))\s*(\d{5,16})\b/i;
  const VIEW=/^view(?:\s+(?:order|details))?$/i;
  const FILES=/^files?$/i;
  const MESSAGES=/^messages?$/i;
@@ -22,28 +22,32 @@
    if(headings.some(t=>/^(?:processing|current|my current|late) orders?$/i.test(t)))return 'processing';
    if(headings.some(t=>/^available orders?$/i.test(t)))return 'available';
    if(/\/(?:free[_-]?orders?|available[_-]?orders?)(?:\/|$)/.test(path))return 'available';
+   if(document.querySelector?.('.performance-record, #performance-record, .user-info, .writer-info'))return 'overview';
    return 'unknown';
  }
  function cards(){
    const buttons=[...document.querySelectorAll(ACTIONS)].filter(visible);
    const hits=[],visited=new Set();
    const page=pageKind();
+   if(!['available','overview','processing'].includes(page))return [];
    for(const view of buttons){
      if(!VIEW.test(label(view)))continue;
      let current=view,match=null;
      // Choose the smallest ancestor containing ID and the relevant card buttons.
      for(let i=0;i<14 && current && current!==document.body;i++,current=current.parentElement){
        const text=current.innerText||current.textContent||'';
-       if(text.length>6000)break;
+       if(text.length>6500)break;
        const found=ID.exec(text);
        if(!found)continue;
        const controls=buttons.filter(b=>current===b ||
          (typeof current.contains==='function' ? current.contains(b) :
          (()=>{let p=b;while(p){if(p===current)return true;p=p.parentElement;}return false;})()));
-       if(!controls.some(b=>FILES.test(label(b))))continue;
+       // The View and selected order ID may render before the Files control.
+       // A verified listing page and a small order container are sufficient.
+       const hasFiles=controls.some(b=>FILES.test(label(b)));
        const hasMessages=controls.some(b=>MESSAGES.test(label(b)));
-       match={id:found[1],view,hasMessages,hasFiles:true,
-         type:hasMessages||page==='processing'?'processing':page==='available'?'available':'unknown',
+       match={id:found[1],view,hasMessages,hasFiles,
+         type:hasMessages||page==='processing'?'processing':(page==='available'||page==='overview')?'available':'unknown',
          container:current};
        break;
      }
