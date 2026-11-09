@@ -5,11 +5,12 @@ const vm=require('node:vm'),path=require('node:path');
 const dir=path.join(__dirname,'../extension/dual-writers');
 const read=name=>fs.readFileSync(path.join(dir,name),'utf8');
 const manifest=JSON.parse(read('manifest.json'));
-assert.equal(manifest.version,'2.1.0');
+assert.equal(manifest.version,'2.1.1');
 assert.equal(manifest.content_scripts.length,4);
 assert(manifest.host_permissions.some(h=>h.includes('4writers.net')));
 assert(manifest.host_permissions.some(h=>h.includes('good-writers.com')));
 const files=['scoped-store.js','legacy-bridge.js','legacy-order-sound.js',
+ 'four-sections.js','four-section-refresh.js',
  'background.js','popup.js','order-sound-background.js','order-sound.js',
  'legacy/four/runtime-content.js','legacy/four/runtime-refresh.js',
  'legacy/four/order-card.js','legacy/four/confirm-main.js',
@@ -19,9 +20,12 @@ const files=['scoped-store.js','legacy-bridge.js','legacy-order-sound.js',
 for(const file of files)new vm.Script(read(file),{filename:file});
 const sources=manifest.content_scripts.flatMap(s=>s.js);
 for(const site of ['four','good']){
- for(const file of ['runtime-content.js','runtime-refresh.js','order-card.js','confirm-main.js'])
+ for(const file of ['runtime-content.js','order-card.js','confirm-main.js'])
    assert(sources.includes('legacy/'+site+'/'+file));
 }
+assert(sources.includes('four-section-refresh.js'));
+assert(sources.includes('legacy/good/runtime-refresh.js'));
+assert(!sources.includes('legacy/four/runtime-refresh.js'));
 assert(!sources.includes('auto-accept.js'));
 assert(!sources.includes('content.js'));
 assert(!sources.includes('refresh.js'));
