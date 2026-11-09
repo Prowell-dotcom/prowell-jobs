@@ -125,7 +125,30 @@
       };
       return score(b)-score(a);
     });
-    return hits.length?[hits[0]]:[];
+    if(hits.length)return [hits[0]];
+    // Screenshot-style ORDER INFORMATION windows sometimes have no dialog
+    // role or recognizable popup class. Search only after View has opened,
+    // anchoring the search to the exact order ID and visible heading.
+    const candidates=[...document.querySelectorAll?.(
+      '[id*="order"],[id*="modal"],[id*="info"],' +
+      '[class*="content"],[class*="information"],[class*="container"],' +
+      '[style*="position"],[style*="overflow"]')||[]];
+    const fallback=candidates.filter(el=>{
+      if(!rendered(el)||el===document.body||el===document.documentElement)return false;
+      const t=String(el.innerText||el.textContent||'');
+      if(!DETAILS_HEADING.test(t)||!t.includes(String(flow?.orderId||'')))return false;
+      const rect=el.getBoundingClientRect?.();
+      if(!rect||rect.width<200||rect.height<180)return false;
+      const st=getComputedStyle(el);
+      const positioned=/fixed|absolute/i.test(String(st?.position||''));
+      const named=/modal|popup|detail|order|information|assignment|container/i.test(
+        String(el.className||'')+' '+String(el.id||''));
+      return positioned||named;
+    });
+    // Choose the smallest matching container, to avoid selecting the main
+    // dashboard wrapper that contains the popup *and* background controls.
+    fallback.sort((a,b)=>String(a.innerText||'').length-String(b.innerText||'').length);
+    return fallback.length?[fallback[0]]:[];
   }
   function detailsPage(button) {
     const id=String(flow?.orderId||'');
