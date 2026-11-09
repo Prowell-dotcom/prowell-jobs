@@ -1,0 +1,147 @@
+/* Prowell Jobs: secure member session UI. No API keys or passwords stored in web storage. */
+(()=>{
+'use strict';
+let current=null;
+let ready=null;
+const qs=(s)=>document.querySelector(s);
+const safe=(s)=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function session(force=false){
+  if(ready&&!force)return ready;
+  ready=fetch('/api/member/me',{credentials:'same-origin',headers:{Accept:'application/json'},cache:'no-store'}).then(async r=>{
+    if(!r.ok)throw Error('Unable to check login status.');
+    current=await r.json();updateNav();return current;
+  }).catch(()=>{current=null;return {authenticated:false};});
+  return ready;
+}
+function updateNav(){
+  document.querySelectorAll('[data-member-guest]').forEach(n=>n.hidden=Boolean(current?.authenticated));
+  document.querySelectorAll('[data-member-user]').forEach(n=>n.hidden=!current?.authenticated);
+  document.querySelectorAll('[data-member-name]').forEach(n=>n.textContent=current?.member?.fullName||'');
+}
+async function api(url,options={}){
+  await session();
+  const headers=new Headers(options.headers||{});
+  if(current?.csrfToken)headers.set('X-Member-CSRF',current.csrfToken);
+  return fetch(url,{...options,headers,credentials:'same-origin'});
+}
+async function requireRole(role){
+  const state=await session();
+  if(!state.authenticated){
+    const intent=role==='employer'?'post':'apply';
+    const next='/jobs.html'+(role==='employer'?'?post=1#jobs':'#jobs');
+    location.href='/account.html?mode=signup&role='+encodeURIComponent(role)+'&intent='+intent+'&next='+encodeURIComponent(next);
+    return false;
+  }
+  if(state.member.role!==role){
+    alert('This action requires a '+(role==='employer'?'business/employer':'job-seeker')+' account. You are signed in as '+state.member.role+'.');
+    return false;
+  }
+  if(!state.member.emailVerified){
+    alert('Please verify your email before submitting. Check the verification link sent to '+state.member.email+'.');
+    return false;
+  }
+  return true;
+}
+async function json(url,data){
+  const r=await api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const result=await r.json();if(!r.ok)throw Error(result.error||'Request failed.');return result;
+}
+async function logout(){
+  try{await json('/api/member/logout',{});}finally{current=null;ready=null;location.href='/';}
+}
+window.ProwellAuth={session,fetch:api,json,requireRole,logout,safe};
+window.addEventListener('DOMContentLoaded',()=>{
+  session();document.querySelectorAll('[data-member-logout]').forEach(b=>b.addEventListener('click',logout));
+  const page=document.body.dataset.page;
+  if(page==='account')initAccount();
+  if(page==='dashboard')initDashboard();
+});
+function setMsg(msg,kind){const box=qs('#authStatus');if(box){box.textContent=msg;box.dataset.kind=kind||'info';box.hidden=false;}}
+function switchMode(mode){
+  const forms={login:'loginForm',signup:'signupForm',forgot:'forgotForm',reset:'resetForm'};
+  Object.entries(forms).forEach(([name,id])=>{
+    const form=qs('#'+id);
+    if(form)form.hidden=name!==mode;
+  });
+  document.querySelectorAll('[data-mode]').forEach(b=>{b.classList.toggle('selected',b.dataset.mode===mode);b.setAttribute('aria-pressed',String(b.dataset.mode===mode));});
+  const msg=qs('#authStatus');if(msg)msg.hidden=true;
+}
+function initAccount(){
+  const params=new URLSearchParams(location.search);
+  if(params.get('verified')){setMsg(params.get('verified')==='1'?'Email verified. You can sign in and start using Prowell Jobs.':'Verification link invalid or expired. Please contact support.','info');}
+  const mode=params.has('reset')?'reset':(['login','signup','forgot'].includes(params.get('mode'))?params.get('mode'):'login');switchMode(mode);
+  if(params.get('verified'))setMsg(params.get('verified')==='1'?'Your email is verified. Welcome to Prowell Jobs.':'The verification link was invalid or expired. Please contact support.',params.get('verified')==='1'?'success':'error');
+  if(params.get('role')&&qs('#signupRole'))qs('#signupRole').value=params.get('role');
+  document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>{
+    switchMode(b.dataset.mode);
+    if(b.dataset.mode==='login'||b.dataset.mode==='signup'){
+      const url=new URL(location.href);url.searchParams.set('mode',b.dataset.mode);
+      history.replaceState(null,'',url.pathname+url.search);
+    }
+  }));
+  document.querySelectorAll('[data-mode-link]').forEach(link=>link.addEventListener('click',e=>{
+    e.preventDefault();
+    switchMode(link.dataset.modeLink);
+    const url=new URL(location.href);
+    url.searchParams.set('mode',link.dataset.modeLink);
+    history.replaceState(null,'',url.pathname+url.search);
+    qs('#signupRole')?.focus();
+  }));
+  const signupForm=qs('#signupForm');
+  const signupPassword=signupForm?.querySelector('[name="password"]');
+  const confirmPassword=signupForm?.querySelector('[name="confirmPassword"]');
+  const updatePasswordMatch=()=>{
+    if(!signupPassword||!confirmPassword)return;
+    confirmPassword.setCustomValidity(confirmPassword.value && confirmPassword.value!==signupPassword.value?'Passwords do not match.':'');
+  };
+  signupPassword?.addEventListener('input',updatePasswordMatch);
+  confirmPassword?.addEventListener('input',updatePasswordMatch);
+  qs('#showSignupPasswords')?.addEventListener('change',e=>{
+    const type=e.target.checked?'text':'password';
+    if(signupPassword)signupPassword.type=type;
+    if(confirmPassword)confirmPassword.type=type;
+  });
+  const nextRaw=params.get('next')||'/dashboard.html';
+  const next=(nextRaw.startsWith('/')&&!nextRaw.startsWith('//')&&!nextRaw.includes('\\'))?nextRaw:'/dashboard.html';
+  const bind=(id,endpoint,converter,onSuccess)=>{const form=qs('#'+id);if(!form)return;form.addEventListener('submit',async e=>{
+    e.preventDefault();const button=form.querySelector('button[type="submit"]');button.disabled=true;
+    try{const obj=converter(new FormData(form));const result=await json(endpoint,obj);onSuccess(result);}catch(err){setMsg(err.message,'error');}finally{button.disabled=false;}
+  });};
+  bind('loginForm','/api/member/login',f=>({email:f.get('email'),password:f.get('password')}),()=>location.assign(next));
+  bind('signupForm','/api/member/signup',f=>{
+    if(f.get('password')!==f.get('confirmPassword')){
+      confirmPassword?.setCustomValidity('Passwords do not match.');
+      confirmPassword?.reportValidity();
+      throw Error('Your passwords do not match. Please try again.');
+    }
+    return {fullName:f.get('fullName'),email:f.get('email'),role:f.get('role'),phone:f.get('phone'),password:f.get('password'),consent:f.get('consent')==='on'};
+  },()=>location.assign('/dashboard.html?welcome=1'));
+  bind('forgotForm','/api/member/forgot',f=>({email:f.get('email')}),r=>setMsg(r.message,'success'));
+  bind('resetForm','/api/member/reset',f=>({token:params.get('reset'),password:f.get('password'),confirmPassword:f.get('confirmPassword')}),r=>{switchMode('login');setMsg(r.message,'success');history.replaceState(null,'','/account.html');});
+  session().then(s=>{if(s.authenticated){const p=qs('#alreadySignedIn');if(p){p.hidden=false;p.innerHTML='Signed in as <strong>'+safe(s.member.fullName)+'</strong>. <a href="/dashboard.html">Open your dashboard →</a>';}}});
+}
+async function initDashboard(){
+  const s=await session();if(!s.authenticated){location.replace('/account.html?mode=login&next=%2Fdashboard.html');return;}
+  const name=qs('#dashName'),role=qs('#dashRole'),verification=qs('#emailVerifyState');
+  if(name)name.textContent=s.member.fullName.split(' ')[0];
+  if(role)role.textContent=({'employer':'Employer dashboard','jobseeker':'Job seeker dashboard','client':'Writing client dashboard','writer':'Writer dashboard'})[s.member.role]||'Member dashboard';
+  if(verification){verification.textContent=s.member.emailVerified?'Email verified':'Please check your email to verify your account before applying or posting.';verification.dataset.verified=String(Boolean(s.member.emailVerified));}
+  // Verified member profile and password controls.
+  const profile=qs('#profileForm');if(profile){profile.elements.fullName.value=s.member.fullName||'';profile.elements.phone.value=s.member.phone||'';qs('#profileEmail').value=s.member.email||'';
+    profile.addEventListener('submit',async ev=>{ev.preventDefault();const button=profile.querySelector('[type=submit]');button.disabled=true;try{const r=await json('/api/member/profile/update',{fullName:profile.elements.fullName.value,phone:profile.elements.phone.value});s.member.fullName=r.fullName;s.member.phone=r.phone;qs('#dashName').textContent=r.fullName.split(' ')[0];const n=qs('#profileStatus');n.textContent=r.message;n.classList.remove('error');}catch(err){const n=qs('#profileStatus');n.textContent=err.message;n.classList.add('error')}finally{button.disabled=false}});
+  }
+  const cp=qs('#changePasswordForm');if(cp)cp.addEventListener('submit',async ev=>{ev.preventDefault();const b=cp.querySelector('[type=submit]');const f=new FormData(cp);b.disabled=true;try{const r=await json('/api/member/password/change',{currentPassword:f.get('currentPassword'),newPassword:f.get('newPassword'),confirmPassword:f.get('confirmPassword')});qs('#passwordStatus').textContent=r.message;location.assign('/account.html?mode=login');}catch(err){qs('#passwordStatus').textContent=err.message;qs('#passwordStatus').classList.add('error')}finally{b.disabled=false}});
+  const verifyActions=qs('#verifyEmailActions');if(verifyActions && !s.member.emailVerified){verifyActions.hidden=false;qs('#resendVerificationBtn').addEventListener('click',async ev=>{const b=ev.currentTarget;b.disabled=true;try{const r=await json('/api/member/verification/resend',{});qs('#verifyFeedback').textContent=r.message;qs('#verifyFeedback').classList.remove('error')}catch(err){qs('#verifyFeedback').textContent=err.message;qs('#verifyFeedback').classList.add('error')}finally{b.disabled=false}})}
+  const inbox=qs('#employerInboxSection');if(inbox && s.member.role==='employer'){inbox.hidden=false;
+    try{const r=await api('/api/member/employer/applications');const d=await r.json();if(!r.ok)throw Error(d.error||'Unable to load employer applications');const n=qs('#employerInbox');n.innerHTML=d.applications.length?d.applications.map(a=>'<article class="applicant-card"><h3>'+safe(a.fullName)+' · '+safe(a.jobTitle)+'</h3><p>'+safe(a.country||'')+' · '+safe(a.experience||'')+' · '+safe(a.status)+'</p><p>'+safe(a.message||'')+'</p><p>Email: <a href="mailto:'+encodeURIComponent(a.email||'')+'">'+safe(a.email||'Not provided')+'</a>'+ (a.phone?' · Phone: '+safe(a.phone):'')+'</p></article>').join(''):'<p class="empty-list">No reviewed applications for your jobs yet. Applications appear once moderation is complete.</p>'}catch(err){qs('#employerInboxStatus').textContent=err.message;qs('#employerInboxStatus').classList.add('error')}}
+  const e=qs('#employerActions'),j=qs('#seekerActions');if(e)e.hidden=s.member.role!=='employer';if(j)j.hidden=s.member.role!=='jobseeker';
+  try{const r=await api('/api/member/dashboard');const d=await r.json();if(!r.ok)throw Error(d.error||'Could not load your dashboard');
+    [['jobs','jobsList','jobTitle'],['applications','applicationsList','jobTitle'],['candidates','profilesList','alias']].forEach(([key,id,fallback])=>{
+      const arr=d[key]||[],node=qs('#'+id);if(!node)return;
+      if(!arr.length){node.innerHTML='<div class="empty-list">No submissions yet. New activity will appear here.</div>';return;}
+      node.innerHTML=arr.map(x=>'<article class="member-record"><div><strong>'+safe(x.title||x.jobTitle||x.alias||'Submission')+'</strong><small>'+safe(x.company||x.employerName||x.category||'')+' · '+safe((x.createdAt||'').slice(0,10))+'</small></div><span class="status-pill '+safe(x.status)+'">'+safe(x.status||'pending')+'</span></article>').join('');
+    });
+    const stat=qs('#dashCount');if(stat)stat.textContent=s.member.role==='employer'?d.jobs.length:d.applications.length;
+  }catch(err){const el=qs('#dashError');if(el){el.textContent=err.message;el.hidden=false;}}
+}
+})();

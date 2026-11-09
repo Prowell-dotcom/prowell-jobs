@@ -1,0 +1,10 @@
+# Never commit production job data or secrets
+*.sqlite3
+*.sqlite3-*
+*.db
+.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+.DS_Store

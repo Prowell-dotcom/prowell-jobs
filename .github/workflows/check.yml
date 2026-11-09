@@ -1,0 +1,57 @@
+
+name: Website checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  python-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check Python syntax
+        run: python -m compileall -q server.py admin_paraphraser.py
+
+      - name: Validate Chrome extension JavaScript
+        run: |
+          node --check admin.js
+          node --check admin-paraphraser.js
+          node tests/test_paraphraser_paste.cjs
+          node --check extension/4writers/content.js
+          node --check extension/4writers/background.js
+          node --check extension/4writers/popup.js
+          node --check extension/4writers/refresh.js
+          node --check extension/4writers/auto-accept.js
+          node --check extension/4writers/popup-refresh.js
+          node tests/test_extension_refresh.cjs
+          node tests/test_good_writers_refresh.cjs
+          node --check extension/good-writers/background.js
+          node --check extension/good-writers/content.js
+          node --check extension/good-writers/refresh.js
+          node --check extension/good-writers/auto-accept.js
+          node --check extension/good-writers/popup.js
+          node --check extension/good-writers/popup-refresh.js
+          node --check extension/4writers/order-card.js
+          node --check extension/good-writers/order-card.js
+          node tests/test_order_cards.cjs
+          node --check extension/4writers/order-sound-background.js
+          node --check extension/4writers/order-sound.js
+          node --check extension/good-writers/order-sound-background.js
+          node --check extension/good-writers/order-sound.js
+          node tests/test_order_audio.cjs
+          node tests/test_view_only_handoff.cjs
+          node tests/test_auto_accept.cjs
+          node tests/test_view_navigation_scroll.cjs
+          node tests/test_foreground_order_popup.cjs
+
+      - name: Run website tests
+        run: python -m unittest discover -s tests -v
