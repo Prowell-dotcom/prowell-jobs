@@ -135,6 +135,15 @@
         /order\s*(?:information|details|instructions|requirements)/i.test(t) &&
         (!button||el.contains?.(button));
     });
+    // Frameworks sometimes use unlabelled wrappers. Walk up from Take it
+    // to find the selected order panel without ever reaching body/sidebar.
+    if(button)for(let p=button.parentElement;p&&p!==document.body;p=p.parentElement){
+      if(!rendered(p))continue;
+      const t=String(p.innerText||p.textContent||'');
+      if(t.length>50000)break;
+      if(t.includes(id) && /order\s*(?:information|details|instructions|requirements)/i.test(t))
+        candidates.push(p);
+    }
     candidates.sort((a,b)=>String(a.innerText||'').length-String(b.innerText||'').length);
     return candidates[0]||null;
   }
