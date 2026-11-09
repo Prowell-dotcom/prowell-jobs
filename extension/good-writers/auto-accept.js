@@ -86,6 +86,17 @@
     candidates.sort((a,b) => score(b) - score(a));
     return candidates[0] || document.scrollingElement || document.documentElement;
   }
+  async function waitForOrderDetails() {
+    const started = Date.now();
+    while (Date.now() - started < STEP_TIMEOUT) {
+      if (!guarded()) throw Error('Order workflow expired while opening View');
+      if (checkSecurity()) throw Error('Security challenge detected');
+      const page = (document.body?.innerText || '') + ' ' + location.href;
+      if (page.includes(String(flow.orderId)) && find('take')) return;
+      await sleep(150);
+    }
+    throw Error('Order details or Take it button did not appear after View');
+  }
   async function readThrough(stage) {
     const root = scrollRoot(find(stage), stage);
     if (!root) throw Error('No scrollable order details container found');
@@ -170,6 +181,7 @@
       while (guarded()) {
         if (checkSecurity()) throw Error('Security challenge detected');
         if (flow.stage === 'take') {
+          await waitForOrderDetails();
           await readThrough('take');
           const el = await locate('take', true);
           const page = (document.body?.innerText || '') + ' ' + location.href;
