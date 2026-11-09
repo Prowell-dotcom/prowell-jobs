@@ -4,7 +4,9 @@
 'use strict';
 const OFFICIAL_ORDER_SOUND_DOMAIN=/^https:\/\/(?:www\.)?(?:4writers\.net|good-writers\.com)\//i;
 const ORDER_SOUND_SEEN='prowellOrderSoundHistory';
-let orderSoundQueue=Promise.resolve();
+// Do not serialize independent order alerts: both platforms can detect in
+// the same moment, and every newly detected order must request its own chime.
+const pendingSounds=new Set();
 let offscreenCreating=null;
 // Suppress rapid duplicate DOM events, not later monitoring sessions.
 const SOUND_COOLDOWN_MS=1200;
@@ -70,11 +72,19 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
         !OFFICIAL_ORDER_SOUND_DOMAIN.test(source) || !sender.tab){
       respond({ok:false});return;
     }
-    orderSoundQueue=orderSoundQueue.then(()=>notifyOrderOnce(id,kind,runId)).catch(error=>{
-      console.warn('Prowell order sound queue:',String(error?.message||error));
-      return false;
-    });
-    orderSoundQueue.then(played=>respond({ok:true,played}));
+    const alertKey=runId+':'+kind+':'+id;
+    if(pendingSounds.has(alertKey)){
+      respond({ok:true,played:false,duplicate:true});return;
+    }
+    pendingSounds.add(alertKey);
+    // Launch sound playback immediately without queuing behind another order.
+    // View/scroll/taking never awaits or depends on sound playback.
+    void notifyOrderOnce(id,kind,runId)
+      .then(played=>respond({ok:true,played}))
+      .catch(error=>{
+        console.warn('Prowell order sound:',String(error?.message||error));
+        respond({ok:false,played:false});
+      }).finally(()=>pendingSounds.delete(alertKey));
     return true;
   }
   if(message?.type==='PROWELL_TEST_ORDER_SOUND'){
