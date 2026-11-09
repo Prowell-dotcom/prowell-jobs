@@ -47,7 +47,7 @@ class WritingMarketplaceTests(unittest.TestCase):
         if payload is not None:headers['Content-Type']='application/json'
         if cookie:headers['Cookie']=cookie
         if csrf:headers['X-Member-CSRF']=csrf
-        if admin:headers['Authorization']='Bearer test-key-not-a-production-secret'
+        if admin:headers['Authorization']='Bearer '+server.ADMIN_KEY
         req=Request(f'http://127.0.0.1:{self.port}{path}',
                     data=json.dumps(payload).encode() if payload is not None else None,
                     headers=headers,method=method)
