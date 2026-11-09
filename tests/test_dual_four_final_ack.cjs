@@ -82,7 +82,7 @@ async function check(label){
   location:{origin:'https://4writers.net',href:'https://4writers.net/available_orders'},
   queueMicrotask,MutationObserver:class{observe(){}},
   Event:class{},Date,Promise,Set,URL,Error,
-  setTimeout(fn,ms){if(ms===42)queueMicrotask(fn);return 1},clearTimeout(){},
+  setTimeout(fn,ms){if(ms===28)queueMicrotask(fn);return 1},clearTimeout(){},
   setInterval(){return 1},
   getComputedStyle(){return {position:'fixed',overflowY:'auto'}},
  };
@@ -92,13 +92,17 @@ async function check(label){
    'After OK bot must click exact final acknowledgement once');
  assert.equal(state.claim?.stage,'acknowledged',
    'Order flow should advance to acknowledged');
+ assert.equal(state.lastPostViewWithin2s,true,
+   'Fast simulated View-to-final click must meet two-second soft target');
+ assert(Number(state.lastPostViewDurationMs)<2000,
+   'Timing report should be derived from actual View-to-final click');
  assert.equal(panelY,1720,
    'Popup must jump instantly to its vertical bottom before final click');
  assert.equal(pageY,0,
    'Background document must never be scrolled by post-OK step');
  assert.equal(state.lastAcknowledgementScroll,'scrolled-popup',
    'Show evidence of actual popup movement');
- assert.equal(popupEvents.filter(e=>e.startsWith('popup-scroll ')).length,8,
+ assert.equal(popupEvents.filter(e=>e.startsWith('popup-scroll ')).length,6,
    'Scrolling must be gradual, not an instant jump');
  assert.equal(popupEvents.at(-1),'acknowledgement-click',
    'Final acceptance must occur only after all scrolling steps');
