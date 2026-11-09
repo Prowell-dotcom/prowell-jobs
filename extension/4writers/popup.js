@@ -5,7 +5,7 @@ const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,refreshMs:10
 let state={...DEFAULTS},tab=null;
 const valid=url=>/^https:\/\/(?:www\.)?4writers\.net\//i.test(url||'');
 const current=()=>Boolean(tab&&valid(tab.url)&&state.targetTabId===tab.id);
-const isArmed=()=>Boolean(state.armed&&state.claimConsentVersion==='0.5.8');
+const isArmed=()=>Boolean(state.armed&&state.claimConsentVersion==='0.5.9');
 async function store(delta){state={...state,...delta};await chrome.storage.local.set(delta);render();}
 function render(){
  $('arm').disabled=!tab||!valid(tab.url)||Boolean(isArmed()&&current());
@@ -28,7 +28,7 @@ async function start(){
 $('arm').addEventListener('click',async()=>{
  if(!tab||!valid(tab.url))return;
  await chrome.storage.local.set({autoFlow:null});
- await store({armed:true,claimConsentVersion:'0.5.8',targetTabId:tab.id,claim:null,soundRunId:crypto.randomUUID(),lastResult:'Watching for orders; will stop after opening View'});
+ await store({armed:true,claimConsentVersion:'0.5.9',targetTabId:tab.id,claim:null,soundRunId:crypto.randomUUID(),lastResult:'Watching for orders; will stop after opening View'});
  $('notice').textContent='Order watcher enabled. Leave the 4writers tab open.';
 });
 $('stop').addEventListener('click',async()=>{
