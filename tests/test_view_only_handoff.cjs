@@ -7,7 +7,7 @@ const path=require('node:path');
 
 async function run(slug,kind){
   const site=slug==='4writers'?'4writers.net':'good-writers.com';
-  const version=slug==='4writers'?'0.5.13':'1.0.13';
+  const version=slug==='4writers'?'0.5.14':'1.0.14';
   const tabType=slug==='4writers'?'PROWELL_TAB_ID':'GW_TAB_ID';
   const runId='8a8b7c6d-4e5f-4a29-9012-123456789abc';
   const chronology=[],subscribers=[],clicks=[];
@@ -27,7 +27,7 @@ async function run(slug,kind){
     understand:{click(){clicks.push('I understand');}}
   };
   let orderCards=[];
-  const window={};window.top=window;
+  const window={};window.top=window;window.__prowellCancelRefresh=()=>chronology.push('refresh cancelled');
   window.__prowellCardDetector={cards:()=>orderCards,pageKind:()=>kind};
   const document={body,
     querySelector:()=>null,
@@ -69,6 +69,7 @@ async function run(slug,kind){
   assert.equal(state.targetTabId,null,'Stop must clear active tab');
   assert.equal(state.claim,null,'No claim state should be persisted');
   assert.equal(chronology[0],'sound requested');
+  assert.equal(chronology[1],'refresh cancelled');
   assert(chronology.indexOf('stopped stored')>0);
   assert(chronology.indexOf('stopped stored')<chronology.indexOf('View clicked'),
     'Must stop refreshing before opening View');

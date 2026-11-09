@@ -10,11 +10,12 @@
 
   let tabId = null;
   let timer = null;
+  let stoppedForVisibleOrder = false;
   let count = 0;
   let status = '';
   let local = {armed:false,targetTabId:null,claim:null,claimConsentVersion:'',attemptedIds:[],completed:[]};
   const interval = 1000;
-  const isActive = () => local.armed && local.claimConsentVersion === '1.0.13' && local.targetTabId === tabId;
+  const isActive = () => !stoppedForVisibleOrder && local.armed && local.claimConsentVersion === '1.0.14' && local.targetTabId === tabId;
 
   function setStatus(message) {
     if (message === status) return;
@@ -25,6 +26,12 @@
     if (timer !== null) clearTimeout(timer);
     timer = null;
   }
+  // Called synchronously from the detection observer before any storage roundtrip.
+  window.__prowellCancelRefresh = () => {
+    stoppedForVisibleOrder = true;
+    cancel();
+    status = 'Stopped — opening detected order';
+  };
   function orderListVisible(){return window.__prowellCardDetector?.pageKind()==='available';}
   function challengeVisible() {
     const text = document.body?.innerText || '';
@@ -39,6 +46,7 @@
   function evaluate() {
     if (!isActive()) {
       cancel();
+      if(stoppedForVisibleOrder)return;
       setStatus('Stopped — press START WATCHING');
       return;
     }
@@ -91,7 +99,11 @@
     if (area !== 'local') return;
     let touched = false;
     for (const key of relevant) {
-      if (changes[key]) {local[key]=changes[key].newValue; touched=true;}
+      if (changes[key]) {
+        local[key]=changes[key].newValue;
+        if(key==='armed' && changes[key].newValue===true) stoppedForVisibleOrder=false;
+        touched=true;
+      }
     }
     if (touched) evaluate();
     if (changes.refreshCount) count = Math.max(0,Number(changes.refreshCount.newValue)||0);

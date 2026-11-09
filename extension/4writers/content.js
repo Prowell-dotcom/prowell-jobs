@@ -5,12 +5,12 @@
 (() => {
   'use strict';
   if(window!==window.top || !/^https:\/\/(?:www\.)?4writers\.net$/i.test(location.origin))return;
-  if(window.__prowellViewOnlyV057)return;
-  window.__prowellViewOnlyV057=true;
+  if(window.__prowellWatcherV514)return;
+  window.__prowellWatcherV514=true;
 
-  const VERSION='0.5.13',TAB_MESSAGE='PROWELL_TAB_ID';
+  const VERSION='0.5.14',TAB_MESSAGE='PROWELL_TAB_ID';
   const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,
-    soundRunId:'',claim:null,lastResult:'Ready',log:[]};
+    soundRunId:'',claim:null,lastResult:'Ready',log:[],autoAcceptEnabled:false};
   let state={...DEFAULTS},tabId=null,opening=false,queued=false;
   const active=()=>Boolean(state.armed && state.claimConsentVersion===VERSION &&
     tabId!==null && tabId===state.targetTabId);
@@ -39,47 +39,34 @@
         },()=>void chrome.runtime.lastError);
       }catch(_){}
     }
-    const message='Order #'+first.id+' ('+first.type+') detected; View + automatic instant scrolling. '+
-      'Further acceptance steps depend on the opt-in setting.';
+    const accepts=first.type==='available' && state.autoAcceptEnabled===true;
+    const message='Order #'+first.id+' ('+first.type+') detected; stopped refresh and opened View.'+
+      (accepts?' Auto acceptance enabled.':' Instant details scroll only.');
     const entry=new Date().toLocaleTimeString()+' '+message;
+    // Synchronous, same-task cancellation. Never wait for storage to stop refresh.
     state.armed=false;
-    const updated={
-      armed:false,targetTabId:null,claim:null,
-      refreshStatus:'Stopped — detected order #'+first.id,
-      lastResult:message,
-      log:[...(state.log||[]),entry].slice(-30)
+    state.autoAcceptEnabled=false;
+    window.__prowellCancelRefresh?.();
+    const flow={
+      enabled:true,mode:accepts?'accept':'scroll-only',orderId:String(first.id),
+      tabId,startedAt:Date.now(),listUrl:location.href,
+      stage:'await-view',stageStartedAt:Date.now()
     };
+    // Exactly one atomic storage write protects navigation and new-tab handoff.
+    // There is no arbitrary wait before View; storage must persist before unload.
     try{
-      // An explicit popup opt-in is required for each monitoring session.
-      // Never auto-accept already-assigned processing orders.
-      const config=await chrome.storage.local.get({autoAcceptEnabled:false});
-      const accepts=first.type==='available' && config.autoAcceptEnabled===true;
-      if(accepts) await chrome.storage.local.set({autoAcceptEnabled:false}); // one acceptance per opt-in
-      // Instant details scrolling is ALWAYS enabled, even in manual-acceptance mode.
-      // Only available orders with explicit opt-in proceed to Take it.
-      await chrome.storage.local.set({autoFlow:{
-        enabled:true,mode:accepts?'accept':'scroll-only',orderId:String(first.id),
-        tabId,startedAt:Date.now(),listUrl:location.href,
-        stage:'await-view',stageStartedAt:Date.now()
-      }});
-
-      // Persist STOP before the page can navigate. This is the only state
-      // change, and it prevents refresh.js from rearming on the detail page.
-      await chrome.storage.local.set(updated);
-      // Do NOT scroll the list or the opened order-details page.
-      // Do NOT click Take it, OK, I understand, or another order.
-      if(first.view.isConnected){
-        first.view.click();
-        // Auto-accept observes this View immediately, including navigation.
-        // Do not insert a timer: it reacts when the actual details appear.
-      }
+      await chrome.storage.local.set({
+        armed:false,targetTabId:null,claim:null,autoAcceptEnabled:false,
+        autoFlow:flow,refreshStatus:'Stopped — detected order #'+first.id,
+        lastResult:message,log:[...(state.log||[]),entry].slice(-30)
+      });
+      if(!first.view.isConnected)throw Error('View disappeared before it could be clicked');
+      first.view.click();
     }catch(error){
-      try{
-        await chrome.storage.local.set({
-          armed:false,targetTabId:null,
-          lastResult:'Stopped; could not open View: '+String(error?.message||error)
-        });
-      }catch(_){}
+      await chrome.storage.local.set({
+        armed:false,targetTabId:null,autoFlow:null,
+        lastResult:'Stopped; could not open View: '+String(error?.message||error)
+      }).catch(()=>{});
     }
   }
   function schedule(){

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Prowell 4writers Order Watcher",
-  "version": "0.5.13",
+  "version": "0.5.14",
   "description": "Order watcher with explicit opt-in to foreground-only order-details scrolling with optional acceptance.",
   "permissions": [
     "storage",
@@ -21,6 +21,15 @@
     "service_worker": "background.js"
   },
   "content_scripts": [
+    {
+      "matches": [
+        "https://4writers.net/*",
+        "https://www.4writers.net/*"
+      ],
+      "js": ["confirm-main.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
     {
       "matches": [
         "https://4writers.net/*",

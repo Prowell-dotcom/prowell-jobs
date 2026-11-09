@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Prowell Good-Writers Assistant",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "description": "Order watcher with explicit opt-in to foreground-only order-details scrolling with optional acceptance.",
   "permissions": [
     "storage",
@@ -21,6 +21,15 @@
     "service_worker": "background.js"
   },
   "content_scripts": [
+    {
+      "matches": [
+        "https://good-writers.com/*",
+        "https://www.good-writers.com/*"
+      ],
+      "js": ["confirm-main.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
     {
       "matches": [
         "https://good-writers.com/*",
