@@ -57,6 +57,7 @@
       // Never auto-accept already-assigned processing orders.
       const config=await chrome.storage.local.get({autoAcceptEnabled:false});
       if(first.type==='available' && config.autoAcceptEnabled===true){
+        await chrome.storage.local.set({autoAcceptEnabled:false}); // one detection per opt-in
         await chrome.storage.local.set({autoFlow:{
           enabled:true,orderId:String(first.id),tabId,startedAt:Date.now(),stage:'take',
           stageStartedAt:Date.now()
