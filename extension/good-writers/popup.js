@@ -1,7 +1,7 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,refreshMs:1000,
- claim:null,lastResult:'Ready',log:[]};
+ claim:null,lastResult:'Ready',log:[],autoAcceptEnabled:false};
 let state={...DEFAULTS},tab=null;
 const valid=url=>/^https:\/\/(?:www\.)?good-writers\.com\//i.test(url||'');
 const current=()=>Boolean(tab&&valid(tab.url)&&state.targetTabId===tab.id);
@@ -12,8 +12,9 @@ function render(){
  $('stop').disabled=!isArmed();
  $('status').textContent=(isArmed()&&current()?'ARMED — THIS TAB':isArmed()?'ARMED IN ANOTHER TAB':'STOPPED')+
  '\nRefresh interval: every 1 second' +
- '\nAction after detection: manual review'+
+ '\nAction after detection: '+(state.autoAcceptEnabled?'automatic order acceptance (opt-in)':'View only; manual review')+
  '\nLast: '+(state.lastResult||'Ready');
+ if($('autoAcceptEnabled')){$('autoAcceptEnabled').checked=Boolean(state.autoAcceptEnabled);$('autoAcceptEnabled').disabled=isArmed();}
  $('history').textContent=(state.log||[]).slice(-10).reverse().join('\n')||'No events yet.';
  // No auto-return: opening View hands control to the user.
 }
@@ -25,12 +26,14 @@ async function start(){
 }
 $('arm').addEventListener('click',async()=>{
  if(!tab||!valid(tab.url))return;
+ await chrome.storage.local.set({autoFlow:null});
  await store({armed:true,claimConsentVersion:'1.0.8',targetTabId:tab.id,claim:null,soundRunId:crypto.randomUUID(),lastResult:'Watching for orders; will stop after opening View'});
  $('notice').textContent='Order watcher enabled. Leave the good-writers tab open.';
 });
 $('stop').addEventListener('click',async()=>{
+ await chrome.storage.local.set({autoFlow:null});
  await store({armed:false,targetTabId:null,lastResult:'Stopped by owner'});
- $('notice').textContent='Monitoring stopped. No order acceptance is automated.';
+ $('notice').textContent='Monitoring stopped. Any in-progress acceptance workflow was cancelled.';
 });
 chrome.storage.onChanged.addListener((changes,area)=>{
  if(area!=='local')return;
@@ -89,3 +92,12 @@ $('testOrderSound')?.addEventListener('click',async()=>{
 });
 start().catch(err=>{$('notice').textContent=err.message;});
 void updateGoodWritersPairingStatus();
+// Automatic acceptance is a separate explicit per-session opt-in.
+$('autoAcceptEnabled')?.addEventListener('change',async event=>{
+  if(isArmed()){event.target.checked=Boolean(state.autoAcceptEnabled);return;}
+  const enabled=event.target.checked;
+  if(enabled && !confirm('Enable automatic Take it, OK and I understand for available orders on this platform? Review the site rules and accept responsibility for order requirements.')){
+    event.target.checked=false;return;
+  }
+  await store({autoAcceptEnabled:enabled,autoFlow:null});
+});
