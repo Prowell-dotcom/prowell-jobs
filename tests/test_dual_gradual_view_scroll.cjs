@@ -64,12 +64,12 @@ async function run(site,kind){
  const context={window:win,document,location:{origin:'https://'+host,
    href:'https://'+host+'/available_orders'},chrome,
    MutationObserver:class{observe(){}},URL,Event:class{},Date,Promise,Set,Error,
-   queueMicrotask,setTimeout(fn,ms){if(ms===42)queueMicrotask(fn);return 1;},
+   queueMicrotask,setTimeout(fn,ms){if(ms===28)queueMicrotask(fn);return 1;},
    clearTimeout(){},setInterval(){return 1}};
  vm.runInNewContext(source,context);
  await tick();
  const scrolled=events.filter(x=>x.startsWith('SCROLL '));
- assert.equal(scrolled.length,8,site+' '+kind+': should scroll in eight increments');
+ assert.equal(scrolled.length,6,site+' '+kind+': should scroll in six increments');
  assert.equal(pos,1400);
  assert.equal(backgroundPos,0,'Background page must not scroll');
  if(kind==='available'){
@@ -80,7 +80,7 @@ async function run(site,kind){
    assert.equal(state.armed,false,'Processing preview stops after scroll');
    assert.equal(state.claim,null);
  }
- console.log(site+' '+kind+': 8 gradual scroll steps, correct next action PASS');
+ console.log(site+' '+kind+': 6 gradual scroll steps, correct next action PASS');
 }
 (async()=>{
  for(const site of ['four','good']){
