@@ -64,7 +64,7 @@ async function run(site,kind){
  const context={window:win,document,location:{origin:'https://'+host,
    href:'https://'+host+'/available_orders'},chrome,
    MutationObserver:class{observe(){}},URL,Event:class{},Date,Promise,Set,Error,
-   queueMicrotask,setTimeout(fn,ms){if(ms===18)queueMicrotask(fn);return 1;},
+   queueMicrotask,setTimeout(fn,ms){if(ms===100)queueMicrotask(fn);return 1;},
    clearTimeout(){},setInterval(){return 1}};
  vm.runInNewContext(source,context);
  await tick();
