@@ -27,12 +27,12 @@
   let state={...DEFAULTS}, tabId=null, busy=false, pendingScan=false;
   let nextRefresh=null, statusNode=null, lastAction=0;
   // Only the scroll is paced. No other workflow action receives a delay.
-  // Eight visible increments take ~0.3s, regardless of description length.
+  // Six visible increments take about 0.09s, regardless of description length.
   // Post-View target: two seconds including scrolling and confirmation.
-  // Keep scrolling visibly gradual but spend only 140 ms on each popup.
+  // Keep scrolling visibly gradual but spend about 90 ms on each popup.
   // Website rendering/confirmation latency is outside the extension's control.
   const POST_VIEW_TARGET_MS=2000;
-  const SCROLL_STEPS=6, SCROLL_STEP_MS=28;
+  const SCROLL_STEPS=6, SCROLL_STEP_MS=18;
   let scrolling=false;
   async function gradualScroll(el,bottom){
     if(!el || !Number.isFinite(Number(bottom)))return false;
@@ -102,16 +102,21 @@
   // duplicate View clicks for the same continuously displayed card; the
   // same ID is eligible again after disappearing/reappearing, a real page
   // reload, or a fresh owner START session.
-  const handledOnThisPage=new Set();
+  const handledOnThisPage=new Map();
   const cardKey=card=>String(card?.type||'')+':'+
     String(card?.id||'').replace(/^0+/,'');
+  const cardElement=card=>card?.view||card?.container||null;
   function actionableCards(){
     const cards=orderCards();
     const present=new Set(cards.map(cardKey));
-    for(const key of handledOnThisPage)if(!present.has(key))
+    for(const key of handledOnThisPage.keys())if(!present.has(key))
       handledOnThisPage.delete(key);
+    // When the site renders a NEW View button for the same ID, it is a
+    // fresh appearance and must be handled. Do not deduplicate by order ID.
+    // The SAME View button stays protected against repeated observer scans.
     return cards.filter(card=>['available','processing'].includes(card?.type)
-      && !handledOnThisPage.has(cardKey(card)));
+      && (!handledOnThisPage.has(cardKey(card)) ||
+        (cardElement(card) && handledOnThisPage.get(cardKey(card))!==cardElement(card))));
   }
   // Refresh controllers share the same present-card guard. Historical IDs
   // never prevent either automatic View handling or pausing refresh.
@@ -310,7 +315,7 @@
       if(processing){
         // Reserve before asynchronous storage writes; observers must not
         // launch the same View twice from one visible card.
-        handledOnThisPage.add(cardKey(processing));
+        handledOnThisPage.set(cardKey(processing),cardElement(processing));
         // Commit the stage BEFORE triggering navigation, so it survives reload.
         await setClaim(processing.id,'processing-view-clicked',{listUrl:location.href,
           startedAt:Date.now(),viewClickedAt:Date.now()});
@@ -322,7 +327,7 @@
       }
       const fresh=cards.find(c=>c.type==='available');
       if(fresh){
-        handledOnThisPage.add(cardKey(fresh));
+        handledOnThisPage.set(cardKey(fresh),cardElement(fresh));
         stopRefresh();
         await setClaim(fresh.id,'view-clicked',{listUrl:location.href,
           startedAt:Date.now(),viewClickedAt:Date.now()});
