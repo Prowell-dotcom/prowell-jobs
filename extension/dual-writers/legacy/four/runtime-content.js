@@ -27,36 +27,48 @@
   let state={...DEFAULTS}, tabId=null, busy=false, pendingScan=false;
   let nextRefresh=null, statusNode=null, lastAction=0;
   // Only the scroll is paced. No other workflow action receives a delay.
-  // Six visible increments take about 0.5s, regardless of description length.
+  // The order-details scroll adapts to distance: 300ms near, 500ms medium, 700ms long.
   // Post-View target: two seconds including scrolling and confirmation.
-  // Keep scrolling visibly gradual over 500 milliseconds per popup.
+  // For 4writers, final acknowledgement always scrolls in 300ms.
   // Website rendering/confirmation latency is outside the extension's control.
   const POST_VIEW_TARGET_MS=2000;
-  // Six positions with five 100ms waits = 500ms per completed scroll.
-  const SCROLL_STEPS=6, SCROLL_STEP_MS=100;
+  // Distance-based timing on order details: near=300ms, medium=500ms,
+  // long=700ms. Five evenly timed waits between six visible scroll steps.
+  // Use the scrollbar's remaining distance, not description word count:
+  // popup heights differ by theme and window size.
+  const SCROLL_STEPS=6;
+  function scrollDuration(el,bottom){
+    const remaining=Math.max(0,Number(bottom)-(Number(el.scrollTop)||0));
+    const viewport=Math.max(1,Number(el.clientHeight)||1);
+    if(remaining<=viewport)return 300;
+    if(remaining<=3*viewport)return 500;
+    return 700;
+  }
   let scrolling=false;
-  async function gradualScroll(el,bottom){
+  async function gradualScroll(el,bottom,forcedDurationMs){
     if(!el || !Number.isFinite(Number(bottom)))return false;
     const start=Number(el.scrollTop)||0;
     const end=Math.max(start,Number(bottom));
     if(end-start<=2)return false;
+    const durationMs=forcedDurationMs??scrollDuration(el,end);
+    const stepDelayMs=durationMs/(SCROLL_STEPS-1);
     for(let step=1;step<=SCROLL_STEPS;step++){
       if(!active() || !state.claim)return false;
       const t=step/SCROLL_STEPS;
       const eased=t*t*(3-2*t);
       try{el.scrollTop=start+(end-start)*eased;}catch(_){return false;}
       if(step<SCROLL_STEPS)
-        await new Promise(resolve=>setTimeout(resolve,SCROLL_STEP_MS));
+        await new Promise(resolve=>setTimeout(resolve,stepDelayMs));
     }
     return Number(el.scrollTop)>start+1;
   }
-  async function gradualTargets(nodes){
+  async function gradualTargets(nodes,forcedDurationMs){
     const targets=[...new Set(nodes)].filter(el=>el && el!==document.body &&
       el!==document.documentElement && el!==document.scrollingElement &&
       Number(el.clientHeight)>40 &&
       Number(el.scrollHeight)-Number(el.clientHeight)>10);
     const results=await Promise.all(targets.map(el=>
-      gradualScroll(el,Math.max(0,Number(el.scrollHeight)-Number(el.clientHeight)))));
+      gradualScroll(el,Math.max(0,Number(el.scrollHeight)-Number(el.clientHeight)),forcedDurationMs)));
     return results.some(Boolean);
   }
 
@@ -201,7 +213,8 @@
       Number(el.scrollHeight)-Number(el.clientHeight)>10);
     const alreadyAtBottom=scrollables.some(el=>
       Number(el.scrollTop)>=Number(el.scrollHeight)-Number(el.clientHeight)-3);
-    const moved=await gradualTargets(scrollables);
+    // 4writers final acknowledgement is ALWAYS 300ms, independent of length.
+    const moved=await gradualTargets(scrollables,300);
     // When the footer is visible without scrolling, it can be clicked now.
     void chrome.storage.local.set({
       lastAcknowledgementScroll:moved?'scrolled-popup':
