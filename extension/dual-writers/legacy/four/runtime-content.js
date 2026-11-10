@@ -135,7 +135,9 @@
   async function setClaim(id,stage,other={}){
     const claim={id,stage,startedAt:state.claim?.startedAt||Date.now(),
       listUrl:state.claim?.listUrl||location.href,
-      viewClickedAt:state.claim?.viewClickedAt||Date.now(),...other};
+      viewClickedAt:state.claim?.viewClickedAt||Date.now(),
+      completionTargetMs:state.claim?.completionTargetMs||null,
+      completionSize:state.claim?.completionSize||null,...other};
     state.claim=claim;
     await chrome.storage.local.set({claim});
   }
