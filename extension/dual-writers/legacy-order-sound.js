@@ -13,7 +13,7 @@
   if(!store)return;
   const version=isFour?'0.5.4':'1.0.4';
   const tabMessage=isFour?'PROWELL_TAB_ID':'GW_TAB_ID';
-  let tabId=null,settings={},queued=false,runKey='',seen=new Set();
+  let tabId=null,settings={},queued=false,runKey='',seen=new Map();
   const active=()=>settings.armed===true &&
     settings.claimConsentVersion===version &&
     Number.isInteger(tabId)&&settings.targetTabId===tabId &&
@@ -26,15 +26,18 @@
     // A returning ID after disappearing can alert again, even without a
     // manual START. A new page load also begins with an empty seen set.
     const present=new Set(cards.map(c=>String(c?.type||'')+':'+String(c?.id||'')));
-    for(const key of seen)if(!present.has(key))seen.delete(key);
+    for(const key of seen.keys())if(!present.has(key))seen.delete(key);
     // Both available and processing appearances can trigger the sound.
     // Avoid repeated sound while an unchanged card stays on screen.
     for(const card of cards){
       if(!['available','processing'].includes(card?.type) ||
           !/^\d{5,16}$/.test(String(card.id||'')))continue;
       const key=card.type+':'+String(card.id);
-      if(seen.has(key))continue;
-      seen.add(key);
+      const ref=card.view||card.container||null;
+      // The same ID with a newly rendered View element is a NEW appearance.
+      // An unchanged on-screen button does not repeatedly trigger sound.
+      if(seen.has(key) && (!ref||seen.get(key)===ref))continue;
+      seen.set(key,ref);
       try{
         chrome.runtime.sendMessage({
           type:'PROWELL_ORDER_SOUND',
@@ -57,7 +60,7 @@
     for(const name of ['armed','claimConsentVersion','targetTabId','soundRunId'])
       if(changes[name])settings[name]=changes[name].newValue;
     if(changes.soundRunId && settings.soundRunId!==runKey){
-      runKey=settings.soundRunId;seen=new Set();
+      runKey=settings.soundRunId;seen=new Map();
     }
     schedule();
   });
