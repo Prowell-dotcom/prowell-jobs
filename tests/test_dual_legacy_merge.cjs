@@ -40,6 +40,12 @@ for(const site of ['four','good']){
      else assert.match(runner,/Good-Writers acknowledgements/);
      assert.doesNotMatch(original,/lastAcknowledgementScroll/,
        'Original uploaded archive must remain unchanged');
+   }else if(name==='refresh.js'&&site==='good'){
+     // The active Good-Writers refresh wrapper now intentionally ignores
+     // historical ID arrays and uses the per-appearance View guard.
+     // The owner's archived refresh.js remains byte-for-byte unchanged.
+     assert.match(runner,/__prowellDualActionableCards/);
+     assert.doesNotMatch(original,/__prowellDualActionableCards/);
    }else{
      assert(runner.includes(original),
        'Original '+site+' '+name+' must appear byte-for-byte in wrapper');
