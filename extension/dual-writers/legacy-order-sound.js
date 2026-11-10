@@ -22,8 +22,13 @@
   function scan(){
     if(!active()||!document.body)return;
     const cards=window.__prowellCardDetector?.cards?.()||[];
-    // An old processing card is also an order; never require Take it for
-    // the alert. One short sound per observed order and monitoring session.
+    // Only remember IDs still present in this page's current order list.
+    // A returning ID after disappearing can alert again, even without a
+    // manual START. A new page load also begins with an empty seen set.
+    const present=new Set(cards.map(c=>String(c?.type||'')+':'+String(c?.id||'')));
+    for(const key of seen)if(!present.has(key))seen.delete(key);
+    // Both available and processing appearances can trigger the sound.
+    // Avoid repeated sound while an unchanged card stays on screen.
     for(const card of cards){
       if(!['available','processing'].includes(card?.type) ||
           !/^\d{5,16}$/.test(String(card.id||'')))continue;
