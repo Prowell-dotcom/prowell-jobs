@@ -98,6 +98,25 @@
     await chrome.storage.local.set({claim});
   }
   function orderCards(){return window.__prowellCardDetector?.cards()||[];}
+  // The persisted attempted/completed/previewed ID lists are history only.
+  // They must never permanently block an order that returns. Prevent only
+  // duplicate View clicks for the same continuously displayed card; the
+  // same ID is eligible again after disappearing/reappearing, a real page
+  // reload, or a fresh owner START session.
+  const handledOnThisPage=new Set();
+  const cardKey=card=>String(card?.type||'')+':'+
+    String(card?.id||'').replace(/^0+/,'');
+  function actionableCards(){
+    const cards=orderCards();
+    const present=new Set(cards.map(cardKey));
+    for(const key of handledOnThisPage)if(!present.has(key))
+      handledOnThisPage.delete(key);
+    return cards.filter(card=>['available','processing'].includes(card?.type)
+      && !handledOnThisPage.has(cardKey(card)));
+  }
+  // Refresh controllers share the same present-card guard. Historical IDs
+  // never prevent either automatic View handling or pausing refresh.
+  window.__prowellDualActionableCards=actionableCards;
   // The View button may open an ORDER INFORMATION modal on the same URL.
   // Never scroll the available-orders list: only scroll after matching the
   // opened details to the order whose View was clicked.
@@ -287,10 +306,13 @@
       }
       return;
     }
-    const cards=orderCards();
+    const cards=actionableCards();
     if(cards.length){
-      const processing=cards.find(c=>c.type==='processing' && !(state.processingPreviewedIds||[]).includes(c.id));
+      const processing=cards.find(c=>c.type==='processing');
       if(processing){
+        // Reserve before asynchronous storage writes; observers must not
+        // launch the same View twice from one visible card.
+        handledOnThisPage.add(cardKey(processing));
         // Commit the stage BEFORE triggering navigation, so it survives reload.
         await setClaim(processing.id,'processing-view-clicked',{listUrl:location.href,
           startedAt:Date.now(),viewClickedAt:Date.now()});
@@ -300,9 +322,9 @@
         setTimeout(scheduleScan,0);
         return;
       }
-      const fresh=cards.find(c=>c.type==='available' && !(state.attemptedIds||[]).includes(c.id) &&
-        !(state.completed||[]).includes(c.id));
+      const fresh=cards.find(c=>c.type==='available');
       if(fresh){
+        handledOnThisPage.add(cardKey(fresh));
         stopRefresh();
         await setClaim(fresh.id,'view-clicked',{listUrl:location.href,
           startedAt:Date.now(),viewClickedAt:Date.now()});
@@ -324,6 +346,10 @@
   });
   chrome.storage.onChanged.addListener((changes,area)=>{
     if(area!=='local')return;
+    // Explicit owner re-START must make a returning ID actionable even if
+    // its original card is still present. No reset during routine DOM events.
+    if(changes.armed?.newValue===true &&
+       changes.armed?.oldValue!==true)handledOnThisPage.clear();
     for(const key of Object.keys(changes))if(key in DEFAULTS)state[key]=changes[key].newValue;
     if(!active()){stopRefresh();statusNode?.remove();statusNode=null;return;}
     scheduleScan();
