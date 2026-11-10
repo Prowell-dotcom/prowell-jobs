@@ -1,4 +1,4 @@
-# Prowell Dual-Platform Bot v2.1.7
+# Prowell Dual-Platform Bot v2.1.8
 
 ## Source engines and changes
 
@@ -105,7 +105,7 @@ report other errors unrelated to these fixes; inspect the extension's
 ## Installation
 
 After ProwellJobs is deployed from the new repository commit, download
-**Dual Bot v2.1.7** from the Prowell administrator dashboard. Remove/disable
+**Dual Bot v2.1.8** from the Prowell administrator dashboard. Remove/disable
 the previous dual and separate bots, extract the new ZIP, and load the folder
 containing `manifest.json` through `chrome://extensions` with Developer Mode
 enabled. Reload the 4writers and Good-Writers site tabs. Press START separately
@@ -116,7 +116,7 @@ CI validates startup, packaging and simulated behavior. Real-site navigation,
 claim timing and availability still depend on the live account and browser;
 an empty “None” order list is not itself a malfunction.
 
-### Minimal popup in v2.1.7
+### Minimal popup in v2.1.8
 
 The extension popup has exactly two visible site names, **4writers.net**
 and **good-writers.com**, each with one **START AUTO-TAKE** button and
@@ -126,3 +126,7 @@ All original refresh, sound, View, gradual scrolling, Take it, OK, and final
 acknowledgement scripts continue to run unchanged. START and STOP remain
 independently scoped to each site. An invisible accessibility status
 message provides button feedback without adding screen clutter.
+
+### Compact quarter-size buttons (v2.1.8)
+
+The dual popup is 248px wide rather than 490px, and each button is approximately 111 × 27px rather than 223 × 54px: about **one-quarter of the previous button area**. The site headings and labels are scaled proportionally. This release changes only popup styling; the automated order-handling engines, sound, refreshing, confirmation logic, and popup START/STOP handlers remain unchanged.
