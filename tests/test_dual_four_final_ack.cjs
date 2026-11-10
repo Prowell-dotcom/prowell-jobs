@@ -12,14 +12,17 @@ const tick=async()=>{
   await new Promise(resolve=>setImmediate(resolve));
 };
 
-async function check(label){
- const listeners=[],clicked=[],popupEvents=[];
+async function check(label,range){
+ const cases={near:{height:600,ms:300},medium:{height:1200,ms:300},
+   long:{height:2100,ms:300}};
+ const expected=cases[range];assert(expected);
+ const listeners=[],clicked=[],popupEvents=[],waits=[];
  const state={armed:true,claimConsentVersion:'0.5.4',targetTabId:17,
   claim:{id:'0192065941',stage:'ok-clicked',startedAt:Date.now(),
    listUrl:'https://4writers.net/available_orders'}};
  let panelY=0,pageY=0;
  const panel={
-  tagName:'DIV',className:'modal-body',clientHeight:380,scrollHeight:2100,
+  tagName:'DIV',className:'modal-body',clientHeight:380,scrollHeight:expected.height,
   get scrollTop(){return panelY},
   set scrollTop(v){panelY=v;popupEvents.push('popup-scroll '+v)},
   parentElement:null,querySelectorAll(){return[]}
@@ -82,7 +85,7 @@ async function check(label){
   location:{origin:'https://4writers.net',href:'https://4writers.net/available_orders'},
   queueMicrotask,MutationObserver:class{observe(){}},
   Event:class{},Date,Promise,Set,URL,Error,
-  setTimeout(fn,ms){if(ms===100)queueMicrotask(fn);return 1},clearTimeout(){},
+  setTimeout(fn,ms){if([60,100,140].includes(ms)){waits.push(ms);queueMicrotask(fn);}return 1},clearTimeout(){},
   setInterval(){return 1},
   getComputedStyle(){return {position:'fixed',overflowY:'auto'}},
  };
@@ -96,8 +99,11 @@ async function check(label){
    'Fast simulated View-to-final click must meet two-second soft target');
  assert(Number(state.lastPostViewDurationMs)<2000,
    'Timing report should be derived from actual View-to-final click');
- assert.equal(panelY,1720,
-   'Popup must jump instantly to its vertical bottom before final click');
+ assert.equal(panelY,expected.height-380,
+   'Popup must reach its vertical bottom before final click');
+ assert.equal(waits.length,5,'Six scroll positions require five waits');
+ assert.equal(waits.reduce((a,b)=>a+b,0),expected.ms,
+   'Final acknowledgement '+range+' should scroll for '+expected.ms+'ms');
  assert.equal(pageY,0,
    'Background document must never be scrolled by post-OK step');
  assert.equal(state.lastAcknowledgementScroll,'scrolled-popup',
@@ -108,10 +114,13 @@ async function check(label){
    'Final acceptance must occur only after all scrolling steps');
  assert.equal(popupEvents[0].startsWith('popup-scroll '),true);
  assert.equal(popupEvents.at(-2),'popup-scroll 1720');
- console.log('4writers post-OK '+label+': popup bottom and final click PASS');
+ console.log('4writers post-OK '+label+' '+range+
+   ': '+expected.ms+'ms popup scroll, then click PASS');
 }
 
 (async()=>{
- await check('I understand, take the order');
- await check('I understand the order');
+ for(const range of ['near','medium','long']){
+   await check('I understand, take the order',range);
+   await check('I understand the order',range);
+ }
 })().catch(error=>{console.error(error);process.exitCode=1;});
