@@ -82,7 +82,7 @@ async function check(label){
   location:{origin:'https://good-writers.com',href:'https://good-writers.com/available_orders'},
   queueMicrotask,MutationObserver:class{observe(){}},
   Event:class{},Date,Promise,Set,URL,Error,
-  setTimeout(fn,ms){if(ms===18)queueMicrotask(fn);return 1},clearTimeout(){},
+  setTimeout(fn,ms){if(ms===100)queueMicrotask(fn);return 1},clearTimeout(){},
   setInterval(){return 1},
   getComputedStyle(){return {position:'fixed',overflowY:'auto'}},
  };
