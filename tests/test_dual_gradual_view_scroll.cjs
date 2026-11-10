@@ -6,14 +6,15 @@ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const assert=require('node:assert/strict');
 const dir=path.join(__dirname,'../extension/dual-writers');
 const tick=async()=>{for(let i=0;i<24;i++)await Promise.resolve();await new Promise(r=>setImmediate(r));};
-async function run(site,kind){
+async function run(site,kind,range){
  const four=site==='four',host=four?'4writers.net':'good-writers.com';
  const source=fs.readFileSync(path.join(dir,'legacy/'+site+'/runtime-content.js'),'utf8');
- const settings=/const SCROLL_STEPS=(\d+), SCROLL_STEP_MS=(\d+);/.exec(source);
- assert(settings,site+' must define gradual scroll timing');
- assert.equal((Number(settings[1])-1)*Number(settings[2]),500,
-   site+' must scroll for 500ms in normal foreground timing');
- const id='0192065941',events=[],listeners=[];
+ assert.match(source,/const SCROLL_STEPS=6;/);
+ assert.match(source,/function scrollDuration\(el,bottom\)/);
+ const options={near:{height:600,ms:300},medium:{height:1200,ms:500},
+   long:{height:2200,ms:700}};
+ const expected=options[range];assert(expected);
+ const id='0192065941',events=[],listeners=[],waits=[];
  const stage=kind==='available'?'view-clicked':'processing-view-clicked';
  const state={
    armed:true,claimConsentVersion:four?'0.5.4':'1.0.4',targetTabId:17,
@@ -22,7 +23,7 @@ async function run(site,kind){
  };
  let pos=0,backgroundPos=0;
  const panel={
-   isConnected:true,clientHeight:400,scrollHeight:1800,
+   isConnected:true,clientHeight:400,scrollHeight:expected.height,
    innerText:'ORDER INFORMATION Order #'+id+' Subject Description',
    textContent:'ORDER INFORMATION Order #'+id,
    get scrollTop(){return pos},
@@ -68,14 +69,17 @@ async function run(site,kind){
  const context={window:win,document,location:{origin:'https://'+host,
    href:'https://'+host+'/available_orders'},chrome,
    MutationObserver:class{observe(){}},URL,Event:class{},Date,Promise,Set,Error,
-   queueMicrotask,setTimeout(fn,ms){if(ms===100)queueMicrotask(fn);return 1;},
+   queueMicrotask,setTimeout(fn,ms){if([60,100,140].includes(ms)){waits.push(ms);queueMicrotask(fn);}return 1;},
    clearTimeout(){},setInterval(){return 1}};
  vm.runInNewContext(source,context);
  await tick();
  const scrolled=events.filter(x=>x.startsWith('SCROLL '));
  assert.equal(scrolled.length,6,site+' '+kind+': should scroll in six increments');
- assert.equal(pos,1400);
+ assert.equal(pos,expected.height-400);
  assert.equal(backgroundPos,0,'Background page must not scroll');
+ assert.equal(waits.length,5,'Six steps use exactly five waits');
+ assert.equal(waits.reduce((a,b)=>a+b,0),expected.ms,
+   site+' '+kind+' '+range+' must use '+expected.ms+'ms');
  if(kind==='available'){
    assert.equal(events.at(-1),'TAKE IT','Take it only after gradual scroll');
    assert.equal(state.claim?.stage,'take-clicked');
@@ -84,11 +88,13 @@ async function run(site,kind){
    assert.equal(state.armed,false,'Processing preview stops after scroll');
    assert.equal(state.claim,null);
  }
- console.log(site+' '+kind+': 6 gradual scroll steps, correct next action PASS');
+ console.log(site+' '+kind+' '+range+': '+expected.ms+'ms gradual scroll and correct action PASS');
 }
 (async()=>{
  for(const site of ['four','good']){
-   await run(site,'available');
-   await run(site,'processing');
+   for(const range of ['near','medium','long']){
+     await run(site,'available',range);
+     await run(site,'processing',range);
+   }
  }
 })().catch(e=>{console.error(e);process.exitCode=1});
