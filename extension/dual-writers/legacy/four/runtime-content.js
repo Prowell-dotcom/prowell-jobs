@@ -26,12 +26,42 @@
   const ACTIONS = 'a,button,input[type="button"],input[type="submit"],[role="button"]';
   let state={...DEFAULTS}, tabId=null, busy=false, pendingScan=false;
   let nextRefresh=null, statusNode=null, lastAction=0;
-  // Only the scroll is paced. No other workflow action receives a delay.
-  // The order-details scroll adapts to distance: 300ms near, 500ms medium, 700ms long.
-  // Post-View target: two seconds including scrolling and confirmation.
+  // Pace the ENTIRE available-order acceptance from View to final confirmation:
+  // short=3 seconds, medium=4 seconds, long=5 seconds. Buttons are never
+  // clicked before their stage deadlines. Website latency can make it later.
+  // The order-details scroll itself remains adaptive at 300/500/700ms.
   // For 4writers, final acknowledgement always scrolls in 300ms.
   // Website rendering/confirmation latency is outside the extension's control.
-  const POST_VIEW_TARGET_MS=2000;
+  const POST_VIEW_TARGET_MS=2000; // historical metric retained for compatibility
+  const COMPLETION_TARGETS={300:3000,500:4000,700:5000};
+  const STAGE_FRACTIONS={'take-clicked':0.40,'ok-clicked':0.72,'acknowledged':1};
+  async function setCompletionTarget(claim,scrollMs){
+    if(!active()||!state.claim||!sameOrder(state.claim.id,claim.id))return;
+    if(Number(state.claim.completionTargetMs)>0)return;
+    // Choose only once, from the FIRST order-details popup, so the final
+    // acknowledgement length never changes the total order-taking schedule.
+    const completionTargetMs=COMPLETION_TARGETS[scrollMs]||3000;
+    const completionSize=scrollMs===700?'long':scrollMs===500?'medium':'short';
+    const next={...state.claim,completionTargetMs,completionSize};
+    state.claim=next;
+    await chrome.storage.local.set({claim:next});
+  }
+  async function waitForStageDeadline(stage,claim){
+    const targetMs=Number(claim?.completionTargetMs)||0;
+    const fraction=STAGE_FRACTIONS[stage];
+    if(!targetMs||!fraction)return true; // e.g. processing preview
+    const started=Number(claim.viewClickedAt||claim.startedAt)||Date.now();
+    const deadline=started+Math.round(targetMs*fraction);
+    while(Date.now()<deadline){
+      if(!active()||!state.claim||!sameOrder(state.claim.id,claim.id)||
+         challenge())return false;
+      // Short cancellable waits retain responsiveness to STOP and website
+      // security checks, rather than one long uncancellable sleep.
+      await new Promise(resolve=>setTimeout(resolve,Math.min(120,deadline-Date.now())));
+    }
+    return active()&&state.claim&&sameOrder(state.claim.id,claim.id)&&
+      !challenge()&&Date.now()-state.claim.startedAt<=25000;
+  }
   // Distance-based timing on order details: near=300ms, medium=500ms,
   // long=700ms. Five evenly timed waits between six visible scroll steps.
   // Use the scrollbar's remaining distance, not description word count:
@@ -161,6 +191,16 @@
       // Scroll only inside the verified ORDER INFORMATION popup.
       const descendants=typeof panel.querySelectorAll==='function'
         ?[...panel.querySelectorAll('.modal-body,.modal-content,[class*="scroll"],[style*="overflow"],[data-order-details]')]:[];
+      const panes=[panel,...descendants].filter(el=>
+        el&&el!==document.body&&el!==document.documentElement&&
+        el!==document.scrollingElement&&Number(el.clientHeight)>40&&
+        Number(el.scrollHeight)-Number(el.clientHeight)>10);
+      const scrollMs=panes.length
+        ?Math.max(...panes.map(el=>scrollDuration(el,
+           Number(el.scrollHeight)-Number(el.clientHeight))))
+        :300;
+      if(claim.stage!=='processing-view-clicked')
+        await setCompletionTarget(claim,scrollMs);
       await gradualTargets([panel,...descendants]);
       return active() && state.claim && sameOrder(state.claim.id,claim.id);
     }
@@ -172,6 +212,8 @@
         const root=document.scrollingElement||document.documentElement;
         const bottom=Math.max(0,Number(root?.scrollHeight||document.body?.scrollHeight||0)
           -Number(root?.clientHeight||window.innerHeight||0));
+        if(claim.stage!=='processing-view-clicked')
+          await setCompletionTarget(claim,root?scrollDuration(root,bottom):300);
         if(root)await gradualScroll(root,bottom);
         else try{window.scrollTo({top:bottom,behavior:'smooth'});}catch(_){}
         return active()&&state.claim&&sameOrder(state.claim.id,claim.id);
@@ -230,7 +272,12 @@
     if(!visible(el) || busy || !active())return;
     busy=true;stopRefresh();
     try{
-      await setClaim(state.claim.id,stage);
+      const current=state.claim;
+      if(!current || !await waitForStageDeadline(stage,current))return;
+      // The actual button may disappear, become disabled, or be replaced
+      // while waiting. Never click a stale control just to meet the deadline.
+      if(!visible(el)||!active()||challenge())return;
+      await setClaim(current.id,stage);
       lastAction=Date.now();
       if(stage==='take-clicked'){
         // Only the Take it action may arm a short-lived Are-you-sure confirmation.
@@ -243,7 +290,11 @@
         const elapsedMs=Math.max(0,Date.now()-
           Number(state.claim?.viewClickedAt||state.claim?.startedAt||Date.now()));
         await report(message,{lastPostViewDurationMs:elapsedMs,
-          lastPostViewWithin2s:elapsedMs<=POST_VIEW_TARGET_MS});
+          lastPostViewWithin2s:elapsedMs<=POST_VIEW_TARGET_MS,
+          lastCompletionTargetMs:Number(state.claim?.completionTargetMs)||null,
+          lastCompletionDurationMs:elapsedMs,
+          lastCompletionNoEarlierThanTarget:elapsedMs>=
+            (Number(state.claim?.completionTargetMs)||0)});
       }else await report(message);
     }catch(err){await report('Could not click: '+err.message);}
     finally{busy=false;}
