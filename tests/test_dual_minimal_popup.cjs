@@ -7,7 +7,7 @@ const base=path.join(__dirname,'../extension/dual-writers');
 const html=fs.readFileSync(path.join(base,'popup.html'),'utf8');
 const js=fs.readFileSync(path.join(base,'popup.js'),'utf8');
 const manifest=JSON.parse(fs.readFileSync(path.join(base,'manifest.json'),'utf8'));
-assert.equal(manifest.version,'2.1.7');
+assert.equal(manifest.version,'2.1.8');
 const visible=html
   .replace(/<style>[\s\S]*?<\/style>/g,'')
   .replace(/<script[^>]*>[\s\S]*?<\/script>/g,'');
@@ -27,6 +27,11 @@ for(const obsolete of [
   /Writings \+ Rewritings monitored/, /Version 2\.1\./
 ])assert.doesNotMatch(visible,obsolete,'No detailed controls or explanations in the popup');
 assert.match(html,/id="sr-notice" class="sr-only"/,'Non-visual feedback remains accessible');
+assert.match(html,/width:248px/,'Popup should be less than half its earlier width');
+assert.match(html,/height:27px/,'Buttons should be half their earlier height');
+assert.match(html,/font:700 10px/,'Small button text must fit compact controls');
+assert.match(html,/gap:6px/,'Compact buttons should remain separate');
+assert.doesNotMatch(html,/width:490px|height:54px/,'Old oversized controls must be gone');
 assert.match(js,/autoAcceptEnabled:true,armed:true/,'START must enable full auto-taking');
 assert.match(js,/autoAcceptEnabled:false/,'STOP must disable automation');
 assert.match(js,/PROWELL_PREPARE_ORDER_SOUND/,'Starting must still prepare audio');
