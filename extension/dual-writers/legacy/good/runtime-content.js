@@ -28,12 +28,13 @@
   let state={...DEFAULTS}, tabId=null, busy=false, pendingScan=false;
   let nextRefresh=null, statusNode=null, lastAction=0;
   // Only the scroll is paced. No other workflow action receives a delay.
-  // Six visible increments take about 0.09s, regardless of description length.
+  // Six visible increments take about 0.5s, regardless of description length.
   // Post-View target: two seconds including scrolling and confirmation.
-  // Keep scrolling visibly gradual but spend about 90 ms on each popup.
+  // Keep scrolling visibly gradual over 500 milliseconds per popup.
   // Website rendering/confirmation latency is outside the extension's control.
   const POST_VIEW_TARGET_MS=2000;
-  const SCROLL_STEPS=6, SCROLL_STEP_MS=18;
+  // Six positions with five 100ms waits = 500ms per completed scroll.
+  const SCROLL_STEPS=6, SCROLL_STEP_MS=100;
   let scrolling=false;
   async function gradualScroll(el,bottom){
     if(!el || !Number.isFinite(Number(bottom)))return false;
