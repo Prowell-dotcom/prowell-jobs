@@ -11,7 +11,7 @@ class DualWritersBundleTests(unittest.TestCase):
         root=Path(__file__).resolve().parents[1]
         data=store.dual_writers_bundle(root)
         self.assertLess(len(data),store.MAX_ZIP_BYTES)
-        self.assertEqual(store.validate_bundle(data),'2.1.11')
+        self.assertEqual(store.validate_bundle(data),'2.1.12')
         self.assertNotEqual(data,store.bundled_extension(root))
         self.assertNotEqual(data,store.good_writers_bundle(root))
         with zipfile.ZipFile(io.BytesIO(data)) as z:
