@@ -1,4 +1,4 @@
-# Prowell Dual-Platform Bot v2.1.9
+# Prowell Dual-Platform Bot v2.1.10
 
 ## Source engines and changes
 
@@ -50,7 +50,7 @@ processing an order.
 ### Gradual scrolling on both websites (only scrolling changed)
 
 Both active dual engines scroll the selected order-information popup in **6
-short increments** (approximately 0.09 seconds total when the browser runs
+short increments** (approximately 0.5 seconds total when the browser runs
 timers normally) instead of jumping instantly. This applies to both available
 orders and processing-order previews, and also the long post-OK
 acknowledgement popup. The next Take it or I understand click happens only
@@ -105,7 +105,7 @@ report other errors unrelated to these fixes; inspect the extension's
 ## Installation
 
 After ProwellJobs is deployed from the new repository commit, download
-**Dual Bot v2.1.9** from the Prowell administrator dashboard. Remove/disable
+**Dual Bot v2.1.10** from the Prowell administrator dashboard. Remove/disable
 the previous dual and separate bots, extract the new ZIP, and load the folder
 containing `manifest.json` through `chrome://extensions` with Developer Mode
 enabled. Reload the 4writers and Good-Writers site tabs. Press START separately
@@ -136,3 +136,7 @@ The dual popup is 248px wide rather than 490px, and each button is approximately
 Previously stored attempted/completed/previewed IDs are now **history only**: they never prevent either site from opening a newly encountered order with the same ID. A new or processing order shown again after page reload, disappearance/reappearance, replacement of its View button, or owner START is eligible again. To prevent infinite duplicate clicks from MutationObserver, the exact same continuously present View element is handled only once per local appearance, and an active claim always blocks concurrent clicks. Processing orders continue to stop after View and scrolling, never Take it. The audio notifier also re-alerts when a new View element appears with a previously seen ID. Existing verification and claim-timeout safeguards remain intact.
 
 Both sites' gradual scrolling still uses six visible increments, now spaced by 18 milliseconds, approximately 0.09 seconds per popup under normal foreground browser timing. This is a speed target, not a guarantee under browser throttling.
+
+### 500 ms gradual scrolling (v2.1.10)
+
+The active 4writers and Good-Writers order-details and final acknowledgement popups now scroll in **six visible positions over five 100 ms intervals**, totaling approximately **500 milliseconds per scroll** when browser timers run normally. The Take it and I understand actions still begin after their corresponding scroll completes; refreshing, notifications, repeated-order handling and other steps are unchanged. A full new-order acceptance includes up to two such scrolls and may exceed the earlier two-second target if website responses are slow. Browser throttling can also increase actual duration.
