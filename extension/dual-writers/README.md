@@ -1,4 +1,4 @@
-# Prowell Dual-Platform Bot v2.1.10
+# Prowell Dual-Platform Bot v2.1.11
 
 ## Source engines and changes
 
@@ -50,8 +50,9 @@ processing an order.
 ### Gradual scrolling on both websites (only scrolling changed)
 
 Both active dual engines scroll the selected order-information popup in **6
-short increments** (approximately 0.5 seconds total when the browser runs
-timers normally) instead of jumping instantly. This applies to both available
+short increments**, adapting to the remaining scroll distance: **300ms** for
+a near button (within one visible popup height), **500ms** for a medium
+distance (within three heights), and **700ms** for a longer description. This applies to both available
 orders and processing-order previews, and also the long post-OK
 acknowledgement popup. The next Take it or I understand click happens only
 after the gradual scroll finishes.
@@ -105,7 +106,7 @@ report other errors unrelated to these fixes; inspect the extension's
 ## Installation
 
 After ProwellJobs is deployed from the new repository commit, download
-**Dual Bot v2.1.10** from the Prowell administrator dashboard. Remove/disable
+**Dual Bot v2.1.11** from the Prowell administrator dashboard. Remove/disable
 the previous dual and separate bots, extract the new ZIP, and load the folder
 containing `manifest.json` through `chrome://extensions` with Developer Mode
 enabled. Reload the 4writers and Good-Writers site tabs. Press START separately
@@ -137,6 +138,12 @@ Previously stored attempted/completed/previewed IDs are now **history only**: th
 
 Both sites' gradual scrolling still uses six visible increments, now spaced by 18 milliseconds, approximately 0.09 seconds per popup under normal foreground browser timing. This is a speed target, not a guarantee under browser throttling.
 
-### 500 ms gradual scrolling (v2.1.10)
+### 500 ms gradual scrolling (v2.1.11)
 
 The active 4writers and Good-Writers order-details and final acknowledgement popups now scroll in **six visible positions over five 100 ms intervals**, totaling approximately **500 milliseconds per scroll** when browser timers run normally. The Take it and I understand actions still begin after their corresponding scroll completes; refreshing, notifications, repeated-order handling and other steps are unchanged. A full new-order acceptance includes up to two such scrolls and may exceed the earlier two-second target if website responses are slow. Browser throttling can also increase actual duration.
+
+### Adaptive scroll timing (v2.1.11)
+
+The dual bot measures the **remaining scroll distance** of each visible scrollable order-details panel relative to its visible height. If the target is within one popup-height, the motion takes **300 ms**; between one and three heights, **500 ms**; beyond three heights, **700 ms**. It keeps six smooth steps, waits for scrolling to finish, and only then proceeds to Take it. Good-Writers uses these same three categories for its post-OK acknowledgement.
+
+**Special 4writers rule:** the *final* post-OK **I understand, take the order** acknowledgement popup always scrolls in **300 ms** regardless of length. This rule does not affect the first order-details popup. Processing orders use the same adaptive first-popup scrolling but do not click Take it. A zero-distance popup can proceed immediately because no scrolling is needed. Other steps, sound, refresh logic, same-ID reappearance handling, and the small popup controls are unchanged. Website load time and browser throttling can extend actual durations.
