@@ -113,7 +113,7 @@ async function check(label,range){
  assert.equal(popupEvents.at(-1),'acknowledgement-click',
    'Final acceptance must occur only after all scrolling steps');
  assert.equal(popupEvents[0].startsWith('popup-scroll '),true);
- assert.equal(popupEvents.at(-2),'popup-scroll 1720');
+ assert.equal(popupEvents.at(-2),'popup-scroll '+(expected.height-380));
  console.log('4writers post-OK '+label+' '+range+
    ': '+expected.ms+'ms popup scroll, then click PASS');
 }
