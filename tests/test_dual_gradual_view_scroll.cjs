@@ -19,7 +19,8 @@ async function run(site,kind,range){
  const state={
    armed:true,claimConsentVersion:four?'0.5.4':'1.0.4',targetTabId:17,
    attemptedIds:[],completed:[],processingPreviewedIds:[],
-   claim:{id,stage,startedAt:Date.now(),listUrl:'https://'+host+'/available_orders'}
+   claim:{id,stage,startedAt:Date.now(),viewClickedAt:Date.now()-10000,
+     listUrl:'https://'+host+'/available_orders'}
  };
  let pos=0,backgroundPos=0;
  const panel={
