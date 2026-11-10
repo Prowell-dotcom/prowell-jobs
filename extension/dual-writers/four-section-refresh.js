@@ -40,10 +40,12 @@
     return headings && (controls||window.__prowellCardDetector?.cards?.().length>0);
   }
   function unseenOrder(){
-    const hits=window.__prowellCardDetector?.cards?.()||[];
-    const handled=new Set([...(local.attemptedIds||[]),...(local.completed||[])].map(String));
-    return hits.some(card=>card?.type==='processing' ||
-      (card?.type==='available'&&!handled.has(String(card.id))));
+    // Use the content engine's per-appearance guard, never the persisted
+    // attempted/completed ID history. A returning ID must pause refresh and
+    // reach View again after it reappears or the page is reloaded.
+    const hits=window.__prowellDualActionableCards?.()||
+      window.__prowellCardDetector?.cards?.()||[];
+    return hits.some(card=>card?.type==='processing'||card?.type==='available');
   }
   function sectionFromPage(){
     const chosen=sections.selected();
