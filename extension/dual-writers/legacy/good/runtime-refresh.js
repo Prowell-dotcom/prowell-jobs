@@ -39,9 +39,11 @@
       Boolean(document.querySelector('iframe[src*="captcha"],[class*="g-recaptcha"]'));
   }
   function unseenOrderVisible(){
-    const cards=window.__prowellCardDetector?.cards()||[];
-    const handled=new Set([...(local.attemptedIds||[]),...(local.completed||[])]);
-    return cards.some(c=>c.type==='processing'||(c.type==='available'&&!handled.has(c.id)));
+    // A previously handled ID is eligible when it returns. Only suppress
+    // repeated clicks on the very same, continuously visible card.
+    const cards=window.__prowellDualActionableCards?.()||
+      window.__prowellCardDetector?.cards?.()||[];
+    return cards.some(c=>c.type==='processing'||c.type==='available');
   }
   function evaluate() {
     if (!isActive()) {
