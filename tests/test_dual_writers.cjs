@@ -5,7 +5,7 @@ const vm=require('node:vm'),path=require('node:path');
 const dir=path.join(__dirname,'../extension/dual-writers');
 const read=name=>fs.readFileSync(path.join(dir,name),'utf8');
 const manifest=JSON.parse(read('manifest.json'));
-assert.equal(manifest.version,'2.1.8');
+assert.equal(manifest.version,'2.1.9');
 assert.equal(manifest.content_scripts.length,4);
 assert(manifest.host_permissions.some(h=>h.includes('4writers.net')));
 assert(manifest.host_permissions.some(h=>h.includes('good-writers.com')));
