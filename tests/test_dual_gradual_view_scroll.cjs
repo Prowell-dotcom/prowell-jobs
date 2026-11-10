@@ -9,6 +9,10 @@ const tick=async()=>{for(let i=0;i<24;i++)await Promise.resolve();await new Prom
 async function run(site,kind){
  const four=site==='four',host=four?'4writers.net':'good-writers.com';
  const source=fs.readFileSync(path.join(dir,'legacy/'+site+'/runtime-content.js'),'utf8');
+ const settings=/const SCROLL_STEPS=(\d+), SCROLL_STEP_MS=(\d+);/.exec(source);
+ assert(settings,site+' must define gradual scroll timing');
+ assert.equal((Number(settings[1])-1)*Number(settings[2]),500,
+   site+' must scroll for 500ms in normal foreground timing');
  const id='0192065941',events=[],listeners=[];
  const stage=kind==='available'?'view-clicked':'processing-view-clicked';
  const state={
