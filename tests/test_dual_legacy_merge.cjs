@@ -31,22 +31,16 @@ for(const site of ['four','good']){
    const original=read('legacy/'+site+'/'+name);
    const runner=read('legacy/'+site+'/runtime-'+name);
    if(name==='content.js'){
-     // The archived supplied engines are unchanged. Their active wrappers
-     // keep screenshot-specific final acknowledgement behavior per site.
-     assert.match(runner,/const ACCEPT = \/\^i\\s\+understand/);
-     if(site==='four'){
-       assert.match(runner,/lastAcknowledgementScroll/);
-       assert.match(runner,/I understand, take the/);
-       assert.match(runner,/scrollAcknowledgment\(accept\)/);
-     }else{
-       assert.match(runner,/Good-Writers acknowledgements/);
-       assert.doesNotMatch(runner,/scrollAcknowledgment\(/,
-         'Good-Writers must not scroll after OK');
-       assert.doesNotMatch(runner,/lastAcknowledgementScroll/,
-         'Good-Writers must not record a nonexistent post-OK scroll');
-     }
-     assert.doesNotMatch(original,/lastAcknowledgementScroll/,
-       'Original uploaded archive must remain unchanged');
+     // The archived supplied engines remain untouched; active dual wrappers
+     // now only alert, stop monitoring and click View for a human handoff.
+     assert.match(runner,/async function handoffToOwner\(card\)/);
+     assert.match(runner,/view\.click\(\)/);
+     assert.match(runner,/type:'PROWELL_ORDER_SOUND'/);
+     assert.doesNotMatch(runner,/clickStage\(|scrollOpenedOrder\(|scrollAcknowledgment\(/,
+       'No automated Take it, OK, I understand or scrolling may remain');
+     assert.doesNotMatch(runner,/rapidScroll\(|rapidTargets\(|lastAcknowledgementScroll/);
+     assert.doesNotMatch(original,/async function handoffToOwner\(card\)/,
+       'Archived original is not replaced by the new handoff');
    }else if(name==='refresh.js'&&site==='good'){
      // The active Good-Writers refresh wrapper now intentionally ignores
      // historical ID arrays and uses the per-appearance View guard.
