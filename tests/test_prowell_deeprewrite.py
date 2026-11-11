@@ -131,7 +131,7 @@ class DeepRewriteTests(unittest.TestCase):
             code,result=editor.handle_public_rewrite(FakeHandler({
                 "text":"The nurse read the patient's letter carefully.",
                 "tone":"student","engine":"deep","level":10,
-            }),lambda *args:True)
+            }),lambda *args, **kwargs:True)
         self.assertEqual(code,503)
         self.assertNotIn("paraphrased",result)
         self.assertIn("not yet activated",result["error"])
@@ -141,7 +141,7 @@ class DeepRewriteTests(unittest.TestCase):
         with self.settings():
             code,result=editor.handle_public_rewrite(FakeHandler({
                 "text":text,"tone":"student","engine":"deep","level":10
-            }),lambda *args:True)
+            }),lambda *args, **kwargs:True)
         self.assertEqual(code,400)
         self.assertIn("350 words",result["error"])
 
@@ -163,7 +163,7 @@ class DeepRewriteTests(unittest.TestCase):
             code,result=editor.handle_public_rewrite(FakeHandler({
                 "text":"The clinic used reminders before visits.",
                 "tone":"student","engine":"deep",
-                "history":[5]}),lambda *args:True)
+                "history":[5]}),lambda *args, **kwargs:True)
         self.assertEqual(code,400)
         self.assertIn("history",result["error"])
 
