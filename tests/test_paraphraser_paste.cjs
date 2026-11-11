@@ -25,6 +25,10 @@ async function run(){
  assert(html.includes('height:300px'));
  assert(html.includes('background:#5355e5'));
  assert(html.includes('Humanize text'));
+ assert(html.includes('id="publicParaphraseLevel"'));
+ assert(html.includes('min="1" max="10" step="1" value="9"'));
+ assert(html.includes('Paraphrasing depth'));
+
 
  const store=new Map();
  const sessionStorage={
@@ -54,8 +58,10 @@ async function run(){
   for(const id of ['publicParaphraseForm','publicParaphraseInput','publicParaphraseOutput',
     'publicParaphraseSubmit','publicParaphraseStatus','publicParaphraseCount',
     'publicParaphraseTone','publicParaphraseProtectedTerms','publicParaphraseClear',
+    'publicParaphraseLevel','publicParaphraseLevelValue','publicParaphraseLevelDescription',
     'publicParaphraseCopy','publicParaphraseDownload'])create(id);
   create('publicParaphraseTone').value='student';
+  create('publicParaphraseLevel').value='9';
   create('publicParaphraseTone').options=['natural','student','simple','academic','professional'].map(value=>({value}));
   const document={getElementById:create,
     body:{appendChild(){}},
@@ -103,6 +109,7 @@ async function run(){
  const payload=JSON.parse(requests[0].options.body);
  assert.equal(payload.tone,'student');
  assert.equal(payload.engine,'local');
+ assert.equal(payload.level,9,'Public tool must request the selected depth');
  assert.equal(payload.protectedTerms,'metformin');
  assert.equal(ui.node('publicParaphraseOutput').value,'Nurses contacted patients regularly.');
  assert.match(ui.node('publicParaphraseStatus').textContent,/Moderate edit/);
@@ -115,6 +122,7 @@ async function run(){
  assert.equal(input.value,payload.text,'Original text must survive a tab refresh');
  assert.equal(ui.node('publicParaphraseProtectedTerms').value,'metformin');
  assert.equal(ui.node('publicParaphraseTone').value,'student');
+ assert.equal(ui.node('publicParaphraseLevel').value,'9');
  assert.match(ui.node('publicParaphraseStatus').textContent,/unsent writing/);
 
  responseError={code:422,message:'This passage needs context-sensitive rewriting.'};

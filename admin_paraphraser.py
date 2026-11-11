@@ -673,6 +673,10 @@ _LOCAL_RULES = (
     (r"\bfurthermore\b", "also"),
     (r"\bmoreover\b", "also"),
     (r"\bnevertheless\b", "still"),
+    (r"\bin the realm of\b", "in"),
+    (r"\bdue to the presence of\b", "because of"),
+    (r"\battempts to answer the question of whether\b", "examines whether"),
+    (r"\bthis paper considers\b", "this paper examines"),
     (r"\ba key factor in\b", "important for"),
     (r"\ba key component of\b", "an important part of"),
     (r"\bto a large extent\b", "largely"),
@@ -726,6 +730,43 @@ _STUDENT_COMPILED_RULES = tuple(
     (re.compile(pattern, re.IGNORECASE), replacement)
     for pattern, replacement in _STUDENT_RULES
 )
+
+# Depth levels control how many conservative transformations may be used.
+# High levels request more rewriting; they are NOT AI-detection or quality scores.
+_LOCAL_RULE_CUTOFFS = {1:8, 2:16, 3:25, 4:34, 5:43, 6:len(_LOCAL_RULES),
+                       7:len(_LOCAL_RULES), 8:len(_LOCAL_RULES),
+                       9:len(_LOCAL_RULES), 10:len(_LOCAL_RULES)}
+# These phrase changes are intended for opt-in, higher-depth editing only.
+# No sentence is changed unless final protected-details and grammar checks pass.
+_DEEP_LOCAL_RULES = (
+    (8, r"\bin the realm of\b", "in"),
+    (8, r"\bthe coordinated system of responses\b", "coordinated responses"),
+    (8, r"\bdue to the presence of\b", "because of"),
+    (8, r"\bthe presence of common terminology\b", "shared terminology"),
+    (8, r"\busing materials provided in\b", "drawing on"),
+    (9, r"\bthe purpose of this discussion is to\b", "this discussion aims to"),
+    (9, r"\bthis paper considers\b", "this paper examines"),
+    (9, r"\bthe question of whether\b", "whether"),
+    (9, r"\bcovered in the course textbook material\b", "in the course textbook"),
+    (9, r"\bmade reference to\b", "referred to"),
+    (10, r"\bprovided a description of\b", "described"),
+    (10, r"\bprovided descriptions of\b", "described"),
+    (10, r"\bconducted a discussion of\b", "discussed"),
+    (10, r"\bbecause of the fact that\b", "because"),
+    (10, r"\bthe extent to which\b", "how much"),
+)
+_DEEP_COMPILED_RULES = tuple(
+    (level, re.compile(pattern, re.IGNORECASE), replacement)
+    for level, pattern, replacement in _DEEP_LOCAL_RULES
+)
+
+
+def validate_rewrite_level(value):
+    if type(value) is not int or not 1 <= value <= 10:
+        raise ValueError("Paraphrasing level must be a whole number from 1 to 10.")
+    return value
+
+
 
 # Rewriting a causal or contrast clause is far safer than global
 # synonym replacement. Reordering only applies to single simple
@@ -820,6 +861,23 @@ def _reframe_contrast(sentence):
     if not found or sentence.count(",") != 1 or '"' in sentence:
         return sentence
     first, second, ending = found.groups()
+    # "The system is ready, but is not resilient" has an omitted subject
+    # in its second coordinated clause. Moving it to "Although ...,
+    # is not resilient" creates the exact grammatical error users reported.
+    # Reframe contrast ONLY if the second clause has an explicit subject.
+    explicit_subject = re.match(
+        r"(?:the|a|an|this|that|these|those|we|they|he|she|it|i|you|"
+        r"nurses|patients|staff|students|researchers|clinicians|people|"
+        r"parents|doctors|participants|several|many|some|most|few|others)\b\s+",
+        second, flags=re.IGNORECASE
+    )
+    if not explicit_subject:
+        return sentence
+    # Avoid restructuring a clause that embeds another assertion:
+    # "The paper finds that ..." may not have the same contrast scope.
+    if re.search(r"\b(?:finds?|suggests?|argues?|reports?|concludes?)\b",
+                 first, flags=re.IGNORECASE):
+        return sentence
     return ("Although " + _lower_clause_start(first) + ", " + second +
             ending)
 
@@ -861,6 +919,15 @@ def _local_grammar_ok(before, after):
         return False
     if re.search(r"[,;]\s*[.!?]", after):
         return False
+    # Prevent orphaned predicates following a dependent introductory clause.
+    # E.g. "Although the system is prepared, is unable to respond."
+    bad_subordinate = (
+        r"\b(?:although|because|if|when)\s+[^.!?\n]{6,220},\s+"
+        r"(?:is|are|was|were|has|have|had|can|could|will|would|"
+        r"may|might|should|must|did|does|do)\b"
+    )
+    if re.search(bad_subordinate, after, re.IGNORECASE):
+        return False
     if len(re.findall(r"[.!?]", after)) < len(re.findall(r"[.!?]", before)):
         return False
     # Don't drop negations or modality/uncertainty markers.
@@ -894,16 +961,26 @@ def _apply_unprotected_rule(text, pattern, replacement, protected_terms=()):
     return pattern.sub(substitute, text)
 
 
-def rewrite_via_local(text, tone, count, protected_terms=()):
+def rewrite_via_local(text, tone, count, protected_terms=(), level=None):
     """Multi-stage constrained rewrite with zero AI providers or network calls.
 
     Intended for safe grammar and stylistic edits, not general semantic
     paraphrasing. Each accepted change must preserve critical source details.
     """
     updated = text
-    rules = list(_LOCAL_COMPILED_RULES)
-    if tone in ("student", "simple", "natural"):
+    if level is not None:
+        level = validate_rewrite_level(level)
+        cutoff = _LOCAL_RULE_CUTOFFS[level]
+        rules = list(_LOCAL_COMPILED_RULES[:cutoff])
+    else:
+        # Compatibility for calls predating the depth control.
+        rules = list(_LOCAL_COMPILED_RULES)
+    if tone in ("student", "simple", "natural") and (level is None or level >= 4):
         rules.extend(_STUDENT_COMPILED_RULES)
+    if level is not None and level >= 8:
+        rules.extend((pattern, replacement)
+                     for minimum, pattern, replacement in _DEEP_COMPILED_RULES
+                     if level >= minimum)
     # Apply independent edits progressively, verifying the entire source after
     # each edit. Exact quotations, clinical terms and figures are immutable.
     for pattern, replacement in rules:
@@ -925,10 +1002,21 @@ def rewrite_via_local(text, tone, count, protected_terms=()):
         if not segments[i]:
             continue
         before_sentence = segments[i]
-        strategies = (_reorder_leading_clause, _reorder_trailing_clause,
-                      _reframe_contrast)
-        if tone in ("student", "simple"):
-            strategies = (_split_independent_clauses,) + strategies
+        if level is None:
+            strategies = (_reorder_leading_clause, _reorder_trailing_clause,
+                          _reframe_contrast)
+            if tone in ("student", "simple"):
+                strategies = (_split_independent_clauses,) + strategies
+        else:
+            strategies = ()
+            if level >= 6:
+                strategies += (_reorder_leading_clause,)
+            if level >= 7:
+                strategies += (_reorder_trailing_clause,)
+            if level >= 8:
+                strategies += (_reframe_contrast,)
+            if level >= 9 and tone in ("student", "simple"):
+                strategies = (_split_independent_clauses,) + strategies
         for strategy in strategies:
             revised_sentence = strategy(before_sentence)
             if revised_sentence == before_sentence:
@@ -1131,10 +1219,11 @@ def handle_public_rewrite(handler, rate_checker):
             raise ValueError("Public paraphrasing uses local algorithms only.")
         source, tone, count = validate_request(data)
         terms = _validate_protected_terms(data.get("protectedTerms"), source)
+        level = validate_rewrite_level(data["level"]) if "level" in data else None
     except (ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError) as error:
         return handler.send_json(400, {"error": str(error) or "Invalid text."})
     try:
-        result = rewrite_via_local(source, tone, count, terms)
+        result = rewrite_via_local(source, tone, count, terms, level=level)
         if not _safe_output(source, result, terms):
             raise RuntimeError("Protected details could not be preserved.")
         if count_words(result) > MAX_WORDS:
@@ -1144,12 +1233,25 @@ def handle_public_rewrite(handler, rate_checker):
         # The local editor reports inability to safely change wording, not a
         # provider outage. Let the user try another passage without copying.
         return handler.send_json(422, {"error": str(error)})
+    change_percent = metrics["editableTextChangePercent"]
+    quality_warning = (
+        "Only a light edit was possible using local algorithms. Most of "
+        "your original wording remains unchanged; this is not a full "
+        "paraphrase. A context-aware writing model or manual revision is "
+        "needed for a substantially different version."
+        if count >= 40 and change_percent <
+        (5 if level is None or level <= 3 else
+         10 if level <= 5 else 20 if level <= 7 else 30)
+        else None
+    )
     return handler.send_json(200, {
         "paraphrased": result,
         "engine": "local",
+        "levelRequested": level,
         "inputWords": count,
         "outputWords": count_words(result),
         "editStrength": metrics["editStrength"],
-        "editableTextChangePercent": metrics["editableTextChangePercent"],
+        "editableTextChangePercent": change_percent,
+        "qualityWarning": quality_warning,
         "reviewReminder": "Review meaning, grammar, quotations, and references before use.",
     })

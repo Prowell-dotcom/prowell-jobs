@@ -20,13 +20,20 @@ class PublicParaphraserVisibilityTests(unittest.TestCase):
             'href="#paraphraser"',
             'id="prowell-humanizer-inline"',
             'novalidate onsubmit="return false;"',
-            'public-paraphraser.css?v=admin-style-v3',
+            'public-paraphraser.css?v=humanizer-depth-v4',
             'No login required',
+            'id="publicParaphraseLevel"',
+            'id="publicParaphraseLevelValue"',
+            'id="publicParaphraseLevelDescription"',
+            'min="1" max="10" step="1" value="9"',
         ):
             with self.subTest(required=name):
                 self.assertIn(name, markup)
         self.assertIn('Natural student voice', markup)
         self.assertIn('sessionStorage.setItem', markup)
+        self.assertIn('level:Number(depth.value)', markup)
+        self.assertIn('Paraphrasing depth', markup)
+        self.assertIn('Maximum safe rewrite', markup)
         self.assertIn('sessionStorage.getItem', markup)
         self.assertNotIn('src="public-paraphraser.js', markup)
         self.assertIn("fetch('/api/paraphrase'", markup)
