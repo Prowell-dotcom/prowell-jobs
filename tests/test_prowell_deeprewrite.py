@@ -395,6 +395,19 @@ class DeepRewriteTests(unittest.TestCase):
                                         "No generated version"):
                 deep.rewrite(source, source, "student", 9)
 
+    def test_single_candidate_and_prose_model_response(self):
+        sample = "Before their visits, staff contacted patients."
+        self.assertEqual(
+            deep._parse_candidates('{"rewrite": "' + sample + '"}'),
+            [sample],
+        )
+        self.assertEqual(deep._parse_candidates(sample), [sample])
+        self.assertEqual(
+            deep._parse_candidates('```json\\n{"rewrite": "' + sample + '"}\\n```'),
+            [sample],
+        )
+        self.assertEqual(deep._parse_candidates('{"rewrite":'), [])
+
     def test_compact_model_json_rewrite_variants(self):
         # Small models often return a single rewrite instead of a list.
         for payload in (
