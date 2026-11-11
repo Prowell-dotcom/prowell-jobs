@@ -624,6 +624,140 @@ def rewrite_via_gemini(text, tone, count, protected_terms=()):
                               second_pass=second_pass, protected_terms=protected_terms)
 
 
+
+# Deterministic, no-network rewriting. This is conservative editing, not a
+# replacement for context-sensitive language-model generation. Keep changes
+# limited to idiomatic constructions whose meaning is sufficiently stable.
+_LOCAL_RULES = (
+    (r"\bit is important to note that\s+", ""),
+    (r"\bit should be noted that\s+", ""),
+    (r"\bit is worth mentioning that\s+", ""),
+    (r"\bit is necessary to point out that\s+", ""),
+    (r"\bit can be seen that\s+", ""),
+    (r"\bdue to the fact that\b", "because"),
+    (r"\bin order to\b", "to"),
+    (r"\bfor the purpose of\b", "to"),
+    (r"\bprior to\b", "before"),
+    (r"\bsubsequent to\b", "after"),
+    (r"\bat this point in time\b", "now"),
+    (r"\bat the present time\b", "currently"),
+    (r"\bwith regard to\b", "about"),
+    (r"\bwith respect to\b", "about"),
+    (r"\bin relation to\b", "about"),
+    (r"\bas a result of\b", "because of"),
+    (r"\bin the event that\b", "if"),
+    (r"\bprovided that\b", "if"),
+    (r"\bin spite of the fact that\b", "although"),
+    (r"\bdespite the fact that\b", "although"),
+    (r"\bon a daily basis\b", "each day"),
+    (r"\bon a regular basis\b", "regularly"),
+    (r"\bfor this reason\b", "therefore"),
+    (r"\bthe majority of\b", "most"),
+    (r"\ba number of\b", "several"),
+    (r"\bin addition\b", "also"),
+    (r"\bfurthermore\b", "also"),
+    (r"\bmoreover\b", "also"),
+    (r"\bnevertheless\b", "still"),
+    (r"\bthe purpose of this (study|paper|report) is to\b",
+     r"this \1 aims to"),
+    (r"\bthe purpose of the (study|paper|report) was to\b",
+     r"the \1 aimed to"),
+    (r"\bthe results of this study showed that\b",
+     "this study found that"),
+    (r"\bthe results of the study showed that\b",
+     "the study found that"),
+    (r"\bthe findings of this study suggest that\b",
+     "this study's findings suggest that"),
+)
+_LOCAL_COMPILED_RULES = tuple(
+    (re.compile(expression, re.IGNORECASE), replacement)
+    for expression, replacement in _LOCAL_RULES
+)
+
+
+def _capitalize_sentence_starts(value):
+    """Restore capitalization after deleting introductory filler."""
+    # Preserve line breaks, proper nouns, abbreviations and quoted spans.
+    def cap_line(match):
+        prefix, first = match.groups()
+        return prefix + first.upper()
+    return re.sub(r"(^|(?<=[.!?])\s+)([a-z])", cap_line, value,
+                  flags=re.MULTILINE)
+
+
+def _reorder_leading_clause(sentence):
+    """Rearrange a clear initial condition without rewriting terminology."""
+    found = re.fullmatch(
+        r"(Because|Although|If|When)\s+([^,!?]{12,140}),\s+"
+        r"([A-Z][^!?]{12,260}?)([.!?])",
+        sentence.strip()
+    )
+    if not found:
+        return sentence
+    conjunction, reason, main, ending = found.groups()
+    main = main.rstrip()
+    # Don't alter proper names, I, or technical abbreviations.
+    if reason.startswith("I ") or re.match(r"[A-Z]{2,}\b", reason):
+        reason_text = reason
+    else:
+        reason_text = reason[0].lower() + reason[1:]
+    candidate = (main + " " + conjunction.lower() + " " +
+                 reason_text + ending)
+    return candidate[0].upper() + candidate[1:]
+
+
+def rewrite_via_local(text, tone, count, protected_terms=()):
+    """Run strict no-API, no-model text transformations on the server.
+
+    When no conservative rewrite is possible, return an honest explanation
+    instead of copying the source or fabricating information.
+    """
+    updated = text
+    changes = 0
+    for pattern, replacement in _LOCAL_COMPILED_RULES:
+        def fix_case(match):
+            result = match.expand(replacement)
+            return result
+        candidate, used = pattern.subn(fix_case, updated)
+        if used and _safe_output(updated, candidate, protected_terms):
+            updated = candidate
+            changes += used
+    updated = _capitalize_sentence_starts(updated)
+    if not _safe_output(text, updated, protected_terms):
+        # Capitalization may have affected an exact case-sensitive medical term.
+        updated = text
+        for pattern, replacement in _LOCAL_COMPILED_RULES:
+            candidate, used = pattern.subn(replacement, updated)
+            if used and _safe_output(text, candidate, protected_terms):
+                updated = candidate
+    # Clause changes are independent: failed candidates leave prior edits intact.
+    segments = re.split(r"(?<=[.!?])(\s+)(?=[A-Z])", updated)
+    for i in range(0, len(segments), 2):
+        if not segments[i]:
+            continue
+        candidate_sentence = _reorder_leading_clause(segments[i])
+        if candidate_sentence == segments[i]:
+            continue
+        trial = "".join(segments[:i] + [candidate_sentence] + segments[i+1:])
+        if _safe_output(text, trial, protected_terms):
+            segments[i] = candidate_sentence
+            changes += 1
+    updated = "".join(segments).strip()
+    if not updated or not _safe_output(text, updated, protected_terms):
+        raise RuntimeError(
+            "Local rules could not safely preserve all protected details. "
+            "No changes were applied."
+        )
+    if re.sub(r"\s+", " ", updated).casefold() == re.sub(
+        r"\s+", " ", text).casefold():
+        raise RuntimeError(
+            "This passage needs context-sensitive rewriting. The local "
+            "algorithms cannot safely make a meaningful change without "
+            "risking the meaning. Try a passage with more editable wording."
+        )
+    return updated
+
+
 def rewrite_via_provider(text, tone, count, protected_terms=()):
     provider = (os.environ.get("PARAPHRASER_PROVIDER", "gemini").strip().lower()
                 or "gemini")
@@ -721,11 +855,20 @@ def handle_rewrite(handler, rate_checker, rewrite=rewrite_via_provider):
         payload = json.loads(raw.decode("utf-8"))
         source, tone, n = validate_request(payload)
         protected_terms = _validate_protected_terms(payload.get("protectedTerms"), source)
+        engine = payload.get("engine", "local")
+        if engine not in ("local", "gemini"):
+            raise ValueError("Choose local algorithms or Gemini as the engine.")
     except (ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         return handler.send_json(400, {"error": str(exc) or "Invalid input."})
     try:
-        output = (rewrite(source, tone, n, protected_terms)
-                  if rewrite is rewrite_via_provider else rewrite(source, tone, n))
+        if rewrite is rewrite_via_provider:
+            if engine == "local":
+                output = rewrite_via_local(source, tone, n, protected_terms)
+            else:
+                output = rewrite_via_gemini(source, tone, n, protected_terms)
+        else:
+            # Keep injecting a mock rewriter possible in existing tests.
+            output = rewrite(source, tone, n)
         if not isinstance(output, str) or not output.strip():
             raise RuntimeError("No rewritten text was returned. Please retry.")
         if count_words(output) > MAX_WORDS:
@@ -735,16 +878,17 @@ def handle_rewrite(handler, rate_checker, rewrite=rewrite_via_provider):
                 "The rewrite altered protected numbers, symbols, citations "
                 "or medical terms. No unreliable output was returned."
             )
-        if _too_similar(source, output, protected_terms):
-            raise RuntimeError(
-                "The response was too similar to your original text. "
-                "Please retry or select a different writing style."
-            )
-        if _stilted_prose(output):
-            raise RuntimeError(
-                "The rewrite contains formulaic wording. "
-                "Try a shorter section or the Student voice style."
-            )
+        if engine != "local":
+            if _too_similar(source, output, protected_terms):
+                raise RuntimeError(
+                    "The response was too similar to your original text. "
+                    "Please retry or select a different writing style."
+                )
+            if _stilted_prose(output):
+                raise RuntimeError(
+                    "The rewrite contains formulaic wording. "
+                    "Try a shorter section or the Student voice style."
+                )
     except RuntimeError as exc:
         # No text from the prompt or API keys are included in errors.
         return handler.send_json(503, {"error": str(exc)})
@@ -752,6 +896,11 @@ def handle_rewrite(handler, rate_checker, rewrite=rewrite_via_provider):
         "paraphrased": output,
         "inputWords": n,
         "outputWords": count_words(output),
-        "editingApproach": "Natural editorial rewrite with factual safeguards",
+        "engine": engine,
+        "editingApproach": (
+            "Local rule-based editing; review the results for meaning and style"
+            if engine == "local"
+            else "AI-assisted editorial rewrite with factual safeguards"
+        ),
         "reviewReminder": "Review meaning, grammar, references and citations before use."
     })
