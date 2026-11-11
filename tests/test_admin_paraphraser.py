@@ -467,17 +467,20 @@ class ParaphraserTests(unittest.TestCase):
         self.assertEqual(observed[0][2], 24)
         self.assertIn('editStrength', result)
 
-    def test_public_paraphraser_rejects_gemini_without_api_call(self):
+    def test_public_gemini_requires_owner_opt_in(self):
         user = FakeHandler({
             'text': 'A test paragraph.',
             'tone': 'natural', 'engine': 'gemini'
         })
-        user.allowed = False
-        with patch.object(tool, 'rewrite_via_gemini', side_effect=AssertionError(
-            'Do not expose owner Gemini to visitors')):
-            code, data = tool.handle_public_rewrite(user, lambda *args, **kw: True)
-        self.assertEqual(code, 400)
-        self.assertIn('Fast editing, DeepRewrite, Hybrid DeepRewrite, OpenAI editing, or Gemini editing', data['error'])
+        with patch.dict('os.environ', {
+                'PROWELL_PUBLIC_GEMINI_ENABLED': '0',
+                'GEMINI_API_KEY': 'placeholder',
+        }), patch.object(tool, '_request_gemini', side_effect=AssertionError(
+            'Gemini must not be called without the owner opt-in')):
+            code, data = tool.handle_public_rewrite(
+                user, lambda *args, **kw: True)
+        self.assertEqual(code, 503)
+        self.assertIn('not enabled', data['error'])
 
     def test_public_paraphraser_rate_limit_and_invalid_text(self):
         request = FakeHandler({'text': 'Hello.', 'tone': 'natural'})
