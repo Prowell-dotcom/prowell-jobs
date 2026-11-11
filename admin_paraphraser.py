@@ -944,6 +944,91 @@ def _split_independent_clauses(sentence):
     return first + ". " + second[:1].upper() + second[1:] + "."
 
 
+
+# These transformations recompose complete clauses instead of replacing
+# isolated synonyms. Use a narrow, auditable grammar and preserve source
+# polarity, dates, technical terms, and exact lexical details.
+def _move_trailing_time_phrase(sentence):
+    """Move an unambiguous final time phrase before its main clause."""
+    if ('"' in sentence or "“" in sentence or "," in sentence or
+            ";" in sentence or len(sentence.split()) < 8):
+        return sentence
+    match = re.fullmatch(
+        r"([A-Z][^,;.!?]{15,210}?)\s+"
+        r"(before|after|during)\s+"
+        r"((?:scheduled|the|a|an|their|its|our|his|her|each|every|"
+        r"Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|"
+        r"20\d\d)\b[^,;.!?]{4,85})([.!?])",
+        sentence.strip(), flags=re.IGNORECASE
+    )
+    if not match:
+        return sentence
+    main, preposition, period, end = match.groups()
+    if not re.search(
+        r"\b(?:contacted|called|emailed|informed|documented|recorded|"
+        r"reviewed|discussed|completed|prepared|checked|confirmed|"
+        r"received|attended|used|met|was|were|is|are)\b",
+        main, re.IGNORECASE
+    ):
+        return sentence
+    return (preposition.capitalize() + " " + period + ", " +
+            _lower_clause_start(main) + end)
+
+
+def _rewrite_clear_passive(sentence):
+    """Use active voice only for a short clause with an explicit actor."""
+    match = re.fullmatch(
+        r"(The|These|Those)\s+"
+        r"(results|outcomes|appointments|calls|reports|findings|records|"
+        r"notes|forms|documents|risks|problems|concerns)\s+"
+        r"(were|are)\s+"
+        r"(documented|reviewed|recorded|confirmed|assessed|evaluated|"
+        r"analyzed|checked|prepared|discussed)\s+by\s+"
+        r"(staff|nurses|clinicians|the team|the researchers|"
+        r"the clinic|the agency)([.!?])",
+        sentence.strip(), re.IGNORECASE
+    )
+    if not match:
+        return sentence
+    determiner, object_, auxiliary, verb, actor, ending = match.groups()
+    if auxiliary.lower() != "were":
+        # Present passive requires changing verb tense, so leave untouched.
+        return sentence
+    actor_cap = actor[0].upper() + actor[1:]
+    obj = determiner.lower() + " " + object_.lower()
+    return actor_cap + " " + verb.lower() + " " + obj + ending
+
+
+def _rewrite_purpose_using(sentence):
+    """Replace 'used [tool] to [action]' with an explicit action clause."""
+    match = re.fullmatch(
+        r"(Staff|Nurses|Clinicians|Students|Researchers|Teachers|"
+        r"The clinic|The team|The company|The agency|The hospital)\s+"
+        r"used\s+(reminder calls|phone calls|telephone calls|email reminders|"
+        r"surveys|questionnaires|checklists|paper forms)\s+to\s+"
+        r"(confirm appointments|contact patients|record outcomes|"
+        r"document findings|review records|collect responses|"
+        r"prepare reports|check attendance)([.!?])",
+        sentence.strip(), re.IGNORECASE
+    )
+    if not match:
+        return sentence
+    actor, instrument, action, ending = match.groups()
+    past = {
+        "confirm": "confirmed", "contact": "contacted",
+        "record": "recorded", "document": "documented",
+        "review": "reviewed", "collect": "collected",
+        "prepare": "prepared", "check": "checked",
+    }
+    action_words = action.lower().split(" ", 1)
+    converted = past.get(action_words[0])
+    if not converted:
+        return sentence
+    return ("Using " + instrument.lower() + ", " +
+            actor[0].lower() + actor[1:] + " " + converted +
+            " " + action_words[1] + ending)
+
+
 def _local_grammar_ok(before, after):
     """Reject clearly broken output; this is not a full grammar checker."""
     if not after.strip() or len(after) > max(220000, len(before) * 4):
@@ -1048,7 +1133,9 @@ def rewrite_via_local(text, tone, count, protected_terms=(), level=None):
             if level >= 7:
                 strategies += (_reorder_trailing_clause,)
             if level >= 8:
-                strategies += (_reframe_contrast,)
+                strategies += (_reframe_contrast, _move_trailing_time_phrase)
+            if level >= 9:
+                strategies += (_rewrite_clear_passive, _rewrite_purpose_using)
             if level >= 9 and tone in ("student", "simple"):
                 strategies = (_split_independent_clauses,) + strategies
         for strategy in strategies:
@@ -1449,6 +1536,25 @@ def handle_public_rewrite(handler, rate_checker):
         # provider outage. Let the user try another passage without copying.
         return handler.send_json(422, {"error": str(error)})
     change_percent = metrics["editableTextChangePercent"]
+    # Do not present nearly unchanged writing as a completed deep paraphrase.
+    # Lower levels remain useful for explicitly requested light proofreading.
+    minimum = (0 if level is None or level <= 3 else
+               3 if level <= 5 else 6 if level <= 7 else
+               12 if level == 8 else 18 if level == 9 else 23)
+    if count >= 20 and change_percent < minimum:
+        return handler.send_json(422, {
+            "error": (
+                "No substantial paraphrase was produced at level %s. "
+                "The fast rules cannot safely reconstruct this particular "
+                "passage. Your original wording is preserved. For deeper "
+                "rewriting, use a reliable context-aware model or revise "
+                "the passage manually; more processing time alone will "
+                "not improve rule-based editing."
+                % (level if level is not None else 1)
+            ),
+            "editStrength": metrics["editStrength"],
+            "editableTextChangePercent": change_percent,
+        })
     quality_warning = (
         "Only a light edit was possible using local algorithms. Most of "
         "your original wording remains unchanged; this is not a full "
