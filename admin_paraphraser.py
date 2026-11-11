@@ -429,8 +429,13 @@ _STYLE_CLICHES = (
 
 
 def _stilted_prose(text):
-    """Flag narrow, formulaic filler phrases, not AI authorship."""
-    simplified = re.sub(r"\s+", " ", text).lower()
+    """Flag narrow formulaic filler phrases, not AI authorship.
+
+    Quoted material and citations may be legally or academically immutable.
+    They must not trigger an impossible rewrite request.
+    """
+    editable = _QUOTATION.sub(" ", _CITATION.sub(" ", text))
+    simplified = re.sub(r"\s+", " ", editable).lower()
     return any(phrase in simplified for phrase in _STYLE_CLICHES)
 
 
