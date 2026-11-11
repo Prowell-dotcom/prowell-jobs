@@ -14,6 +14,14 @@ class HumanizerRefreshTests(unittest.TestCase):
         self.assertNotIn("function restoreDraft()", page)
         self.assertIn("autocomplete=\"off\"", page)
 
+    def test_separate_live_input_and_output_word_counts(self):
+        page = (ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn('id="publicParaphraseInputWords"', page)
+        self.assertIn('id="publicParaphraseOutputWords"', page)
+        self.assertIn("inputWords.textContent='Input: '", page)
+        self.assertIn("outputWords.textContent='Output: '", page)
+        self.assertIn("wordCount(result.value)", page)
+
     def test_regular_reload_and_history_restore_reset_text(self):
         page = (ROOT / "index.html").read_text(encoding="utf-8")
         self.assertIn("window.addEventListener('pageshow',()=>{", page)
