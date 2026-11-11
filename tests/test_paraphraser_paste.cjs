@@ -9,8 +9,13 @@ async function run(){
  const admin=fs.readFileSync(path.join(__dirname,'../admin.html'),'utf8');
  const js=fs.readFileSync(path.join(__dirname,'../public-paraphraser.js'),'utf8');
  assert(index.includes('id="publicParaphraseForm"'));
- assert(index.includes('public-paraphraser.js?v=public1'));
+ assert(index.includes('public-paraphraser.js?v=humanizer-v2'));
  assert(!admin.includes('id="paraphraseForm"'));
+ assert(index.includes('Prowell <span>Humanizer.</span>'));
+ assert(index.includes('id="prowell-humanizer-critical-styles"'));
+ assert(index.includes('min-height:380px'));
+ assert(index.includes('class="pp-columns"'));
+ assert(index.includes('Humanize text'));
  const nodes={};
  const clicks=[];
  const make=id=>{
@@ -91,6 +96,6 @@ async function run(){
  await make('publicParaphraseClear').dispatch('click');
  assert.equal(input.value,'');
  assert.equal(output.value,'');
- console.log('Public no-login paraphraser form, copy, errors and limits: PASS');
+ console.log('Prowell Humanizer homepage, styling and browser interactions: PASS');
 }
 run().catch(e=>{console.error(e);process.exitCode=1;});

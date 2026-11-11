@@ -18,13 +18,22 @@ class PublicParaphraserVisibilityTests(unittest.TestCase):
             'id="publicParaphraseProtectedTerms"',
             'id="publicParaphraseStatus"',
             'href="#paraphraser"',
-            'public-paraphraser.js?v=public1',
-            'public-paraphraser.css?v=public1',
+            'public-paraphraser.js?v=humanizer-v2',
+            'public-paraphraser.css?v=humanizer-v2',
             'No login required',
         ):
             with self.subTest(required=name):
                 self.assertIn(name, markup)
         self.assertIn('Natural student voice', markup)
+        self.assertIn('Prowell <span>Humanizer.</span>', markup)
+        self.assertIn('Humanized result', markup)
+        self.assertIn('>Humanize text ', markup)
+        self.assertIn('id="prowell-humanizer-critical-styles"', markup)
+        self.assertIn('grid-template-columns:minmax(0,1fr) minmax(0,1fr)', markup)
+        self.assertIn('min-height:380px', markup)
+        self.assertIn('@media(max-width:680px)', markup)
+        self.assertNotIn('Free online <em>paraphraser.</em>', markup)
+        self.assertNotIn('>Free paraphraser</a>', markup)
         self.assertNotIn('id="paraphraseEngine"', markup)
         self.assertNotIn('GEMINI_API_KEY', markup)
 
