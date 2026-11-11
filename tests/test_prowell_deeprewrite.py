@@ -311,6 +311,20 @@ class DeepRewriteTests(unittest.TestCase):
                 with self.assertRaisesRegex(deep.DeepRewriteError,"No generated version"):
                     deep.rewrite(original,original,"student",10)
 
+    def test_fast_edit_zero_change_is_not_reported_as_success(self):
+        # Even very short passages must not show a completed 0% rewrite.
+        source = "The clinic contacted patients."
+        with patch.object(editor, "rewrite_via_local", return_value=source):
+            code, result = editor.handle_public_rewrite(
+                FakeHandler({"text": source, "tone": "student",
+                             "engine": "local", "level": 9}),
+                lambda *args, **kwargs: True,
+            )
+        self.assertEqual(code, 422)
+        self.assertNotIn("paraphrased", result)
+        self.assertEqual(result["editableTextChangePercent"], 0)
+        self.assertIn("No meaningful wording change", result["error"])
+
     def test_public_deep_endpoint_protected_and_rate_limited(self):
         text=("The clinic used appointment reminders so that staff "
               "could contact patients before their scheduled visits.")
