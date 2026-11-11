@@ -11,6 +11,27 @@
   const submit=$('publicParaphraseSubmit'), status=$('publicParaphraseStatus');
   const copy=$('publicParaphraseCopy'), save=$('publicParaphraseDownload');
   const counter=$('publicParaphraseCount');
+  const depth=$('publicParaphraseLevel');
+  const depthValue=$('publicParaphraseLevelValue');
+  const depthDescription=$('publicParaphraseLevelDescription');
+  const depthDescriptions=[
+    'Minimal cleanup and removal of filler',
+    'Light wording improvements',
+    'Conservative phrase edits',
+    'Clearer student-friendly expressions',
+    'More concise phrasing and vocabulary',
+    'Phrase editing with safe clause changes',
+    'More sentence restructuring where supported',
+    'Stronger structural edits and targeted wording',
+    'Extensive safe sentence and phrase changes',
+    'Maximum supported rule-based rewriting'
+  ];
+  function updateDepth(){
+    const level=Number(depth.value)||9;
+    depthValue.textContent='Level '+level+' / 10';
+    depthDescription.textContent=depthDescriptions[level-1]+
+      '. The actual amount changed depends on the text; no AI-detector result is guaranteed.';
+  }
   const wordCount=value=>(String(value||'').trim().match(/\S+/gu)||[]).length;
   let busy=false;
   const draftKey='prowell-humanizer-draft-v1';
@@ -21,6 +42,7 @@
       sessionStorage.setItem(draftKey, JSON.stringify({
         text:source.value,
         tone:$('publicParaphraseTone').value,
+        level:Number(depth.value),
         protectedTerms:$('publicParaphraseProtectedTerms').value
       }));
     } catch(_){}
@@ -32,6 +54,10 @@
       if(!source.value&&typeof saved.text==='string')source.value=saved.text.slice(0,85000);
       const style=$('publicParaphraseTone');
       if(typeof saved.tone==='string'&&Array.from(style.options).some(option=>option.value===saved.tone))style.value=saved.tone;
+      if(Number.isInteger(saved.level)&&saved.level>=1&&saved.level<=10){
+        depth.value=String(saved.level);
+      }
+      updateDepth();
       const terms=$('publicParaphraseProtectedTerms');
       if(!terms.value&&typeof saved.protectedTerms==='string')terms.value=saved.protectedTerms.slice(0,3000);
     }catch(_){}
@@ -52,6 +78,8 @@
   source.addEventListener('paste',()=>setTimeout(()=>{rememberDraft();refresh()},0));
   source.addEventListener('change',()=>{rememberDraft();refresh()});
   $('publicParaphraseTone').addEventListener('change',rememberDraft);
+  depth.addEventListener('input',()=>{updateDepth();rememberDraft()});
+  depth.addEventListener('change',()=>{updateDepth();rememberDraft()});
   $('publicParaphraseProtectedTerms').addEventListener('input',rememberDraft);
   window.addEventListener('pagehide',rememberDraft);
   form.addEventListener('submit',async event=>{
@@ -76,6 +104,7 @@
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
           text,engine:'local',tone:$('publicParaphraseTone').value,
+          level:Number(depth.value),
           protectedTerms:$('publicParaphraseProtectedTerms').value.trim()
         })
       });
@@ -94,7 +123,8 @@
       const warning=typeof data.qualityWarning==='string'?
         data.qualityWarning.trim():'';
       if(warning){
-        notify('Light edit only — '+description.trim()+' '+warning,'warning');
+        notify('Level '+depth.value+' attempted. '+description.trim()+
+          ' '+warning,'warning');
       }else{
         notify('Completed — '+wordCount(result.value).toLocaleString()+
           ' words.'+description+' Review the revised text for accuracy.','success');
@@ -145,6 +175,7 @@
     setTimeout(()=>URL.revokeObjectURL(url),2500);
     notify('Humanized text saved.','success');
   });
+  updateDepth();
   restoreDraft();
   refresh();
   notify(source.value.trim()?
