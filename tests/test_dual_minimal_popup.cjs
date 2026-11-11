@@ -7,7 +7,7 @@ const base=path.join(__dirname,'../extension/dual-writers');
 const html=fs.readFileSync(path.join(base,'popup.html'),'utf8');
 const js=fs.readFileSync(path.join(base,'popup.js'),'utf8');
 const manifest=JSON.parse(fs.readFileSync(path.join(base,'manifest.json'),'utf8'));
-assert.equal(manifest.version,'2.1.14');
+assert.equal(manifest.version,'2.1.15');
 const visible=html
   .replace(/<style>[\s\S]*?<\/style>/g,'')
   .replace(/<script[^>]*>[\s\S]*?<\/script>/g,'');
