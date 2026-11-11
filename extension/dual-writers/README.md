@@ -1,4 +1,4 @@
-# Prowell Dual-Platform Bot v2.1.16
+# Prowell Dual-Platform Bot v2.1.17
 
 ## Source engines and changes
 
@@ -105,7 +105,7 @@ report other errors unrelated to these fixes; inspect the extension's
 ## Installation
 
 After ProwellJobs is deployed from the new repository commit, download
-**Dual Bot v2.1.16** from the Prowell administrator dashboard. Remove/disable
+**Dual Bot v2.1.17** from the Prowell administrator dashboard. Remove/disable
 the previous dual and separate bots, extract the new ZIP, and load the folder
 containing `manifest.json` through `chrome://extensions` with Developer Mode
 enabled. Reload the 4writers and Good-Writers site tabs. Press START separately
@@ -119,7 +119,7 @@ an empty “None” order list is not itself a malfunction.
 ### Minimal popup in v2.1.9
 
 The extension popup has exactly two visible site names, **4writers.net**
-and **good-writers.com**, each with one **START AUTO-TAKE** button and
+and **good-writers.com**, each with one **START WATCH** button and
 one **STOP** button. Detailed status reports, explanations, test sound
 controls and performance statistics were removed from the **popup only**.
 All original refresh, sound, View, gradual scrolling, Take it, OK, and final
@@ -163,6 +163,12 @@ The Good-Writers sequence is **View → instant bottom jump through order detail
 
 Both dual-bot engines retain the full order-taking sequence without 3/4/5-second acceptance pacing. The first order-information screen now scrolls in **five visual positions over four 16ms intervals** (approximately **64ms total** in a normally responsive foreground browser tab) before clicking Take it. On **4writers**, the final post-OK acknowledgement popup uses the same fast five-position scrolling; on **Good-Writers**, I understand remains a **direct post-OK click with no second scroll**, as shown in the account screenshot. A hidden browser tab immediately jumps to the bottom to avoid timer throttling. The bot still waits for real website controls, checks its active order before actions, and preserves duplicate View protection, audio notifications, processing previews and the small START/STOP popup. Background scheduler throttling and website latency can still affect end-to-end completion; no speed or competitive outcome is guaranteed.
 
-### Single-movement, zero-pause scroll (v2.1.16)
+### Single-movement, zero-pause scroll (v2.1.17)
 
 The previous five-position ~64 ms animation has been removed from both active engines. After an order's matching details are rendered, the bot changes the verified popup's `scrollTop` **once**, directly to the bottom, with **no animation frames, setTimeout pauses or deliberate waiting**. It then clicks **Take it → OK → I understand** as soon as each real control is available. **4writers** also uses one bottom movement for its final acknowledgement popup, while **Good-Writers** does not scroll after OK. Processing orders remain **View → single bottom movement → stop** without taking an order. All other duplicate-order, audio, refreshing, START/STOP, and security protections remain unchanged. Previous-version gradual-scroll descriptions above are historical, not active behavior.
+
+### Alert and VIEW-only handoff — NO scrolling or automatic acceptance (v2.1.17)
+
+This is the **current active mode** on both websites. Press **START WATCH** for a site. The extension watches its supported available/processing order listings and continues 2-second refreshing only while idle. As soon as it detects a supported order, it **cancels refreshing, requests the order sound, disables further monitoring, and clicks View exactly once**. The sound is sent before monitoring is disarmed, and the existing background audio cooldown prevents duplicate near-simultaneous alerts. The selected order screen remains open for the human.
+
+**There is NO scrolling whatsoever**, and the bot has no active code to click **Take it, OK or I understand**. The user manually completes every acceptance and confirmation step. Processing orders get the same sound/stop/View handoff, with no acceptance. Monitoring must be restarted explicitly for another order; repeated IDs remain eligible on a new START. Claims left unfinished by older extension versions are disarmed and cleared instead of being resumed. The compact popup keeps the same quarter-sized four-button layout, with the two green actions correctly labeled **START WATCH**. Archived original source engines remain unchanged. Earlier-version auto-taking and scrolling documentation above is historical, not active behavior.
