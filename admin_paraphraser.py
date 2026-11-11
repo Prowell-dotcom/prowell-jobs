@@ -775,7 +775,7 @@ def _reorder_trailing_clause(sentence):
                      r"used|worked|called|helped|completed|provided|reviewed|"
                      r"evaluated|analyzed|explained|decided|began|supported|"
                      r"received|found|showed|asked|reported|contacted|"
-                     r"reduced|increased|can|could|will|would)\b",
+                     r"reduced|increased|can|could|will|would|may|might|should|must)\b",
                      main, flags=re.IGNORECASE):
         return sentence
     result = (conjunction.capitalize() + " " + reason[0].lower() +
