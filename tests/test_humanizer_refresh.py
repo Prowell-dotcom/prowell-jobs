@@ -22,6 +22,22 @@ class HumanizerRefreshTests(unittest.TestCase):
         self.assertIn("outputWords.textContent='Output: '", page)
         self.assertIn("wordCount(result.value)", page)
 
+    def test_humanize_button_is_beneath_first_box_only(self):
+        page = (ROOT / "index.html").read_text(encoding="utf-8")
+        input_start = page.index('id="publicParaphraseInput"')
+        word_count = page.index('id="publicParaphraseInputWords"')
+        action = page.index('id="publicParaphraseSubmit"')
+        output_start = page.index('id="publicParaphraseOutput"')
+        footer_actions = page.index('<div class="pp-actions">', output_start)
+        self.assertTrue(input_start < word_count < action < output_start)
+        self.assertLess(action, footer_actions)
+        self.assertEqual(page.count('id="publicParaphraseSubmit"'), 1)
+        self.assertIn('class="pp-input-actions"', page)
+        self.assertIn('.pp-input-actions .pp-submit', page)
+        self.assertIn('id="publicParaphraseClear"', page)
+        css = (ROOT / "public-paraphraser.css").read_text(encoding="utf-8")
+        self.assertIn('.pp-input-actions .pp-submit', css)
+
     def test_regular_reload_and_history_restore_reset_text(self):
         page = (ROOT / "index.html").read_text(encoding="utf-8")
         self.assertIn("window.addEventListener('pageshow',()=>{", page)
