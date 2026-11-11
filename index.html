@@ -188,7 +188,7 @@
       </div>
       <span class="pp-access">No account or login needed</span>
     </div>
-    <form id="publicParaphraseForm" class="pp-panel" novalidate onsubmit="return false;">
+    <form id="publicParaphraseForm" autocomplete="off" class="pp-panel" novalidate onsubmit="return false;">
       <div class="pp-toolbar">
         <label for="publicParaphraseEngine">Rewriting engine</label>
         <select id="publicParaphraseEngine" name="engine" aria-describedby="publicDeepRewriteStatus">
@@ -309,54 +309,28 @@
   let versionHistory=[];
   const normalize=value=>String(value||'').replace(/\s+/g,' ').trim().toLowerCase();
   const draftKey='prowell-humanizer-draft-v1';
-  // Drafts stay in this browser tab; no text is sent to storage services.
-  // Continue operating when storage is blocked by a privacy setting.
-  function rememberDraft(){
-    try {
-      sessionStorage.setItem(draftKey, JSON.stringify({
-        text:source.value,
-        tone:$('publicParaphraseTone').value,
-        level:Number(depth.value),
-        engine:engine.value,
-        history:versionHistory.slice(-3),
-        protectedTerms:$('publicParaphraseProtectedTerms').value,
-        humanizedResult:result.value,
-        originalForResult,
-        retryCount
-      }));
-    } catch(_){}
+  // Privacy-first behavior: never persist visitor writing or previous output.
+  // Remove drafts left by older Humanizer versions on each page load.
+  try{sessionStorage.removeItem(draftKey)}catch(_){}
+  function rememberDraft(){} // Intentionally does not store pasted content.
+  function resetWriting(){
+    source.value='';
+    result.value='';
+    originalForResult='';
+    retryCount=0;
+    versionHistory=[];
+    $('publicParaphraseProtectedTerms').value='';
+    result.placeholder='Your rewritten text will appear here after you select Humanize text.';
   }
-  function restoreDraft(){
-    try {
-      const saved=JSON.parse(sessionStorage.getItem(draftKey)||'null');
-      if(!saved||typeof saved!=='object')return;
-      if(!source.value&&typeof saved.text==='string')source.value=saved.text.slice(0,85000);
-      const style=$('publicParaphraseTone');
-      if(typeof saved.tone==='string'&&Array.from(style.options).some(option=>option.value===saved.tone))style.value=saved.tone;
-      if(Number.isInteger(saved.level)&&saved.level>=1&&saved.level<=10){
-        depth.value=String(saved.level);
-      }
-      updateDepth();
-      // Never restore a previous automatic Fast fallback as the default.
-      // A new page load always prefers Hybrid when the model is ready.
-      if(saved.engine==='deep'||saved.engine==='hybrid'){
-        engine.dataset.savedChoice=saved.engine;
-      }
-      if(Array.isArray(saved.history)){
-        versionHistory=saved.history.filter(x=>typeof x==='string'&&x.length<=7000).slice(-3);
-      }
-      const terms=$('publicParaphraseProtectedTerms');
-      if(!terms.value&&typeof saved.protectedTerms==='string')terms.value=saved.protectedTerms.slice(0,3000);
-      if(!result.value&&typeof saved.humanizedResult==='string')
-        result.value=saved.humanizedResult.slice(0,85000);
-      if(typeof saved.originalForResult==='string')
-        originalForResult=saved.originalForResult.slice(0,85000);
-      if(Number.isInteger(saved.retryCount)&&saved.retryCount>=0)
-        retryCount=saved.retryCount;
-      if(result.value.trim()&&!versionHistory.length)
-        versionHistory=[result.value];
-    }catch(_){}
-  }
+  // Defeat browser form restoration on normal reload and back/forward restore.
+  resetWriting();
+  window.addEventListener('pageshow',event=>{
+    if(event.persisted){
+      resetWriting();
+      notify('Ready to improve your writing. No previous text was restored.');
+      refresh();
+    }
+  });
   const notify=(message,kind='info')=>{
     status.textContent=message;
     status.dataset.state=kind;
@@ -390,7 +364,9 @@
   depth.addEventListener('input',()=>{updateDepth();rememberDraft()});
   depth.addEventListener('change',()=>{updateDepth();rememberDraft()});
   $('publicParaphraseProtectedTerms').addEventListener('input',rememberDraft);
-  window.addEventListener('pagehide',rememberDraft);
+  window.addEventListener('pagehide',()=>{
+    try{sessionStorage.removeItem(draftKey)}catch(_){}
+  });
   async function runHumanizer(again=false){
     if(busy)return;
     if(again && (!result.value.trim()||!originalForResult)){
@@ -575,7 +551,7 @@
     notify('Humanized text saved.','success');
   });
   updateDepth();
-  restoreDraft();
+  resetWriting();
   refresh();
   // Probe service capabilities shortly after page load without blocking Fast
   // editing. The model URL is never exposed to visitors.
