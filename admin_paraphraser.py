@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from collections import Counter
 from difflib import SequenceMatcher
 import urllib.error
@@ -348,63 +349,79 @@ def _request_gemini(api_key, model, instructions, prompt):
             "Accept": "application/json",
         },
     )
-    try:
-        with urllib.request.urlopen(request, timeout=110) as response:
-            data = json.load(response)
-    except urllib.error.HTTPError as exc:
-        # Never echo provider response body, submitted source or secret key.
-        if exc.code in (401, 403):
-            raise RuntimeError(
-                "Gemini API key is invalid or this project is not allowed to "
-                "use the selected model. Check your GEMINI_API_KEY in Railway."
-            ) from None
-        if exc.code == 400:
-            error_type = ""
-            error_reason = ""
-            try:
-                details = json.loads(exc.read(4096).decode("utf-8"))
-                issue = details.get("error", {}) if isinstance(details, dict) else {}
-                error_type = str(issue.get("status", "")).upper()
-                metadata = issue.get("details", [])
-                if isinstance(metadata, list):
-                    error_reason = " ".join(
-                        str(d.get("reason", "")).upper() for d in metadata
-                        if isinstance(d, dict)
-                    )
-            except (ValueError, UnicodeDecodeError, AttributeError, TypeError):
-                pass
-            if "API_KEY_INVALID" in error_reason or "API_KEY_INVALID" in error_type:
+    # Bounded retries for transient Google server errors (500, 502, 503, 504).
+    # Do not retry invalid keys, quota errors, or blocked content.
+    attempts = 3 if source_words <= 600 else 2
+    request_timeout = 32 if attempts == 3 else 52
+    data = None
+    for attempt in range(attempts):
+        try:
+            with urllib.request.urlopen(request, timeout=request_timeout) as response:
+                data = json.load(response)
+            break
+        except urllib.error.HTTPError as exc:
+            if exc.code in (500, 502, 503, 504):
+                if attempt + 1 < attempts:
+                    time.sleep(2 ** attempt)
+                    continue
                 raise RuntimeError(
-                    "Gemini reports an invalid API key. Generate a Gemini Developer API "
-                    "key in Google AI Studio and replace GEMINI_API_KEY in Railway."
+                    "Gemini's servers are temporarily overloaded (HTTP %d). "
+                    "Tried %d times. Please retry shortly or use Test Gemini connection."
+                    % (exc.code, attempts)
                 ) from None
+            if exc.code in (401, 403):
+                raise RuntimeError(
+                    "Gemini API key is invalid or this project is not allowed to "
+                    "use the selected model. Check your GEMINI_API_KEY in Railway."
+                ) from None
+            if exc.code == 400:
+                error_type = ""
+                error_reason = ""
+                try:
+                    details = json.loads(exc.read(4096).decode("utf-8"))
+                    issue = details.get("error", {}) if isinstance(details, dict) else {}
+                    error_type = str(issue.get("status", "")).upper()
+                    metadata = issue.get("details", [])
+                    if isinstance(metadata, list):
+                        error_reason = " ".join(
+                            str(d.get("reason", "")).upper() for d in metadata
+                            if isinstance(d, dict)
+                        )
+                except (ValueError, UnicodeDecodeError, AttributeError, TypeError):
+                    pass
+                if "API_KEY_INVALID" in error_reason or "API_KEY_INVALID" in error_type:
+                    raise RuntimeError(
+                        "Gemini reports an invalid API key. Generate a Gemini Developer API "
+                        "key in Google AI Studio and replace GEMINI_API_KEY in Railway."
+                    ) from None
+                raise RuntimeError(
+                    "Gemini rejected the request (400). Check the selected GEMINI_MODEL, "
+                    "Gemini API key, and project availability in Google AI Studio."
+                ) from None
+            if exc.code == 404:
+                raise RuntimeError(
+                    "Gemini model unavailable for this project. Set GEMINI_MODEL "
+                    "to an available free-tier model in Railway Variables."
+                ) from None
+            if exc.code == 429:
+                raise RuntimeError(
+                    "Gemini free-tier rate limit or daily quota reached. Check "
+                    "the project's Gemini API limits in Google AI Studio."
+                ) from None
+
+            raise RuntimeError("Gemini request failed (HTTP %d)." % exc.code) from None
+        except (urllib.error.URLError, TimeoutError):
+            if attempt + 1 < attempts:
+                time.sleep(2 ** attempt)
+                continue
             raise RuntimeError(
-                "Gemini rejected the request (400). Check the selected GEMINI_MODEL, "
-                "Gemini API key, and project availability in Google AI Studio."
+                "Cannot connect to Gemini after %d attempts. Check your connection."
+                % attempts
             ) from None
-        if exc.code == 404:
+        except (ValueError, TypeError, UnicodeDecodeError):
             raise RuntimeError(
-                "Gemini model unavailable for this project. Set GEMINI_MODEL "
-                "to an available free-tier model in Railway Variables."
+                "Gemini returned an unreadable response. Please use Test Gemini connection."
             ) from None
-        if exc.code == 429:
-            raise RuntimeError(
-                "Gemini free-tier rate limit or daily quota reached. Check "
-                "the project's Gemini API limits in Google AI Studio."
-            ) from None
-        if exc.code >= 500:
-            raise RuntimeError(
-                "Gemini is temporarily unavailable. Try again later."
-            ) from None
-        raise RuntimeError("Gemini request failed (HTTP %d)." % exc.code) from None
-    except (urllib.error.URLError, TimeoutError):
-        raise RuntimeError(
-            "Cannot reach Gemini, or the request timed out. Try again."
-        ) from None
-    except (ValueError, TypeError, UnicodeDecodeError):
-        raise RuntimeError(
-            "Gemini returned an unreadable response. Retry, or use Test Gemini connection."
-        ) from None
     feedback = data.get("promptFeedback") if isinstance(data, dict) else {}
     if not isinstance(feedback, dict):
         feedback = {}
