@@ -147,6 +147,14 @@
 .pp-section .pp-result-heading label{margin-right:auto}
 @media(max-width:440px){.pp-section .pp-result-heading{align-items:stretch}.pp-section .pp-inline-retry{width:100%}}
 
+
+/* Self-hosted DeepRewrite: clear availability and opt-in engine selector. */
+.pp-section .pp-deep-availability{padding:11px 27px 14px;font-size:12px;line-height:1.6;color:#566a85;background:#fafbff;border-bottom:1px solid #e7ecf5}
+.pp-section .pp-deep-availability[data-state="ready"]{background:#effaf3;color:#246444}
+.pp-section .pp-deep-availability[data-state="unavailable"]{background:#fffaf0;color:#8c6222}
+.pp-section #publicParaphraseEngine{min-width:236px}
+@media(max-width:680px){.pp-section .pp-deep-availability{padding:11px 17px 13px}.pp-section #publicParaphraseEngine{min-width:0}}
+
 </style></head>
 <body data-page="home">
 <div class="announcement"><div class="m-container"><span><b class="ann-dot"></b> One platform. Every kind of work. Every ambition.</span><a href="/account.html?mode=signup">Membership is 100% free <span aria-hidden="true">↗</span></a></div></div>
@@ -182,6 +190,11 @@
     </div>
     <form id="publicParaphraseForm" class="pp-panel" novalidate onsubmit="return false;">
       <div class="pp-toolbar">
+        <label for="publicParaphraseEngine">Rewriting engine</label>
+        <select id="publicParaphraseEngine" name="engine" aria-describedby="publicDeepRewriteStatus">
+          <option value="local">Fast editing · basic algorithms</option>
+          <option value="deep" disabled>DeepRewrite · private language model</option>
+        </select>
         <label for="publicParaphraseTone">Choose your writing style</label>
         <select id="publicParaphraseTone" name="tone">
           <option value="natural">Natural and fluent</option>
@@ -191,6 +204,9 @@
           <option value="professional">Professional</option>
         </select>
         <span class="pp-counter" id="publicParaphraseCount">0 / 3,000 words</span>
+      </div>
+      <div class="pp-deep-availability" id="publicDeepRewriteStatus" role="status" aria-live="polite">
+        Checking whether the private DeepRewrite model is available…
       </div>
       <div class="pp-depth-control">
         <div class="pp-depth-head">
@@ -238,7 +254,7 @@
         <button class="pp-secondary" id="publicParaphraseDownload" type="button" disabled>Download TXT</button>
       </div>
       <p id="publicParaphraseStatus" class="pp-status" role="status" aria-live="polite" aria-atomic="true">Starting Prowell Humanizer… If this message remains, refresh the page.</p>
-      <p class="pp-fineprint"><strong>How Prowell Humanizer works:</strong> Choose a level from 1 to 10 to request increasingly extensive local edits. These are editing-intensity settings, not AI-detector scores. Local rewriting algorithms improve selected phrases and sentence structures while protecting numerical figures, %, $, &amp;, @, quotations, citations and recognized medical names. Some text may not be safely rewritten by algorithms alone. Your writing is processed on the Prowell Jobs server without an external AI API and is not saved to the website database. Always review the result for accuracy. Fair-use limits apply.</p>
+      <p class="pp-fineprint"><strong>How Prowell Humanizer works:</strong> Choose a level from 1 to 10 to request increasingly extensive local edits. These are editing-intensity settings, not AI-detector scores. Local rewriting algorithms improve selected phrases and sentence structures while protecting numerical figures, %, $, &amp;, @, quotations, citations and recognized medical names. Fast editing uses simple language rules and may leave most text unchanged. DeepRewrite, when activated by the owner, uses a privately hosted language model to generate several alternatives and screen them for factual consistency and fluency. The model requires separate hosting and is not enabled until its availability is confirmed. Content is processed within Prowell's own services, not sent to a commercial AI generation API. Submitted text is not stored in the website database. Always review the result for accuracy. Fair-use limits apply.</p>
     </form>
   </div>
 </section>
