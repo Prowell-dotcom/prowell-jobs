@@ -198,6 +198,7 @@
           <option value="local">Fast editing · basic algorithms (manual fallback)</option>
           <option value="deep" disabled>DeepRewrite · model-generated alternatives</option>
           <option value="hybrid" disabled>Hybrid DeepRewrite · advanced editorial review</option>
+          <option value="openai" disabled>OpenAI DeepRewrite · advanced model (usage-limited)</option>
         </select>
         <label for="publicParaphraseTone">Choose your writing style</label>
         <select id="publicParaphraseTone" name="tone">
@@ -287,6 +288,7 @@
   const engine=$('publicParaphraseEngine');
   const deepStatus=$('publicDeepRewriteStatus');
   let deepAvailable=false;
+  let openaiAvailable=false;
   const depth=$('publicParaphraseLevel');
   const depthValue=$('publicParaphraseLevelValue');
   const depthDescription=$('publicParaphraseLevelDescription');
@@ -398,10 +400,11 @@
       notify('Maximum 3,000 words; remove '+(count-3000)+' words.','error');
       return;
     }
-    if(engine.value!=='local' && (!deepAvailable || count>350)){
-      notify(!deepAvailable?
-        'DeepRewrite is not active. Select Fast editing or ask the website owner to configure the private model.':
-        'DeepRewrite supports up to 350 words at a time. Select a shorter section to preserve quality.','error');
+    if(engine.value!=='local' && (count>350 ||
+        (engine.value==='openai'?!openaiAvailable:!deepAvailable))){
+      notify(count>350?
+        'Advanced rewriting supports up to 350 words per request. Please shorten the passage.':
+        'This advanced rewriting provider is not configured or available. Select another engine.','error');
       return;
     }
     const previous=result.value;
@@ -426,7 +429,7 @@
     refresh();
     const controller=new AbortController();
     const timeout=setTimeout(()=>controller.abort(),
-      engine.value==='hybrid'?240000:engine.value==='deep'?135000:30000);
+      engine.value==='hybrid'?240000:engine.value==='openai'?125000:engine.value==='deep'?135000:30000);
     try{
       const response=await fetch('/api/paraphrase',{
         method:'POST',cache:'no-store',credentials:'omit',
@@ -567,24 +570,29 @@
         credentials:'omit',cache:'no-store'});
       const info=await response.json();
       deepAvailable=Boolean(response.ok&&info.deepAvailable);
+      openaiAvailable=Boolean(response.ok&&info.openaiAvailable);
       for(const option of engine.options){
         if(option.value==='deep'||option.value==='hybrid')option.disabled=!deepAvailable;
+        if(option.value==='openai')option.disabled=!openaiAvailable;
       }
-      if(deepAvailable){
-        if(engine.dataset.userSelected!=='yes'){
-          engine.value=engine.dataset.savedChoice==='deep'?'deep':'hybrid';
-        }
-        deepStatus.textContent='Hybrid DeepRewrite is available. It generates alternatives, validates factual details, and can make an additional editorial pass for passages up to 170 words. Maximum input: 350 words.';
+      if(engine.dataset.userSelected!=='yes'){
+        engine.value=openaiAvailable?'openai':deepAvailable?'hybrid':'';
+      }
+      if(openaiAvailable){
+        deepStatus.textContent='OpenAI DeepRewrite is configured and selected. Requests use a paid API with strict usage limits. Source text is sent to OpenAI for rewriting; do not submit sensitive personal information.';
+        deepStatus.dataset.state='ready';
+      }else if(deepAvailable){
+        deepStatus.textContent='Private Hybrid DeepRewrite is available, but the higher-quality OpenAI editor is not enabled. Maximum 350 words per request.';
         deepStatus.dataset.state='ready';
       }else{
-        if(engine.dataset.userSelected!=='yes')engine.value='';
-        deepStatus.textContent='Hybrid DeepRewrite is currently unavailable. The installed private model may be disabled, missing, or unready. Fast editing is optional and may not produce a substantive rewrite; choose it explicitly to try.';
+        deepStatus.textContent='Advanced writing engines are not configured. Fast editing can be selected manually but may produce only limited changes.';
         deepStatus.dataset.state='unavailable';
       }
     }catch(_){
       if(engine.dataset.userSelected!=='yes')engine.value='';
       deepAvailable=false;
-      deepStatus.textContent='DeepRewrite model status could not be checked. Fast editing remains available.';
+      openaiAvailable=false;
+      deepStatus.textContent='Rewriting provider availability could not be checked. Please refresh or select Fast editing.';
       deepStatus.dataset.state='unavailable';
     }
     refresh();
