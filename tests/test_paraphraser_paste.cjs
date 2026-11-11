@@ -7,7 +7,7 @@ const path=require('node:path');
 async function run(){
   const html=fs.readFileSync(path.join(__dirname,'../admin.html'),'utf8');
   assert.match(html,/id="paraphraseSubmit"(?!\s+disabled)/);
-  assert(html.includes('admin.js?v=paraphrase-progress-v7'));
+  assert(html.includes('admin.js?v=medical-safe-paraphrase-v8'));
   assert(!html.includes('<script src="admin-paraphraser.js'), 'No competing paraphraser script should load');
   const full=fs.readFileSync(path.join(__dirname,'../admin.js'),'utf8');
   const start=full.indexOf('// BEGIN PRIVATE PARAPHRASER');
@@ -30,7 +30,7 @@ async function run(){
   const ids=['paraphraseForm','paraphraseInput','paraphraseOutput','paraphraseSubmit',
     'paraphraseStatus','paraphraseInputCount','paraphraseOutputCount',
     'paraphraseCopy','paraphraseDownload','paraphraseTone','paraphraseClear',
-    'privateParaphraserPanel','paraphraserShortcut'];
+    'privateParaphraserPanel','paraphraserShortcut','paraphraseProtectedTerms'];
   ids.forEach(node);
   node('paraphraseTone').value='natural';
   const document={
@@ -56,6 +56,7 @@ async function run(){
   assert.match(node('paraphraseStatus').textContent,/Paste or type/);
   assert.equal(posts.length,0);
 
+  node('paraphraseProtectedTerms').value='metformin';
   input.value='First paragraph is deliberately added without an input event.';
   timed[0]();
   assert.equal(button.disabled,false);
@@ -66,6 +67,7 @@ async function run(){
   assert.equal(posts.length,1,'Clicking must actually submit the server API request');
   assert.equal(posts[0].request,'/api/admin/paraphrase');
   assert.equal(posts[0].opts.method,'POST');
+  assert.equal(JSON.parse(posts[0].opts.body).protectedTerms,'metformin');
   assert.equal(posts[0].opts.body.includes(input.value),true);
   assert.equal(button.disabled,false);
   assert.match(node('paraphraseOutput').value,/revised paragraph/);
