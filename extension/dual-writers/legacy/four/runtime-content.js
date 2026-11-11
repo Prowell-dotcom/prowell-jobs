@@ -31,11 +31,10 @@
   // never the available-orders background list.
   const POST_VIEW_TARGET_MS=2000; // legacy reporting threshold only
   let scrolling=false;
-  // Ultra-fast gradual scroll: five positions over four 16ms intervals
-  // (~64ms total) when the tab is visible. Background tabs use an immediate
-  // jump to avoid Chrome throttling small timers and losing an order.
-  const FAST_SCROLL_POSITIONS=5, FAST_SCROLL_FRAME_MS=16;
-  function jumpToBottom(el,bottom){
+  // Instant single-movement scroll. No five-position animation, pauses,
+  // setTimeout calls, or requestAnimationFrame waits. Only verified order
+  // details (and 4writers' final popup) move, never the background list.
+  function rapidScroll(el,bottom){
     if(!el||!Number.isFinite(Number(bottom)))return false;
     const start=Number(el.scrollTop)||0;
     const end=Math.max(start,Number(bottom));
@@ -43,34 +42,14 @@
     try{el.scrollTop=end;}catch(_){return false;}
     return Number(el.scrollTop)>start+1;
   }
-  async function rapidScroll(el,bottom){
-    if(!el||!Number.isFinite(Number(bottom)))return false;
-    const start=Number(el.scrollTop)||0;
-    const end=Math.max(start,Number(bottom));
-    if(end-start<=2)return false;
-    if(document.visibilityState==='hidden')return jumpToBottom(el,end);
-    const began=Date.now();
-    for(let step=1;step<=FAST_SCROLL_POSITIONS;step++){
-      if(!active()||!state.claim)return false;
-      // If timers were delayed, finish in one jump rather than wait longer.
-      if(Date.now()-began>110)return jumpToBottom(el,end)||
-        Number(el.scrollTop)>=end-2;
-      const t=step/FAST_SCROLL_POSITIONS;
-      const eased=t*t*(3-2*t);
-      try{el.scrollTop=start+(end-start)*eased;}catch(_){return false;}
-      if(step<FAST_SCROLL_POSITIONS)
-        await new Promise(resolve=>setTimeout(resolve,FAST_SCROLL_FRAME_MS));
-    }
-    return Number(el.scrollTop)>start+1;
-  }
-  async function rapidTargets(nodes){
+  function rapidTargets(nodes){
     const targets=[...new Set(nodes)].filter(el=>el&&el!==document.body &&
       el!==document.documentElement&&el!==document.scrollingElement&&
       Number(el.clientHeight)>40&&
       Number(el.scrollHeight)-Number(el.clientHeight)>10);
-    const moved=await Promise.all(targets.map(el=>rapidScroll(el,
-      Math.max(0,Number(el.scrollHeight)-Number(el.clientHeight)))));
-    return moved.some(Boolean);
+    return targets.map(el=>rapidScroll(el,
+      Math.max(0,Number(el.scrollHeight)-Number(el.clientHeight))))
+      .some(Boolean);
   }
 
   const sendResult = (payload) => chrome.runtime.sendMessage({type:'PROWELL_CLAIM_REPORT',payload},()=>void chrome.runtime.lastError);
@@ -162,7 +141,7 @@
       // Scroll only inside the verified ORDER INFORMATION popup.
       const descendants=typeof panel.querySelectorAll==='function'
         ?[...panel.querySelectorAll('.modal-body,.modal-content,[class*="scroll"],[style*="overflow"],[data-order-details]')]:[];
-      await rapidTargets([panel,...descendants]);
+      rapidTargets([panel,...descendants]);
       return active() && state.claim && sameOrder(state.claim.id,claim.id);
     }
     // For real full-page View navigation, scroll that details page instead.
@@ -173,7 +152,7 @@
         const root=document.scrollingElement||document.documentElement;
         const bottom=Math.max(0,Number(root?.scrollHeight||document.body?.scrollHeight||0)
           -Number(root?.clientHeight||window.innerHeight||0));
-        if(root)await rapidScroll(root,bottom);
+        if(root)rapidScroll(root,bottom);
         else try{window.scrollTo(0,bottom);}catch(_){}
         return active()&&state.claim&&sameOrder(state.claim.id,claim.id);
       }
@@ -215,7 +194,7 @@
     const alreadyAtBottom=scrollables.some(el=>
       Number(el.scrollTop)>=Number(el.scrollHeight)-Number(el.clientHeight)-3);
     // Fourwriters final acknowledgement uses the same rapid 64ms scroll.
-    const moved=await rapidTargets(scrollables);
+    const moved=rapidTargets(scrollables);
     // When the footer is visible without scrolling, it can be clicked now.
     void chrome.storage.local.set({
       lastAcknowledgementScroll:moved?'scrolled-popup':
