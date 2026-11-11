@@ -499,3 +499,72 @@ def rewrite(text, original, tone, level, terms=(), history=(), attempt=0):
                                "similarity to prior versions"],
         "trainedNLIUsed":False,"AlignScoreUsed":False,
     }
+
+
+def hybrid_rewrite(text, original, tone, level, terms=(), history=(), attempt=0):
+    """Hybrid pipeline: model proposals, deterministic checks, model polish.
+
+    Uses the configured private Ollama service, not claims of trained
+    LingConv/AESOP/SynPG/NLI checkpoints. Every polished version is checked
+    against the authoritative original and prior valid draft. If the extra
+    model pass fails, retain the already validated rewrite.
+    """
+    baseline = rewrite(text, original, tone, level, terms, history, attempt)
+    best_text = baseline["paraphrased"]
+    best_score = validate_candidate(
+        original, text, best_text, terms, history
+    )
+    # The first stage always validates its candidates; keep the safe baseline.
+    # Long documents already take substantial CPU time on the small model.
+    # Cap the extra editorial pass to avoid excessive requests and latency.
+    if core.count_words(text) > 170:
+        return dict(baseline, enginePipeline="hybrid",
+                    editorialPass="skipped_for_length")
+    config = model_config()
+    if config is None:
+        return dict(baseline, enginePipeline="hybrid",
+                    editorialPass="unavailable")
+    masked, tokens = mask_protected(best_text, terms)
+    polished = []
+    try:
+        if not _MODEL_SLOT.acquire(blocking=False):
+            return dict(baseline, enginePipeline="hybrid",
+                        editorialPass="busy_retained_verified_draft")
+        try:
+            polished = ollama_generate(
+                config[0], config[1], masked, tone, max(5, level),
+                tokens, 2, [best_text], attempt + 501,
+                fidelity_retry=True,
+            )
+        finally:
+            _MODEL_SLOT.release()
+    except (DeepRewriteError, RuntimeError):
+        return dict(baseline, enginePipeline="hybrid",
+                    editorialPass="failed_retained_verified_draft")
+    ranked = []
+    for draft in polished:
+        candidate = unmask_candidate(draft, tokens)
+        if not candidate:
+            continue
+        verified = validate_candidate(
+            original, text, candidate, terms, tuple(history) + (best_text,)
+        )
+        if verified:
+            ranked.append(verified)
+    total = baseline["candidateCount"] + len(polished)
+    valid = baseline["validCandidateCount"] + len(ranked)
+    if ranked:
+        ranked.sort(key=lambda item: item["score"], reverse=True)
+        # A polished draft must be demonstrably better on the existing
+        # quality rubric; surface novelty alone does not justify replacing it.
+        if best_score and ranked[0]["score"] > best_score["score"] + .015:
+            return dict(
+                baseline, paraphrased=ranked[0]["text"],
+                editableTextChangePercent=ranked[0]["editableTextChangePercent"],
+                candidateCount=total, validCandidateCount=valid,
+                enginePipeline="hybrid", editorialPass="verified_improvement"
+            )
+    return dict(
+        baseline, candidateCount=total, validCandidateCount=valid,
+        enginePipeline="hybrid", editorialPass="retained_verified_draft"
+    )
