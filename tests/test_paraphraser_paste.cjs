@@ -7,7 +7,7 @@ const path=require('node:path');
 async function run(){
   const html=fs.readFileSync(path.join(__dirname,'../admin.html'),'utf8');
   assert.match(html,/id="paraphraseSubmit"(?!\s+disabled)/);
-  assert(html.includes('admin.js?v=student-fluency-v9'));
+  assert(html.includes('admin.js?v=local-rewrite-v10'));
   assert(!html.includes('<script src="admin-paraphraser.js'), 'No competing paraphraser script should load');
   const full=fs.readFileSync(path.join(__dirname,'../admin.js'),'utf8');
   const start=full.indexOf('// BEGIN PRIVATE PARAPHRASER');
@@ -15,6 +15,7 @@ async function run(){
   const code=full.slice(start);
 
   assert(html.includes('value="student"'), 'Student writing style must be visible');
+  assert(html.includes('value="local" selected'), 'No-API local engine must be the default');
   const nodes={}, timed=[],listeners={},posts=[];
   let fail=false;
   function node(id){
@@ -31,9 +32,10 @@ async function run(){
   const ids=['paraphraseForm','paraphraseInput','paraphraseOutput','paraphraseSubmit',
     'paraphraseStatus','paraphraseInputCount','paraphraseOutputCount',
     'paraphraseCopy','paraphraseDownload','paraphraseTone','paraphraseClear',
-    'privateParaphraserPanel','paraphraserShortcut','paraphraseProtectedTerms'];
+    'privateParaphraserPanel','paraphraserShortcut','paraphraseProtectedTerms','paraphraseEngine'];
   ids.forEach(node);
   node('paraphraseTone').value='student';
+  node('paraphraseEngine').value='local';
   const document={
     hidden:false,getElementById:node,
     addEventListener(name,cb){listeners['document:'+name]=cb;}
@@ -70,6 +72,7 @@ async function run(){
   assert.equal(posts[0].opts.method,'POST');
   assert.equal(JSON.parse(posts[0].opts.body).protectedTerms,'metformin');
   assert.equal(JSON.parse(posts[0].opts.body).tone,'student');
+  assert.equal(JSON.parse(posts[0].opts.body).engine,'local');
   assert.equal(posts[0].opts.body.includes(input.value),true);
   assert.equal(button.disabled,false);
   assert.match(node('paraphraseOutput').value,/revised paragraph/);
