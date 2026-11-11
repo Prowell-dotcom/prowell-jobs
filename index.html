@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0B1B33"><title>Prowell Jobs — Every skill deserves an opportunity</title><meta name="description" content="One platform for work of every kind. Explore opportunities, create a free job-seeker or employer account and connect with possibilities at Prowell Jobs."><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="membership.css?v=responsive-20261105"><script src="member.js?v=writing1" defer></script><link rel="stylesheet" href="public-paraphraser.css?v=admin-style-v3"><style id="prowell-humanizer-critical-styles">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0B1B33"><title>Prowell Jobs — Every skill deserves an opportunity</title><meta name="description" content="One platform for work of every kind. Explore opportunities, create a free job-seeker or employer account and connect with possibilities at Prowell Jobs."><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="membership.css?v=responsive-20261105"><script src="member.js?v=writing1" defer></script><link rel="stylesheet" href="public-paraphraser.css?v=humanizer-depth-v4"><style id="prowell-humanizer-critical-styles">
 /* PROWELL HUMANIZER — deliberately mirrored inline in the homepage
    so the editor keeps its spacious layout even if a static CSS asset fails. */
 .pp-section{position:relative;isolation:isolate;padding:88px 0 96px;background:linear-gradient(150deg,#eef5f9 0%,#f5f9ff 54%,#f1f8f1 100%);scroll-margin-top:90px;color:#14283f}
@@ -114,6 +114,17 @@
  .pp-section .pp-fineprint{padding:15px 17px 19px}
 }
 
+
+/* Ten-step paraphrasing depth — keeps original administrator studio styling. */
+.pp-section .pp-depth-control{padding:15px 27px 19px;background:#fafbff;border-top:1px solid #edf0f9;border-bottom:1px solid #e7ecf5}
+.pp-section .pp-depth-head{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:13px;font-weight:800;color:#293e68;margin-bottom:10px}
+.pp-section .pp-depth-head output{display:inline-flex;padding:7px 12px;border:1px solid #dfe1fa;border-radius:9px;color:#464bc5;background:#f0f1ff;font-size:12px;white-space:nowrap}
+.pp-section .pp-depth-control input[type=range]{display:block;appearance:auto;accent-color:#5355e5;width:100%;min-width:0;height:28px;margin:0;cursor:pointer}
+.pp-section .pp-depth-scale{display:flex;justify-content:space-between;gap:14px;font-size:11px;color:#6b7b93;font-weight:700;margin:3px 0 9px}
+.pp-section .pp-depth-control p{font-size:12px;color:#5e728a;line-height:1.6;margin:0}
+.pp-section .pp-status[data-state=warning]{color:#925a0d;background:#fffbf1;border-top:1px solid #f4dfbc;padding-top:14px}
+@media(max-width:680px){.pp-section .pp-depth-control{padding:15px 17px 17px}.pp-section .pp-depth-head{flex-wrap:wrap}}
+
 </style></head>
 <body data-page="home">
 <div class="announcement"><div class="m-container"><span><b class="ann-dot"></b> One platform. Every kind of work. Every ambition.</span><a href="/account.html?mode=signup">Membership is 100% free <span aria-hidden="true">↗</span></a></div></div>
@@ -215,6 +226,27 @@
   const submit=$('publicParaphraseSubmit'), status=$('publicParaphraseStatus');
   const copy=$('publicParaphraseCopy'), save=$('publicParaphraseDownload');
   const counter=$('publicParaphraseCount');
+  const depth=$('publicParaphraseLevel');
+  const depthValue=$('publicParaphraseLevelValue');
+  const depthDescription=$('publicParaphraseLevelDescription');
+  const depthDescriptions=[
+    'Minimal cleanup and removal of filler',
+    'Light wording improvements',
+    'Conservative phrase edits',
+    'Clearer student-friendly expressions',
+    'More concise phrasing and vocabulary',
+    'Phrase editing with safe clause changes',
+    'More sentence restructuring where supported',
+    'Stronger structural edits and targeted wording',
+    'Extensive safe sentence and phrase changes',
+    'Maximum supported rule-based rewriting'
+  ];
+  function updateDepth(){
+    const level=Number(depth.value)||9;
+    depthValue.textContent='Level '+level+' / 10';
+    depthDescription.textContent=depthDescriptions[level-1]+
+      '. The actual amount changed depends on the text; no AI-detector result is guaranteed.';
+  }
   const wordCount=value=>(String(value||'').trim().match(/\S+/gu)||[]).length;
   let busy=false;
   const draftKey='prowell-humanizer-draft-v1';
@@ -225,6 +257,7 @@
       sessionStorage.setItem(draftKey, JSON.stringify({
         text:source.value,
         tone:$('publicParaphraseTone').value,
+        level:Number(depth.value),
         protectedTerms:$('publicParaphraseProtectedTerms').value
       }));
     } catch(_){}
@@ -236,6 +269,10 @@
       if(!source.value&&typeof saved.text==='string')source.value=saved.text.slice(0,85000);
       const style=$('publicParaphraseTone');
       if(typeof saved.tone==='string'&&Array.from(style.options).some(option=>option.value===saved.tone))style.value=saved.tone;
+      if(Number.isInteger(saved.level)&&saved.level>=1&&saved.level<=10){
+        depth.value=String(saved.level);
+      }
+      updateDepth();
       const terms=$('publicParaphraseProtectedTerms');
       if(!terms.value&&typeof saved.protectedTerms==='string')terms.value=saved.protectedTerms.slice(0,3000);
     }catch(_){}
@@ -256,6 +293,8 @@
   source.addEventListener('paste',()=>setTimeout(()=>{rememberDraft();refresh()},0));
   source.addEventListener('change',()=>{rememberDraft();refresh()});
   $('publicParaphraseTone').addEventListener('change',rememberDraft);
+  depth.addEventListener('input',()=>{updateDepth();rememberDraft()});
+  depth.addEventListener('change',()=>{updateDepth();rememberDraft()});
   $('publicParaphraseProtectedTerms').addEventListener('input',rememberDraft);
   window.addEventListener('pagehide',rememberDraft);
   form.addEventListener('submit',async event=>{
@@ -280,6 +319,7 @@
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
           text,engine:'local',tone:$('publicParaphraseTone').value,
+          level:Number(depth.value),
           protectedTerms:$('publicParaphraseProtectedTerms').value.trim()
         })
       });
@@ -295,8 +335,15 @@
       const percent=Number(data.editableTextChangePercent);
       const description=(typeof data.editStrength==='string'&&Number.isFinite(percent))?
         (' '+data.editStrength+' edit: '+percent+'% of editable wording changed (not a human-authorship score).'):'';
-      notify('Completed — '+wordCount(result.value).toLocaleString()+
-        ' words.'+description+' Review the revised text for accuracy.','success');
+      const warning=typeof data.qualityWarning==='string'?
+        data.qualityWarning.trim():'';
+      if(warning){
+        notify('Level '+depth.value+' attempted. '+description.trim()+
+          ' '+warning,'warning');
+      }else{
+        notify('Completed — '+wordCount(result.value).toLocaleString()+
+          ' words.'+description+' Review the revised text for accuracy.','success');
+      }
     }catch(error){
       const message=error?.name==='AbortError'?
         'The request timed out. Please try a shorter passage.':
@@ -343,13 +390,13 @@
     setTimeout(()=>URL.revokeObjectURL(url),2500);
     notify('Humanized text saved.','success');
   });
+  updateDepth();
   restoreDraft();
   refresh();
   notify(source.value.trim()?
     'Your unsent writing is available in this tab. Select Humanize text when ready.':
     'Ready to improve your writing. No login required.');
 })();
-
 </script>
 <section id="who" class="m-section m-who"><div class="m-container"><div class="section-head"><div><span class="eyebrow">BUILT FOR REAL PEOPLE</span><h2>One home for<br><em>every kind of work.</em></h2></div><p>Whether you have formal qualifications, practical skills, years of experience, or you're just starting out — you belong here.</p></div><div class="audience-grid"><article class="audience-card card-seeker"><div class="audience-icon">↗</div><span class="card-overline">FOR JOB SEEKERS</span><h3>Opportunity isn't one-size-fits-all.</h3><p>Discover casual jobs, gigs, apprenticeships, skilled trades, and professional careers. Make your skills visible and apply with confidence.</p><div class="tag-row"><span>Boda boda & drivers</span><span>Househelps & caregivers</span><span>Graduates & professionals</span><span>Every skill level</span></div><a href="/account.html?mode=signup&role=jobseeker">Create a free job-seeker account <span>↗</span></a></article><article class="audience-card card-employer"><div class="audience-icon">⌁</div><span class="card-overline">FOR EMPLOYERS</span><h3>Great people build great businesses.</h3><p>Find people for one-day tasks, ongoing positions, specialist roles, and growing teams. Share opportunities for administrator review.</p><div class="tag-row"><span>Families & households</span><span>Small businesses</span><span>Startups & organisations</span><span>Experienced hiring teams</span></div><a href="/account.html?mode=signup&role=employer">Create a free employer account <span>↗</span></a></article></div></div></section>
 <section class="m-sectors"><div class="m-container"><span class="eyebrow">EXPLORE YOUR POSSIBILITIES</span><h2>From hands-on work<br>to high-level careers.</h2><div class="sector-grid"><a href="/jobs.html#jobs"><span>🛵</span><b>Transport & delivery</b><small>Ride-hailing, boda boda, couriers</small></a><a href="/jobs.html#jobs"><span>🏡</span><b>Domestic & care</b><small>Househelps, childcare, caregiving</small></a><a href="/jobs.html#jobs"><span>🛠</span><b>Trades & construction</b><small>Artisans, builders, technicians</small></a><a href="/jobs.html#jobs"><span>💻</span><b>Technology & digital</b><small>IT, design, remote work</small></a><a href="/jobs.html#jobs"><span>🩺</span><b>Health & education</b><small>Nurses, teachers, support staff</small></a><a href="/jobs.html#jobs"><span>🌍</span><b>And everything else</b><small>Agriculture, hospitality, finance & more</small></a></div><a class="m-outline-link" href="/jobs.html#categories">Explore all employment sectors <span>→</span></a></div></section>
