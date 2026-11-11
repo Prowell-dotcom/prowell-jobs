@@ -1352,6 +1352,8 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = urlsplit(self.path).path
+        if path == '/api/paraphrase':
+            return admin_paraphraser.handle_public_rewrite(self, check_rate)
         if path.startswith('/api/writing/') or path.startswith('/api/admin/writing/'):
             return Marketplace(self, db_connection, deliver_notification_event, notification_wake, check_rate, WRITING_UPLOAD_ROOT).handle('POST')
         if path == '/api/member/signup':
