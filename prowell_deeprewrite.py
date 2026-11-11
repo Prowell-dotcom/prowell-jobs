@@ -381,9 +381,11 @@ def ollama_generate(url, model, source, tone, level, tokens, count, history,
         "content, or create unnatural synonyms. Maintain existing paragraph "
         "breaks and an approximately equal length. Write in this style: "+
         _STYLE[tone]+
-        "\nThe immutable tokens [[PWR0000]] etc represent quotations, "
-        "numbers, citations, names, medicines or symbols. Reproduce each token "
-        "exactly once; NEVER alter a token.\n"
+        ("\nImmutable placeholders such as [[PWR0000]] represent quotations, "
+         "numbers, citations, names, medicines or symbols. Copy each intact "
+         "once without editing.\n" if tokens else
+         "\nKeep all dates, exact numbers, citations, quotations, names, "
+         "clinical terms and symbols unchanged, including repetitions.\n")+
         "Create "+str(count)+" distinct fluent paraphrases, using varied "
         "sentence structures rather than swapping individual words. "
         "Intensity setting "+str(level)+"/10. Sentence plans: "+
@@ -440,8 +442,11 @@ def rewrite(text, original, tone, level, terms=(), history=(), attempt=0):
     safe_history = [h[:7000] for h in history
                     if isinstance(h,str) and 0<len(h)<=7000][:MAX_PROMPT_HISTORY]
     masked, tokens = mask_protected(text,terms)
-    # A longer input uses fewer full-length candidates to limit CPU latency.
-    n = 4 if core.count_words(text)<=170 else 2
+    # Smaller Ollama models frequently delete artificial placeholder tokens.
+    # First generate against the original unmasked prose, then apply the same
+    # exact-detail and factual checks; no safety check is bypassed.
+    # Masked generation remains the second, more conservative strategy.
+    n = 2 if core.count_words(text)<=170 else 1
     if not _MODEL_SLOT.acquire(blocking=False):
         raise DeepRewriteUnavailable(
             "DeepRewrite is processing another request. Please try again shortly.")
@@ -453,15 +458,20 @@ def rewrite(text, original, tone, level, terms=(), history=(), attempt=0):
         # change tense or invent results. One explicitly guided attempt
         # improves reliability without ever relaxing factual safeguards.
         for round_index in (0, 1):
+            use_masks = bool(round_index) and bool(tokens)
+            request_source = masked if use_masks else text
+            request_tokens = tokens if use_masks else {}
             raw = ollama_generate(
-                config[0], config[1], masked, tone, level, tokens,
-                n if round_index == 0 else 2, safe_history,
+                config[0], config[1], request_source, tone, level,
+                request_tokens, n if round_index == 0 else 1, safe_history,
                 attempt + round_index * 101,
                 fidelity_retry=bool(round_index),
             )
             total_candidates += len(raw)
             for draft in raw:
-                candidate = unmask_candidate(draft, tokens)
+                candidate = (unmask_candidate(draft, request_tokens)
+                             if use_masks else
+                             draft.strip() if isinstance(draft, str) else None)
                 if candidate:
                     reasons = []
                     entry = validate_candidate(
