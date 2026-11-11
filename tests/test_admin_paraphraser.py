@@ -116,6 +116,80 @@ class ParaphraserTests(unittest.TestCase):
         self.assertEqual(text,"A better sentence.")
         self.assertEqual(len(prompts),2)
 
+    def test_exact_numbers_symbols_and_medication_names(self):
+        source = ("For 2024, patients with hypertension and type 2 diabetes "
+                  "used metformin. The medication cost was $1,200, and 25% "
+                  "received follow-up advice from nurses & pharmacists @ clinic.")
+        rewritten = ("Nurses & pharmacists @ clinic provided follow-up advice "
+                     "to 25% of patients in 2024. Patients with hypertension "
+                     "and type 2 diabetes used metformin, which cost $1,200.")
+        self.assertTrue(tool._safe_output(source, rewritten))
+        for changed in (
+            rewritten.replace("$1,200", "$1,201"),
+            rewritten.replace("25%", "26%"),
+            rewritten.replace("&", "and"),
+            rewritten.replace("@", "at"),
+            rewritten.replace("hypertension", "high blood pressure"),
+            rewritten.replace("type 2 diabetes", "diabetes"),
+            rewritten.replace("metformin", "insulin"),
+        ):
+            self.assertFalse(tool._safe_output(source, changed))
+
+    def test_custom_medical_terms_are_exact(self):
+        source = ("The patients received mycophenolate mofetil following "
+                  "their transplant procedure.")
+        exact = tool._validate_protected_terms("mycophenolate mofetil", source)
+        rewritten = ("Following transplantation, patients were treated "
+                     "with mycophenolate mofetil.")
+        self.assertTrue(tool._safe_output(source, rewritten, exact))
+        self.assertFalse(tool._safe_output(
+            source, rewritten.replace("mycophenolate mofetil",
+                                      "another medication"), exact))
+        with self.assertRaisesRegex(ValueError, "not found"):
+            tool._validate_protected_terms("unrelated medicine", source)
+
+    def test_source_copy_is_retried_and_never_silently_accepted(self):
+        source = ("A carefully planned follow-up program helped the clinic "
+                  "respond to patients who missed their appointments and "
+                  "encouraged nurses to contact them using clear instructions.")
+        revised = ("When appointments were missed, clinic nurses contacted "
+                   "patients with straightforward guidance. This organized "
+                   "follow-up process helped the team respond more effectively.")
+        self.assertTrue(tool._too_similar(source, source))
+        self.assertFalse(tool._too_similar(source, revised))
+        calls = []
+        def fake_generation(key, model, instructions, prompt):
+            calls.append((instructions, prompt))
+            return source if len(calls) == 1 else revised
+        output = tool._editorial_rewrite(
+            source, "natural", fake_generation, "dummy", "dummy",
+            second_pass=False)
+        self.assertEqual(output, revised)
+        self.assertEqual(len(calls), 2)
+        self.assertIn("too close to the source", calls[1][0])
+        with self.assertRaisesRegex(RuntimeError, "too close"):
+            tool._editorial_rewrite(
+                source, "natural",
+                lambda *_: source, "dummy", "dummy",
+                second_pass=False)
+
+    def test_medical_terms_and_figures_remain_when_glossary_is_used(self):
+        source = ("The patients with hypertension took mycophenolate mofetil "
+                  "at a cost of $50 per visit, and 10% completed follow-up.")
+        protected = tool._validate_protected_terms(
+            "mycophenolate mofetil", source)
+        draft = ("Among patients with hypertension, 10% completed follow-up. "
+                 "Each visit cost $50, and patients took mycophenolate mofetil.")
+        calls = []
+        def fake_generation(key, model, instructions, prompt):
+            calls.append(instructions)
+            return draft
+        result = tool._editorial_rewrite(
+            source, "natural", fake_generation, "dummy", "dummy",
+            second_pass=False, protected_terms=protected)
+        self.assertEqual(result, draft)
+        self.assertIn("mycophenolate mofetil", calls[0])
+
     def test_no_key_fails_cleanly(self):
         with patch.dict('os.environ',{'OPENAI_API_KEY':''}):
             with self.assertRaisesRegex(RuntimeError,'not configured'):
