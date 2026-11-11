@@ -7,7 +7,7 @@ const path=require('node:path');
 async function run(){
   const html=fs.readFileSync(path.join(__dirname,'../admin.html'),'utf8');
   assert.match(html,/id="paraphraseSubmit"(?!\s+disabled)/);
-  assert(html.includes('admin.js?v=local-rewrite-v10'));
+  assert(html.includes('admin.js?v=verified-editor-v11'));
   assert(!html.includes('<script src="admin-paraphraser.js'), 'No competing paraphraser script should load');
   const full=fs.readFileSync(path.join(__dirname,'../admin.js'),'utf8');
   const start=full.indexOf('// BEGIN PRIVATE PARAPHRASER');
