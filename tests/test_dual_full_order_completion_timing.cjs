@@ -1,7 +1,7 @@
 'use strict';
-// Full-flow simulation for BOTH dual engines. A fast website must not cause
-// Take it/OK/I understand to finish early. Short=3s, medium=4s, long=5s
-// measured from View. Timers use a deterministic virtual clock.
+// Full-flow simulation for BOTH dual engines: instant bottom jump and
+// immediate Take it / OK / I understand on short, medium and long orders.
+// The test clock detects any accidental timed delay.
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const assert=require('node:assert/strict');
 const root=path.join(__dirname,'../extension/dual-writers');
@@ -10,10 +10,11 @@ const tick=async()=>{for(let i=0;i<80;i++)await Promise.resolve();
 async function run(site,size,stopEarly=false){
   const four=site==='four',host=four?'4writers.net':'good-writers.com';
   const h={short:600,medium:1200,long:2200}[size];
-  const target={short:3000,medium:4000,long:5000}[size];
+  // Description length must not impose a minimum acceptance duration.
   const src=fs.readFileSync(path.join(root,'legacy/'+site+'/runtime-content.js'),'utf8');
-  assert.match(src,/completionTargetMs/);
-  assert.match(src,/STAGE_FRACTIONS/);
+  assert.match(src,/function jumpToBottom\(el,bottom\)/);
+  assert.doesNotMatch(src,/STAGE_FRACTIONS|COMPLETION_TARGETS|SCROLL_STEPS/,
+    'No 3/4/5-second pacing or gradual scrolling may remain');
   let time=1700000000000,activeButton='take',scroll=0,ackScroll=0;
   const start=time,events=[],listeners=[];
   class VirtualDate extends Date{
@@ -23,7 +24,7 @@ async function run(site,size,stopEarly=false){
   const id='0192065941';
   const claim={id,stage:'view-clicked',viewClickedAt:start,startedAt:start,
     listUrl:'https://'+host+'/available_orders'};
-  const state={armed:true,targetTabId:17,claim,
+  const state={armed:!stopEarly,targetTabId:17,claim,
     claimConsentVersion:four?'0.5.4':'1.0.4',
     attemptedIds:[],completed:[],processingPreviewedIds:[]};
   const store={
@@ -92,37 +93,25 @@ async function run(site,size,stopEarly=false){
     clearTimeout(){},setInterval(){return 1;},
     setTimeout(fn,ms){
       if(ms>0)time+=ms;
-      if(stopEarly && time-start>=900 && state.armed){
-        state.armed=false;
-        for(const cb of listeners)cb({armed:{oldValue:true,newValue:false}},'local');
-      }
       queueMicrotask(fn);return 1;
     }
   };
   vm.runInNewContext(src,context,{filename:'runtime-'+site+'.js'});
   await tick();
   if(stopEarly){
-    assert.equal(events.length,0,site+': STOP while pacing must cancel clicks');
+    assert.equal(events.length,0,site+': STOP must prevent all acceptance clicks');
     return;
   }
-  assert.equal(state.claim?.completionTargetMs,target,
-    site+' '+size+': description size must select correct TOTAL target');
-  assert.equal(state.claim?.completionSize,size);
-  assert.equal(events.length,3,site+' '+size+': Take/OK/final must all click');
+  assert.equal(events.length,3,site+' '+size+': all three buttons must click');
   assert.deepEqual(events.map(e=>e.action),
     ['Take it','OK',four?'I understand, take the order':'I understand']);
-  assert(events[0].elapsed>=target*.4,site+' '+size+': Take it was early');
-  assert(events[1].elapsed>=target*.72,site+' '+size+': OK was early');
-  assert(events[2].elapsed>=target,site+' '+size+': acknowledgement was early');
-  assert.equal(events[2].elapsed,target,
-    site+' '+size+': fast simulated website should finish at exact target');
-  assert.equal(state.lastCompletionTargetMs,target);
-  assert.equal(state.lastCompletionNoEarlierThanTarget,true);
-  assert.equal(state.lastCompletionDurationMs,target);
+  assert.deepEqual(events.map(e=>e.elapsed),[0,0,0],
+    site+' '+size+': no staged delays may occur after View');
+  assert.equal(state.lastCompletionTargetMs,null);
+  assert.equal(state.lastCompletionDurationMs,0);
   assert.equal(scroll,h-400,'Order-details popup should scroll to bottom');
   assert.equal(ackScroll,h-380,'Acknowledgement popup should scroll to bottom');
-  console.log(site+' '+size+': Take '+events[0].elapsed+
-    'ms → OK '+events[1].elapsed+'ms → final '+events[2].elapsed+'ms PASS');
+  console.log(site+' '+size+': View → direct bottom → Take it → OK → I understand: instant PASS');
 }
 (async()=>{
   for(const site of ['four','good']){
