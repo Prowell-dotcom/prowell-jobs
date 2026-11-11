@@ -58,7 +58,7 @@ class ParaphraserTests(unittest.TestCase):
         code, result=tool.handle_rewrite(handle,lambda *a,**k:True,rewrite)
         self.assertEqual(code,200)
         self.assertEqual(result['outputWords'],2)
-        self.assertEqual(result['editingApproach'], 'Natural editorial rewrite with factual safeguards')
+        self.assertEqual(result['editingApproach'], 'Local rule-based editing; review the results for meaning and style')
         self.assertEqual(calls,['Private draft'])
 
     def test_api_secret_is_server_side_and_store_disabled(self):
@@ -281,6 +281,63 @@ class ParaphraserTests(unittest.TestCase):
                                          "Rewrite clearly", "Short text")
         self.assertEqual(send.call_count, 1)
         sleep.assert_not_called()
+
+    def test_local_rules_run_without_network_or_api_key(self):
+        source = ("It is important to note that nurses contacted patients "
+                  "on a regular basis in order to confirm appointments.")
+        with patch("urllib.request.urlopen", side_effect=AssertionError(
+                "No AI or network call is permitted in local mode")):
+            with patch.dict("os.environ", {
+                "GEMINI_API_KEY":"", "OPENAI_API_KEY":""}):
+                handler = FakeHandler({"engine":"local", "text":source,
+                                       "tone":"student"})
+                code, payload = tool.handle_rewrite(
+                    handler, lambda *a, **k: True)
+        self.assertEqual(code, 200)
+        self.assertEqual(payload["engine"], "local")
+        self.assertEqual(payload["paraphrased"],
+                         "Nurses contacted patients regularly to confirm appointments.")
+        self.assertTrue(tool._safe_output(source, payload["paraphrased"]))
+
+    def test_local_rules_protect_numbers_symbols_and_medical_terms(self):
+        source = ("It is important to note that patients with hypertension "
+                  "received metformin. The fee was $1,200, and 25% of "
+                  "patients were contacted by nurses & staff @ clinic.")
+        edited = tool.rewrite_via_local(source, "natural", tool.count_words(source))
+        self.assertTrue(edited.startswith("Patients with hypertension received metformin."))
+        self.assertTrue(tool._safe_output(source, edited))
+        self.assertIn("$1,200", edited)
+        self.assertIn("25%", edited)
+        self.assertIn("metformin", edited)
+        self.assertIn("&", edited)
+        self.assertIn("@", edited)
+
+    def test_local_unrewritable_passage_fails_instead_of_copying(self):
+        source = "The cat sat on the mat."
+        with self.assertRaisesRegex(RuntimeError, "cannot safely"):
+            tool.rewrite_via_local(source, "student", tool.count_words(source))
+
+    def test_gemini_requires_explicit_engine_selection(self):
+        src = "It is important to note that the class discussed the findings."
+        with patch.object(tool, "rewrite_via_gemini",
+                          return_value="The class discussed the findings.") as gemini:
+            local = FakeHandler({"text":src, "tone":"student", "engine":"local"})
+            status, _ = tool.handle_rewrite(local, lambda *a, **k: True)
+            self.assertEqual(status, 200)
+            gemini.assert_not_called()
+            online = FakeHandler({"text":src, "tone":"student", "engine":"gemini"})
+            status, body = tool.handle_rewrite(online, lambda *a, **k: True)
+            self.assertEqual(status, 200)
+            gemini.assert_called_once()
+            self.assertEqual(body["engine"], "gemini")
+
+    def test_local_reorders_clear_conditional_clause(self):
+        source = ("Because patients needed reminder calls, nurses contacted "
+                  "them before their appointments.")
+        result = tool.rewrite_via_local(
+            source, "student", tool.count_words(source))
+        self.assertEqual(result, "Nurses contacted them before their appointments because patients needed reminder calls.")
+        self.assertTrue(tool._safe_output(source, result))
 
     def test_no_key_fails_cleanly(self):
         with patch.dict('os.environ',{'OPENAI_API_KEY':''}):
