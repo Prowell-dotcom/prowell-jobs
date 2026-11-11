@@ -1,6 +1,6 @@
 'use strict';
 // Exercise the active dual engine for both View paths. The 4writers and
-// Good-Writers order-details popup should move in visible increments, with
+// Good-Writers order-details popup should jump instantly to its bottom, with
 // Take it AFTER scrolling for available orders, and no Take it for processing.
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const assert=require('node:assert/strict');
@@ -9,8 +9,10 @@ const tick=async()=>{for(let i=0;i<24;i++)await Promise.resolve();await new Prom
 async function run(site,kind,range){
  const four=site==='four',host=four?'4writers.net':'good-writers.com';
  const source=fs.readFileSync(path.join(dir,'legacy/'+site+'/runtime-content.js'),'utf8');
- assert.match(source,/const SCROLL_STEPS=6;/);
- assert.match(source,/function scrollDuration\(el,bottom\)/);
+ assert.match(source,/function jumpToBottom\(el,bottom\)/);
+ assert.match(source,/function jumpTargets\(nodes\)/);
+ assert.doesNotMatch(source,/STAGE_FRACTIONS|SCROLL_STEPS|gradualScroll/,
+   'There must be no gradual or timed acceptance code');
  const options={near:{height:600,ms:300},medium:{height:1200,ms:500},
    long:{height:2200,ms:700}};
  const expected=options[range];assert(expected);
@@ -75,12 +77,10 @@ async function run(site,kind,range){
  vm.runInNewContext(source,context);
  await tick();
  const scrolled=events.filter(x=>x.startsWith('SCROLL '));
- assert.equal(scrolled.length,6,site+' '+kind+': should scroll in six increments');
+ assert.equal(scrolled.length,1,site+' '+kind+': jump to bottom exactly once');
  assert.equal(pos,expected.height-400);
  assert.equal(backgroundPos,0,'Background page must not scroll');
- assert.equal(waits.length,5,'Six steps use exactly five waits');
- assert.equal(waits.reduce((a,b)=>a+b,0),expected.ms,
-   site+' '+kind+' '+range+' must use '+expected.ms+'ms');
+ assert.equal(waits.length,0,'No gradual-scroll timers are permitted');
  if(kind==='available'){
    assert.equal(events.at(-1),'TAKE IT','Take it only after gradual scroll');
    assert.equal(state.claim?.stage,'take-clicked');
@@ -89,7 +89,7 @@ async function run(site,kind,range){
    assert.equal(state.armed,false,'Processing preview stops after scroll');
    assert.equal(state.claim,null);
  }
- console.log(site+' '+kind+' '+range+': '+expected.ms+'ms gradual scroll and correct action PASS');
+ console.log(site+' '+kind+' '+range+': immediate bottom jump and correct action PASS');
 }
 (async()=>{
  for(const site of ['four','good']){
