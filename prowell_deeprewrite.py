@@ -188,12 +188,72 @@ def _same_named_content(a,b):
     )
 
 
+# Lightweight safeguards, not a replacement for true semantic entailment.
+# The 0.5B model can invent successful results or turn past events into
+# present-tense claims even if exact figures and subject terms are preserved.
+_NEW_UNSUPPORTED_CLAIMS = (
+    re.compile(r"\bsuccess(?:ful|fully)?\b|\bachieve(?:d|ment|s)?\b", re.I),
+    re.compile(r"\beffective(?:ly|ness)?\b|\befficien(?:t|cy|tly)\b", re.I),
+    re.compile(r"\bimprov(?:e|ed|es|ement|ing)\b", re.I),
+    re.compile(r"\bfailed?\b|\bfailure(?:s)?\b", re.I),
+    re.compile(r"\bguarantee(?:d|s)?\b|\bproven\b|\bproved\b", re.I),
+    re.compile(r"\b(?:always|every|everyone|nobody|never|none)\b", re.I),
+)
+_PAST_WORD = re.compile(
+    r"\b(?:was|were|had|did|found|took|made|gave|saw|said|went|"
+    r"wrote|read|brought|reached|[a-z]{4,}ed)\b", re.I)
+_PRESENT_FINITE = re.compile(
+    r"\b(?:is|are|does|has|have|shows|reports|suggests|reflects|"
+    r"initiates|uses|utilizes|indicates|demonstrates|confirms)\b", re.I)
+_TIME_RELATIONS = {
+    "before": (re.compile(r"\bbefore\b",re.I),
+               re.compile(r"\b(?:before|prior to|ahead of|in advance of)\b",re.I)),
+    "after": (re.compile(r"\bafter\b",re.I),
+              re.compile(r"\b(?:after|following|subsequent to)\b",re.I)),
+    "during": (re.compile(r"\bduring\b",re.I),
+               re.compile(r"\b(?:during|throughout|while)\b",re.I)),
+}
+_ROLE_PLURALS = re.compile(
+    r"\b(?:nurses|patients|students|doctors|researchers|participants|"
+    r"clinicians|providers)\b",re.I)
+
+
+def _claims_and_tense_preserved(original, candidate):
+    # Reject added claims of effectiveness, success, failure, certainty, etc.
+    # when those were not actually stated in the input.
+    for pattern in _NEW_UNSUPPORTED_CLAIMS:
+        if len(pattern.findall(candidate)) > len(pattern.findall(original)):
+            return False
+    # Hold the essential ordering of events, even if "before" becomes
+    # "in advance of" or "ahead of".
+    for original_pattern, candidate_pattern in _TIME_RELATIONS.values():
+        if original_pattern.search(original) and not candidate_pattern.search(candidate):
+            return False
+    # A paragraph about completed actions must not become present-tense
+    # reporting about what a clinic generally does.
+    p_original = len(_PAST_WORD.findall(original))
+    p_candidate = len(_PAST_WORD.findall(candidate))
+    if p_original >= 2 and p_candidate == 0:
+        return False
+    if p_original == 0 and p_candidate >= 2 and _PRESENT_FINITE.search(original):
+        return False
+    # Where the source explicitly names plural professional/patient roles,
+    # do not turn a group into one person's possessive (Nurses -> Nurse's).
+    old_roles = {m.group(0).lower() for m in _ROLE_PLURALS.finditer(original)}
+    new_roles = {m.group(0).lower() for m in _ROLE_PLURALS.finditer(candidate)}
+    if old_roles - new_roles:
+        return False
+    return True
+
+
 def validate_candidate(original, current, candidate, terms, history=()):
     if not candidate or not core._safe_output(original,candidate,terms):
         return None
     if not core._safe_output(current,candidate,terms):
         return None
     if not _same_named_content(original,candidate):
+        return None
+    if not _claims_and_tense_preserved(original,candidate):
         return None
     original_count = core.count_words(original)
     n = core.count_words(candidate)
@@ -251,6 +311,10 @@ def ollama_generate(url, model, source, tone, level, tokens, count, history, att
         "You are a professional paraphrase editor. Rebuild the wording and "
         "sentence structures substantially while preserving every original "
         "claim, caveat, logical relation and the author's intended certainty. "
+        "Preserve the same time frame and past/present tense. NEVER claim "
+        "that a process succeeded, failed, improved outcomes or was effective "
+        "unless the source says so. Do not infer new results from the fact "
+        "that something was recorded or assessed. "
         "Do not write for AI detectors, invent facts, add citations, omit "
         "content, or create unnatural synonyms. Maintain existing paragraph "
         "breaks and an approximately equal length. Write in this style: "+
