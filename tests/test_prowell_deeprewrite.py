@@ -403,7 +403,7 @@ class DeepRewriteTests(unittest.TestCase):
         )
         self.assertEqual(deep._parse_candidates(sample), [sample])
         self.assertEqual(
-            deep._parse_candidates('```json\\n{"rewrite": "' + sample + '"}\\n```'),
+            deep._parse_candidates('```json\n{"rewrite": "' + sample + '"}\n```'),
             [sample],
         )
         self.assertEqual(deep._parse_candidates('{"rewrite":'), [])
