@@ -1536,6 +1536,22 @@ def handle_public_rewrite(handler, rate_checker):
         # provider outage. Let the user try another passage without copying.
         return handler.send_json(422, {"error": str(error)})
     change_percent = metrics["editableTextChangePercent"]
+    # Never report a no-op as a completed rewrite, including short passages.
+    # Short text can legitimately resist structural editing, but a 0% result
+    # must not be described as a successful humanization.
+    if (change_percent == 0 or
+            re.sub(r"\\s+", " ", result).strip().casefold() ==
+            re.sub(r"\\s+", " ", source).strip().casefold()):
+        return handler.send_json(422, {
+            "error": (
+                "No meaningful wording change was possible with Fast editing. "
+                "The original text was preserved. DeepRewrite uses a "
+                "context-aware model when available; Fast editing cannot "
+                "promise a full paraphrase."
+            ),
+            "editStrength": "Limited",
+            "editableTextChangePercent": 0,
+        })
     # Do not present nearly unchanged writing as a completed deep paraphrase.
     # Lower levels remain useful for explicitly requested light proofreading.
     minimum = (0 if level is None or level <= 3 else
