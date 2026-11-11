@@ -736,8 +736,8 @@ def _capitalize_sentence_starts(value):
     def first_letter(match):
         prefix, letter = match.groups()
         return prefix + letter.upper()
-    return re.sub(r"(^|(?<=[.!?])\s+)([a-z])", first_letter, value,
-                  flags=re.MULTILINE)
+    return re.sub(r'(^|(?<=[.!?])\s+|(?<=[.!?]["”])\s+)([a-z])',
+                  first_letter, value, flags=re.MULTILINE)
 
 
 def _reorder_leading_clause(sentence):
@@ -772,7 +772,8 @@ def _reorder_trailing_clause(sentence):
         return sentence
     main, conjunction, reason, ending = found.groups()
     if not re.search(r"\b(?:is|are|was|were|has|have|had|did|do|"
-                     r"used|worked|called|helped|completed|provided|"
+                     r"used|worked|called|helped|completed|provided|reviewed|"
+                     r"evaluated|analyzed|explained|decided|began|supported|"
                      r"received|found|showed|asked|reported|contacted|"
                      r"reduced|increased|can|could|will|would)\b",
                      main, flags=re.IGNORECASE):
