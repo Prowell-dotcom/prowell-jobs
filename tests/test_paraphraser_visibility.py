@@ -19,12 +19,18 @@ class PublicParaphraserVisibilityTests(unittest.TestCase):
             'pp-inline-retry',
             'Rehumanize text',
             'id="publicParaphraseTone"',
+            'id="publicParaphraseEngine"',
+            'id="publicDeepRewriteStatus"',
+            'value="deep" disabled',
+            'DeepRewrite',
+            'Fast editing',
+
             'id="publicParaphraseProtectedTerms"',
             'id="publicParaphraseStatus"',
             'href="#paraphraser"',
             'id="prowell-humanizer-inline"',
             'novalidate onsubmit="return false;"',
-            'public-paraphraser.css?v=rehumanize-visible-v6',
+            'public-paraphraser.css?v=deeprewrite-v7',
             'No login required',
             'id="publicParaphraseLevel"',
             'id="publicParaphraseLevelValue"',
@@ -51,6 +57,8 @@ class PublicParaphraserVisibilityTests(unittest.TestCase):
         self.assertIn('sessionStorage.getItem', markup)
         self.assertNotIn('src="public-paraphraser.js', markup)
         self.assertIn("fetch('/api/paraphrase'", markup)
+        self.assertIn("fetch('/api/paraphrase/capabilities'", markup)
+        self.assertIn("engine:engine.value", markup)
         self.assertIn('Prowell <span>Humanizer.</span>', markup)
         self.assertIn('Humanized result', markup)
         self.assertIn('>Humanize text ', markup)
@@ -82,6 +90,10 @@ class PublicParaphraserVisibilityTests(unittest.TestCase):
         docker = (ROOT / 'Dockerfile').read_text(encoding='utf-8')
         client = (ROOT / 'public-paraphraser.js').read_text(encoding='utf-8')
         self.assertIn("if path == '/api/paraphrase':", source)
+        self.assertIn("if path == '/api/paraphrase/capabilities':", source)
+        docker_deep = (ROOT / 'prowell_deeprewrite.py').read_text(encoding='utf-8')
+        self.assertIn("prowell_deeprewrite.py", docker)
+        self.assertIn("def rewrite(", docker_deep)
         self.assertIn("handle_public_rewrite(self, check_rate)", source)
         self.assertNotIn("if path == '/api/admin/paraphrase':", source)
         self.assertIn('public-paraphraser.css', docker)

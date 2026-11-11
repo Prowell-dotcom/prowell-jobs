@@ -1339,6 +1339,7 @@ def handle_public_rewrite(handler, rate_checker):
     This endpoint deliberately does not reuse the admin Gemini provider
     selector, preventing untrusted visitors from spending private API quota.
     """
+    import prowell_deeprewrite as deep
     ip = handler.client_address[0]
     if not rate_checker(ip, "public-paraphrase-local", limit=24):
         return handler.send_json(429, {
@@ -1354,8 +1355,9 @@ def handle_public_rewrite(handler, rate_checker):
         data = json.loads(handler.rfile.read(size).decode("utf-8"))
         if not isinstance(data, dict):
             raise ValueError("The request must contain text.")
-        if data.get("engine", "local") != "local":
-            raise ValueError("Public paraphrasing uses local algorithms only.")
+        engine = data.get("engine", "local")
+        if engine not in ("local", "deep"):
+            raise ValueError("Choose Fast editing or DeepRewrite.")
         source, tone, count = validate_request(data)
         terms = _validate_protected_terms(data.get("protectedTerms"), source)
         level = validate_rewrite_level(data["level"]) if "level" in data else None
@@ -1377,8 +1379,57 @@ def handle_public_rewrite(handler, rate_checker):
         else:
             original_text = source
             attempt = 0
+        history = data.get("history", [])
+        if (not isinstance(history, list) or len(history) > 3 or
+                any(not isinstance(h, str) or len(h) > 7000 for h in history)):
+            raise ValueError("Rewrite history is invalid.")
     except (ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError) as error:
         return handler.send_json(400, {"error": str(error) or "Invalid text."})
+    # The private model is intentionally a separate, owner-configured
+    # service. Visitors never gain access to it or its network address.
+    if engine == "deep":
+        if not rate_checker(ip, "public-paraphrase-deep", limit=6):
+            return handler.send_json(429, {
+                "error":"DeepRewrite limit reached for this connection. Try later."
+            })
+        if deep.model_config() is None:
+            return handler.send_json(503, {
+                "error":"DeepRewrite is not yet activated by the website owner. "
+                        "Fast editing remains available."
+            })
+        try:
+            generated = deep.rewrite(
+                source, original_text, tone, level or 9, terms,
+                history=history, attempt=attempt)
+            result = generated["paraphrased"]
+            if not (_safe_output(source,result,terms)
+                    and _safe_output(original_text,result,terms)):
+                raise deep.DeepRewriteError(
+                    "The generated version changed protected details.")
+            metrics = _rewrite_edit_metrics(source,result,terms)
+        except (deep.DeepRewriteError, ValueError) as error:
+            status = (503 if isinstance(error,deep.DeepRewriteUnavailable)
+                      else 422 if isinstance(error,deep.DeepRewriteError)
+                      else 400)
+            return handler.send_json(status, {"error":str(error)})
+        return handler.send_json(200, {
+            "paraphrased":result,
+            "engine":"deep",
+            "mode":mode,
+            "revisionNumber":attempt,
+            "levelRequested":level,
+            "inputWords":count,
+            "outputWords":count_words(result),
+            "editStrength":metrics["editStrength"],
+            "editableTextChangePercent":metrics["editableTextChangePercent"],
+            "candidateCount":generated["candidateCount"],
+            "validCandidateCount":generated["validCandidateCount"],
+            "qualityWarning":None,
+            "verificationMethods":generated["verificationMethods"],
+            "trainedNLIUsed":False,
+            "AlignScoreUsed":False,
+            "reviewReminder":"Automated checks are not a substitute for reviewing meaning.",
+        })
     try:
         if mode == "again":
             result = _rehumanize_local(

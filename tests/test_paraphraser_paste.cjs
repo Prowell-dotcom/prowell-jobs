@@ -70,11 +70,15 @@ async function run(){
   for(const id of ['publicParaphraseForm','publicParaphraseInput','publicParaphraseOutput',
     'publicParaphraseSubmit','publicParaphraseAgain','publicParaphraseStatus',
     'publicParaphraseInlineFeedback','publicParaphraseCount',
-    'publicParaphraseTone','publicParaphraseProtectedTerms','publicParaphraseClear',
+    'publicParaphraseTone','publicParaphraseEngine','publicDeepRewriteStatus',
+    'publicParaphraseProtectedTerms','publicParaphraseClear',
     'publicParaphraseLevel','publicParaphraseLevelValue','publicParaphraseLevelDescription',
     'publicParaphraseCopy','publicParaphraseDownload'])create(id);
   create('publicParaphraseSubmit').innerHTML='Humanize text';
   create('publicParaphraseAgain').innerHTML='Rehumanize text';
+  create('publicParaphraseEngine').value='local';
+  create('publicParaphraseEngine').options=[{value:'local',disabled:false},
+    {value:'deep',disabled:true}];
   create('publicParaphraseTone').value='student';
   create('publicParaphraseLevel').value='9';
   create('publicParaphraseTone').options=['natural','student','simple','academic','professional'].map(value=>({value}));
@@ -126,6 +130,7 @@ async function run(){
  const payload=JSON.parse(requests[0].options.body);
  assert.equal(payload.tone,'student');
  assert.equal(payload.engine,'local');
+ assert.equal(ui.node('publicParaphraseEngine').value,'local');
  assert.equal(payload.mode,'first');
  assert.equal(payload.level,9,'Public tool must request the selected depth');
  assert.equal(payload.protectedTerms,'metformin');
