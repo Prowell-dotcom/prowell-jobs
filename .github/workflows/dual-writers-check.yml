@@ -1,0 +1,46 @@
+name: Dual writers extension checks
+
+on:
+  push:
+    paths:
+      - 'extension/dual-writers/**'
+      - 'tests/test_dual_*.cjs'
+      - 'tests/test_dual_writers_bundle.py'
+      - '.github/workflows/dual-writers-check.yml'
+  pull_request:
+    paths:
+      - 'extension/dual-writers/**'
+      - 'tests/test_dual_*.cjs'
+      - 'tests/test_dual_writers_bundle.py'
+      - '.github/workflows/dual-writers-check.yml'
+  workflow_dispatch:
+
+jobs:
+  dual-extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate and simulate dual order workflows
+        run: |
+          node --check extension/dual-writers/legacy/four/runtime-content.js
+          node --check extension/dual-writers/legacy/good/runtime-content.js
+          node --check extension/dual-writers/popup.js
+          node tests/test_dual_writers.cjs
+          node tests/test_dual_minimal_popup.cjs
+          node tests/test_dual_four_sections.cjs
+          node tests/test_dual_four_overview.cjs
+          node tests/test_dual_service_worker_boot.cjs
+          node tests/test_dual_four_final_ack.cjs
+          node tests/test_dual_good_final_ack.cjs
+          node tests/test_dual_gradual_view_scroll.cjs
+          node tests/test_dual_reappearing_orders.cjs
+          node tests/test_dual_full_order_completion_timing.cjs
+          node tests/test_dual_legacy_merge.cjs
+      - name: Validate packaged extension
+        run: python -m unittest discover -s tests -p test_dual_writers_bundle.py -v
