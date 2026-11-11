@@ -148,6 +148,8 @@
 @media(max-width:440px){.pp-section .pp-result-heading{align-items:stretch}.pp-section .pp-inline-retry{width:100%}}
 
 
+ .pp-section .pp-word-count{display:block;margin:7px 2px 0;text-align:right;font-size:13px;font-weight:700;color:#536885}
+
 /* Self-hosted DeepRewrite: clear availability and opt-in engine selector. */
 .pp-section .pp-deep-availability{padding:11px 27px 14px;font-size:12px;line-height:1.6;color:#566a85;background:#fafbff;border-bottom:1px solid #e7ecf5}
 .pp-section .pp-deep-availability[data-state="ready"]{background:#effaf3;color:#246444}
@@ -227,6 +229,7 @@
             <span class="pp-field-hint">Paste or type here</span>
           </div>
           <textarea id="publicParaphraseInput" rows="13" maxlength="85000" placeholder="Paste your paragraph or document here to improve its wording and clarity…" spellcheck="true" required></textarea>
+          <output id="publicParaphraseInputWords" class="pp-word-count" for="publicParaphraseInput" aria-live="polite">Input: 0 words</output>
         </div>
         <div class="pp-field">
           <div class="pp-field-head pp-result-heading">
@@ -237,6 +240,7 @@
             </button>
           </div>
           <textarea id="publicParaphraseOutput" rows="13" placeholder="Your rewritten text will appear here after you select Humanize text." readonly></textarea>
+          <output id="publicParaphraseOutputWords" class="pp-word-count" for="publicParaphraseOutput" aria-live="polite">Output: 0 words</output>
           <div id="publicParaphraseInlineFeedback" class="pp-inline-feedback" role="status" aria-live="polite">
             Humanize your writing first, then use Rehumanize text here to request another version.
           </div>
@@ -278,6 +282,8 @@
   const retryLabel=retry.innerHTML;
   const copy=$('publicParaphraseCopy'), save=$('publicParaphraseDownload');
   const counter=$('publicParaphraseCount');
+  const inputWords=$('publicParaphraseInputWords');
+  const outputWords=$('publicParaphraseOutputWords');
   const engine=$('publicParaphraseEngine');
   const deepStatus=$('publicDeepRewriteStatus');
   let deepAvailable=false;
@@ -340,6 +346,8 @@
   function refresh(){
     const count=wordCount(source.value);
     counter.textContent=count.toLocaleString()+' / 3,000 words';
+    inputWords.textContent='Input: '+count.toLocaleString()+' words';
+    outputWords.textContent='Output: '+wordCount(result.value).toLocaleString()+' words';
     counter.classList.toggle('pp-over',count>3000);
     submit.disabled=busy;
     retry.disabled=busy||!result.value.trim()||!originalForResult||
