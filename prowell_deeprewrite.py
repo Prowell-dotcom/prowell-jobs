@@ -333,20 +333,34 @@ def validate_candidate(original, current, candidate, terms, history=(), failures
 
 
 def _parse_candidates(raw):
+    """Accept a few valid JSON rewrite shapes from compact Ollama models.
+
+    No content is trusted until validate_candidate checks exact facts,
+    negations, names and structure against the user's source passage.
+    """
+    if not isinstance(raw, str) or not raw.strip():
+        return []
     try:
-        object_ = json.loads(raw)
+        value = json.loads(raw)
     except (ValueError, TypeError):
         return []
-    value = object_.get("candidates",[]) if isinstance(object_,dict) else []
-    if not isinstance(value,list):
+    if isinstance(value, dict):
+        value = value.get("candidates", value.get("rewrites",
+                      value.get("rewrite", value.get("paraphrased",
+                      value.get("text", [])))))
+    if isinstance(value, str):
+        value = [value]
+    if not isinstance(value, list):
         return []
     out = []
-    for item in value:
-        if isinstance(item,str):
-            out.append(item)
-        elif isinstance(item,dict) and isinstance(item.get("text"),str):
-            out.append(item["text"])
-    return out[:8]
+    for item in value[:8]:
+        if isinstance(item, str) and item.strip():
+            out.append(item.strip())
+        elif isinstance(item, dict):
+            rewrite = item.get("text") or item.get("rewrite")
+            if isinstance(rewrite, str) and rewrite.strip():
+                out.append(rewrite.strip())
+    return out
 
 
 def ollama_generate(url, model, source, tone, level, tokens, count, history,
