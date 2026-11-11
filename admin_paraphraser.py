@@ -284,6 +284,10 @@ def _request_gemini(api_key, model, instructions, prompt):
         raise RuntimeError(
             "Cannot reach Gemini, or the request timed out. Try again."
         ) from None
+    except (ValueError, TypeError, UnicodeDecodeError):
+        raise RuntimeError(
+            "Gemini returned an unreadable response. Retry, or use Test Gemini connection."
+        ) from None
     feedback = data.get("promptFeedback") if isinstance(data, dict) else {}
     if not isinstance(feedback, dict):
         feedback = {}
@@ -519,6 +523,6 @@ def handle_rewrite(handler, rate_checker, rewrite=rewrite_via_provider):
         "paraphrased": output,
         "inputWords": n,
         "outputWords": count_words(output),
-        "editingApproach": "Natural rewrite with a second editorial review",
+        "editingApproach": "Natural editorial rewrite with factual safeguards",
         "reviewReminder": "Review meaning, grammar, references and citations before use."
     })
