@@ -446,6 +446,75 @@ class ParaphraserTests(unittest.TestCase):
         self.assertIn("may contact patients", revised)
         self.assertTrue(tool._local_grammar_ok(original, revised))
 
+    def test_public_paraphraser_allows_anonymous_users(self):
+        user = FakeHandler({
+            'text': 'It is important to note that nurses contacted patients '
+                    'on a regular basis.',
+            'tone': 'student',
+        })
+        user.allowed = False
+        user.csrf = False
+        observed = []
+        with patch('urllib.request.urlopen', side_effect=AssertionError(
+            'Public version must never call a provider')):
+            code, result = tool.handle_public_rewrite(
+                user, lambda ip, name, limit: observed.append(
+                    (ip, name, limit)) or True)
+        self.assertEqual(code, 200)
+        self.assertEqual(result['engine'], 'local')
+        self.assertIn('Nurses contacted patients regularly.', result['paraphrased'])
+        self.assertEqual(observed[0][1], 'public-paraphrase-local')
+        self.assertEqual(observed[0][2], 24)
+        self.assertIn('editStrength', result)
+
+    def test_public_paraphraser_rejects_gemini_without_api_call(self):
+        user = FakeHandler({
+            'text': 'A test paragraph.',
+            'tone': 'natural', 'engine': 'gemini'
+        })
+        user.allowed = False
+        with patch.object(tool, 'rewrite_via_gemini', side_effect=AssertionError(
+            'Do not expose owner Gemini to visitors')):
+            code, data = tool.handle_public_rewrite(user, lambda *args, **kw: True)
+        self.assertEqual(code, 400)
+        self.assertIn('local algorithms', data['error'])
+
+    def test_public_paraphraser_rate_limit_and_invalid_text(self):
+        request = FakeHandler({'text': 'Hello.', 'tone': 'natural'})
+        code, result = tool.handle_public_rewrite(
+            request, lambda *args, **kw: False)
+        self.assertEqual(code, 429)
+        self.assertIn('limit', result['error'].lower())
+        request = FakeHandler({'text': ' ', 'tone': 'natural'})
+        code, result = tool.handle_public_rewrite(
+            request, lambda *args, **kw: True)
+        self.assertEqual(code, 400)
+        self.assertIn('some text', result['error'])
+
+    def test_public_paraphraser_reports_uneditable_input_without_copy(self):
+        request = FakeHandler({
+            'text': 'The doctor read the letter quietly.',
+            'tone': 'student'
+        })
+        code, data = tool.handle_public_rewrite(request, lambda *args, **kw: True)
+        self.assertEqual(code, 422)
+        self.assertNotIn('paraphrased', data)
+        self.assertIn('cannot safely', data['error'])
+
+    def test_public_paraphraser_preserves_numbers_symbols_and_terms(self):
+        request = FakeHandler({
+            'text': 'It is important to note that patients with hypertension '
+                    'took metformin. A total of 25% paid $90 & received '
+                    'follow-ups @ clinic.',
+            'tone': 'student'
+        })
+        code, data = tool.handle_public_rewrite(request, lambda *args, **kw: True)
+        self.assertEqual(code, 200)
+        result = data['paraphrased']
+        for literal in ('hypertension', 'metformin', '25%', '$90', '&', '@'):
+            self.assertIn(literal, result)
+        self.assertTrue(tool._safe_output('It is important to note that patients with hypertension took metformin. A total of 25% paid $90 & received follow-ups @ clinic.', result))
+
     def test_no_key_fails_cleanly(self):
         with patch.dict('os.environ',{'OPENAI_API_KEY':''}):
             with self.assertRaisesRegex(RuntimeError,'not configured'):

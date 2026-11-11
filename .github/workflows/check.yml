@@ -24,6 +24,7 @@ jobs:
       - name: Validate Chrome extension JavaScript
         run: |
           node --check admin.js
+          node --check public-paraphraser.js
           node --check admin-paraphraser.js
           node tests/test_paraphraser_paste.cjs
           node --check extension/4writers/content.js

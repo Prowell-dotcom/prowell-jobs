@@ -1,0 +1,37 @@
+/* Public Prowell Jobs paraphraser – self-contained homepage section */
+.pp-section{background:linear-gradient(160deg,#f3f9f8,#e8f2fd 70%,#f5f9fd);padding:72px 0 82px;scroll-margin-top:90px}
+.pp-intro{display:flex;justify-content:space-between;align-items:flex-end;gap:26px;margin-bottom:26px}
+.pp-intro h2{font-size:clamp(30px,4.2vw,51px);line-height:1.1;color:#0b1b33;margin:11px 0 14px}
+.pp-intro p{color:#526780;line-height:1.8;max-width:700px;margin:0;font-size:15px}
+.pp-access{flex:none;font-weight:750;font-size:12px;background:#e0f6e4;color:#226244;border:1px solid #b7e8c5;padding:10px 16px;border-radius:999px}
+.pp-panel{background:#fff;border:1px solid #dbe7ef;border-radius:22px;box-shadow:0 25px 80px rgba(13,30,52,.09);padding:28px}
+.pp-panel label{font-size:13px;color:#1c3556;font-weight:800;display:block}
+.pp-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
+.pp-toolbar label{margin-right:5px}
+.pp-toolbar select{background:#f8fbfd;border:1px solid #d9e4ef;border-radius:10px;min-height:44px;padding:10px 14px;color:#1b304b;font:inherit;font-size:14px}
+.pp-counter{font-size:12px;color:#51637c;font-weight:800;margin-left:auto}
+.pp-counter.pp-over{color:#ba2539}
+.pp-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:19px}
+.pp-field{min-width:0}
+.pp-field label{margin:0 0 10px}
+.pp-panel textarea{box-sizing:border-box;width:100%;border:1px solid #d5e3ef;border-radius:12px;background:#fbfdff;color:#1c3049;font:14px/1.8 'DM Sans',Arial,sans-serif;padding:15px 17px;resize:vertical;min-height:250px}
+.pp-panel textarea:focus,.pp-toolbar select:focus-visible{outline:3px solid #b0daf5;outline-offset:1px;border-color:#6cacc8}
+.pp-panel textarea[readonly]{background:#f6f9fe}
+.pp-advanced{margin-top:20px;border:1px solid #e0e9f2;border-radius:12px;padding:13px 16px;background:#fbfdff}
+.pp-advanced summary{font-size:13px;font-weight:800;color:#2c4c69;cursor:pointer}
+.pp-advanced label{margin:14px 0 8px}
+.pp-advanced textarea{min-height:88px}
+.pp-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:19px}
+.pp-actions button{min-height:45px;padding:11px 18px;border-radius:10px;border:1px solid #d3e0e9;font:800 13px 'DM Sans',Arial,sans-serif}
+.pp-submit{background:#0b1b33;color:#fff;border-color:#0b1b33!important;display:inline-flex;align-items:center;gap:18px}
+.pp-submit:hover:not(:disabled){background:#23456b}
+.pp-secondary{background:#fff;color:#24435a}
+.pp-secondary:hover:not(:disabled){background:#eef7ff}
+.pp-actions button:disabled{opacity:.48;cursor:not-allowed}
+.pp-status{font-size:13px;line-height:1.65;color:#356286;margin:15px 0 0;overflow-wrap:anywhere}
+.pp-status[data-state=error]{color:#b12b3c}
+.pp-status[data-state=success]{color:#147753}
+.pp-fineprint{color:#64758b;font-size:12px;line-height:1.75;margin:17px 0 0;border-top:1px solid #e9eef4;padding-top:16px}
+.pp-fineprint strong{color:#304964}
+@media(max-width:780px){.pp-section{padding:48px 0}.pp-intro{display:block}.pp-access{display:inline-flex;margin-top:14px}.pp-panel{padding:19px}.pp-columns{grid-template-columns:1fr}.pp-panel textarea{min-height:190px}.pp-actions button{flex:1 1 auto}.pp-toolbar .pp-counter{margin-left:0}}
+@media(max-width:440px){.pp-panel{padding:15px}.pp-panel textarea{font-size:14px}.pp-actions button{min-width:calc(50% - 6px);padding:10px}.pp-submit{flex-basis:100%!important;justify-content:center}}

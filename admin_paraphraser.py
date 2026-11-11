@@ -1104,3 +1104,52 @@ def handle_rewrite(handler, rate_checker, rewrite=rewrite_via_provider):
         ),
         "reviewReminder": "Review meaning, grammar, references and citations before use."
     })
+
+
+def handle_public_rewrite(handler, rate_checker):
+    """Anonymous homepage rewrite. Only local rules; never call external APIs.
+
+    This endpoint deliberately does not reuse the admin Gemini provider
+    selector, preventing untrusted visitors from spending private API quota.
+    """
+    ip = handler.client_address[0]
+    if not rate_checker(ip, "public-paraphrase-local", limit=24):
+        return handler.send_json(429, {
+            "error": "Free usage limit reached for this connection. Try again later."
+        })
+    try:
+        content_type = handler.headers.get("Content-Type", "").split(";", 1)[0].lower().strip()
+        if content_type != "application/json":
+            return handler.send_json(415, {"error": "Send JSON text."})
+        size = int(handler.headers.get("Content-Length", "0"))
+        if size < 1 or size > MAX_REQUEST_BYTES:
+            return handler.send_json(413, {"error": "Text is too large or empty."})
+        data = json.loads(handler.rfile.read(size).decode("utf-8"))
+        if not isinstance(data, dict):
+            raise ValueError("The request must contain text.")
+        if data.get("engine", "local") != "local":
+            raise ValueError("Public paraphrasing uses local algorithms only.")
+        source, tone, count = validate_request(data)
+        terms = _validate_protected_terms(data.get("protectedTerms"), source)
+    except (ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        return handler.send_json(400, {"error": str(error) or "Invalid text."})
+    try:
+        result = rewrite_via_local(source, tone, count, terms)
+        if not _safe_output(source, result, terms):
+            raise RuntimeError("Protected details could not be preserved.")
+        if count_words(result) > MAX_WORDS:
+            raise RuntimeError("The revised text exceeded the 3,000-word limit.")
+        metrics = _rewrite_edit_metrics(source, result, terms)
+    except RuntimeError as error:
+        # The local editor reports inability to safely change wording, not a
+        # provider outage. Let the user try another passage without copying.
+        return handler.send_json(422, {"error": str(error)})
+    return handler.send_json(200, {
+        "paraphrased": result,
+        "engine": "local",
+        "inputWords": count,
+        "outputWords": count_words(result),
+        "editStrength": metrics["editStrength"],
+        "editableTextChangePercent": metrics["editableTextChangePercent"],
+        "reviewReminder": "Review meaning, grammar, quotations, and references before use.",
+    })

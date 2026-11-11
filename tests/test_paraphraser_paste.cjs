@@ -1,98 +1,96 @@
 'use strict';
-const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const path=require('node:path');
+const assert=require('node:assert/strict');
 
 async function run(){
-  const html=fs.readFileSync(path.join(__dirname,'../admin.html'),'utf8');
-  assert.match(html,/id="paraphraseSubmit"(?!\s+disabled)/);
-  assert(html.includes('admin.js?v=verified-editor-v11'));
-  assert(!html.includes('<script src="admin-paraphraser.js'), 'No competing paraphraser script should load');
-  const full=fs.readFileSync(path.join(__dirname,'../admin.js'),'utf8');
-  const start=full.indexOf('// BEGIN PRIVATE PARAPHRASER');
-  assert(start>0,'The paraphraser handler must be in admin.js');
-  const code=full.slice(start);
-
-  assert(html.includes('value="student"'), 'Student writing style must be visible');
-  assert(html.includes('value="local" selected'), 'No-API local engine must be the default');
-  const nodes={}, timed=[],listeners={},posts=[];
-  let fail=false;
-  function node(id){
-    if(!nodes[id]){
-      nodes[id]={
-        value:'',textContent:'',disabled:false,hidden:false,style:{},
-        listeners:{},addEventListener(name,cb){this.listeners[name]=cb;},
-        dispatch(name){return this.listeners[name]?.({preventDefault(){}});},
-        focus(){},select(){},appendChild(){},remove(){}
-      };
-    }
-    return nodes[id];
-  }
-  const ids=['paraphraseForm','paraphraseInput','paraphraseOutput','paraphraseSubmit',
-    'paraphraseStatus','paraphraseInputCount','paraphraseOutputCount',
-    'paraphraseCopy','paraphraseDownload','paraphraseTone','paraphraseClear',
-    'privateParaphraserPanel','paraphraserShortcut','paraphraseProtectedTerms','paraphraseEngine'];
-  ids.forEach(node);
-  node('paraphraseTone').value='student';
-  node('paraphraseEngine').value='local';
-  const document={
-    hidden:false,getElementById:node,
-    addEventListener(name,cb){listeners['document:'+name]=cb;}
+ const index=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+ const admin=fs.readFileSync(path.join(__dirname,'../admin.html'),'utf8');
+ const js=fs.readFileSync(path.join(__dirname,'../public-paraphraser.js'),'utf8');
+ assert(index.includes('id="publicParaphraseForm"'));
+ assert(index.includes('public-paraphraser.js?v=public1'));
+ assert(!admin.includes('id="paraphraseForm"'));
+ const nodes={};
+ const clicks=[];
+ const make=id=>{
+  if(nodes[id])return nodes[id];
+  const n={id,value:'',textContent:'',placeholder:'',disabled:false,
+   dataset:{},style:{},
+   classList:{toggle(){}},
+   events:{},
+   addEventListener(event,fn){this.events[event]=fn},
+   dispatch(event){return this.events[event]?.({preventDefault(){}})},
+   focus(){},select(){},remove(){},
   };
-  const window={
-    addEventListener(name,cb){listeners['window:'+name]=cb;}
-  };
-  let signedIn=true,csrfToken='csrf123';
-  const api=async(request,opts)=>{
-    posts.push({request,opts});
-    if(fail)throw Error('Gemini connection or quota problem.');
-    return {paraphrased:'The revised paragraph reads naturally and clearly.'};
-  };
-  vm.runInNewContext(code,{document,window,api,URL,Blob,AbortController,Date,
-    signedIn,csrfToken,setInterval(cb){timed.push(cb);return 1;},
-    setTimeout(cb){timed.push(cb);return 1;},clearInterval(){},clearTimeout(){},navigator:{clipboard:{writeText:async()=>{}}},
-    console});
-  const input=node('paraphraseInput'),button=node('paraphraseSubmit'),form=node('paraphraseForm');
-  assert.equal(button.disabled,false,'Button must always be clickable when idle');
-  form.dispatch('submit');
-  assert.match(node('paraphraseStatus').textContent,/Paste or type/);
-  assert.equal(posts.length,0);
-
-  node('paraphraseProtectedTerms').value='metformin';
-  input.value='First paragraph is deliberately added with metformin without an input event.';
-  timed[0]();
-  assert.equal(button.disabled,false);
-  assert.equal(node('paraphraseInputCount').textContent,'11 / 3,000 words');
-  form.dispatch('submit');
-  assert.equal(button.disabled,true,'Button must be disabled only during a request');
-  await new Promise(resolve=>setImmediate(resolve));
-  assert.equal(posts.length,1,'Clicking must actually submit the server API request');
-  assert.equal(posts[0].request,'/api/admin/paraphrase');
-  assert.equal(posts[0].opts.method,'POST');
-  assert.equal(JSON.parse(posts[0].opts.body).protectedTerms,'metformin');
-  assert.equal(JSON.parse(posts[0].opts.body).tone,'student');
-  assert.equal(JSON.parse(posts[0].opts.body).engine,'local');
-  assert.equal(posts[0].opts.body.includes(input.value),true);
-  assert.equal(button.disabled,false);
-  assert.match(node('paraphraseOutput').value,/revised paragraph/);
-
-  fail=true;
-  input.value='Second example text should show a clear backend error.';
-  form.dispatch('submit');
-  await new Promise(resolve=>setImmediate(resolve));
-  assert.match(node('paraphraseStatus').textContent,/Paraphrasing failed: Gemini connection or quota problem/);
-  assert.match(node('paraphraseOutput').placeholder,/No result generated/);
-  assert.equal(button.disabled,false,'Button must reset after server error');
-  fail=false;
-
-  input.value=('word ').repeat(3001);
-  timed[0]();
-  assert.equal(button.disabled,false,'Over-length input must show error rather than dead button');
-  form.dispatch('submit');
-  assert.match(node('paraphraseStatus').textContent,/Maximum 3,000 words/);
-  assert.equal(posts.length,2, 'Error case sends a request but over-limit text does not');
-  assert.equal(typeof window.updateProwellParaphraser,'function');
+  nodes[id]=n;return n;
+ };
+ [
+  'publicParaphraseForm','publicParaphraseInput','publicParaphraseOutput',
+  'publicParaphraseSubmit','publicParaphraseStatus','publicParaphraseCount',
+  'publicParaphraseTone','publicParaphraseProtectedTerms',
+  'publicParaphraseClear','publicParaphraseCopy','publicParaphraseDownload'
+ ].forEach(make);
+ const doc={getElementById:make,
+  body:{appendChild(obj){clicks.push(obj)}},
+  createElement(){return{click(){},remove(){}}}
+ };
+ make('publicParaphraseTone').value='student';
+ let error=null;
+ const requests=[];
+ const fetch=async (url,options)=>{
+  requests.push({url,options});
+  if(error)return{ok:false,status:error.code,async json(){return{error:error.message}}};
+  return{ok:true,status:200,async json(){
+   return{paraphrased:'Nurses contacted patients regularly.',
+    editStrength:'Moderate',editableTextChangePercent:28};
+  }};
+ };
+ let copied='';
+ const globalVars={document:doc,fetch,console,
+  AbortController,
+  navigator:{clipboard:{async writeText(value){copied=value}}},
+  Blob:class{},
+  URL:{createObjectURL:()=>'blob:mock',revokeObjectURL(){}},
+  setTimeout:()=>1,clearTimeout(){}};
+ vm.runInNewContext(js,globalVars);
+ const form=make('publicParaphraseForm'),input=make('publicParaphraseInput');
+ const output=make('publicParaphraseOutput'),button=make('publicParaphraseSubmit');
+ await form.dispatch('submit');
+ assert.match(make('publicParaphraseStatus').textContent,/Paste or type/);
+ assert.equal(requests.length,0);
+ input.value='It is important to note that nurses contacted patients on a regular basis.';
+ make('publicParaphraseProtectedTerms').value='metformin';
+ await form.dispatch('submit');
+ assert.equal(requests.length,1);
+ assert.equal(requests[0].url,'/api/paraphrase');
+ assert.equal(requests[0].options.method,'POST');
+ assert.equal(requests[0].options.credentials,'omit');
+ const body=JSON.parse(requests[0].options.body);
+ assert.equal(body.engine,'local');
+ assert.equal(body.tone,'student');
+ assert.equal(body.protectedTerms,'metformin');
+ assert.equal(output.value,'Nurses contacted patients regularly.');
+ assert.equal(button.disabled,false);
+ assert.match(make('publicParaphraseStatus').textContent,/Moderate edit/);
+ assert.equal(make('publicParaphraseCopy').disabled,false);
+ await make('publicParaphraseCopy').dispatch('click');
+ assert.equal(copied,output.value);
+ error={code:422,message:'This passage needs context-sensitive rewriting.'};
+ input.value='This sentence cannot safely be changed.';
+ await form.dispatch('submit');
+ assert.equal(requests.length,2);
+ assert.equal(output.value,'');
+ assert.match(make('publicParaphraseStatus').textContent,/context-sensitive/);
+ assert.equal(button.disabled,false);
+ error=null;
+ input.value=('word ').repeat(3001);
+ await form.dispatch('submit');
+ assert.equal(requests.length,2);
+ assert.match(make('publicParaphraseStatus').textContent,/Maximum 3,000 words/);
+ await make('publicParaphraseClear').dispatch('click');
+ assert.equal(input.value,'');
+ assert.equal(output.value,'');
+ console.log('Public no-login paraphraser form, copy, errors and limits: PASS');
 }
-run().then(()=>console.log('Paraphraser button click and API request simulation PASS'))
-  .catch(error=>{console.error(error);process.exitCode=1;});
+run().catch(e=>{console.error(e);process.exitCode=1;});
