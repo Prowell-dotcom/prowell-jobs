@@ -199,6 +199,7 @@
           <option value="deep" disabled>DeepRewrite · model-generated alternatives</option>
           <option value="hybrid" disabled>Hybrid DeepRewrite · advanced editorial review</option>
           <option value="openai" disabled>OpenAI DeepRewrite · advanced model (usage-limited)</option>
+          <option value="gemini" disabled>Gemini DeepRewrite · alternative model (usage-limited)</option>
         </select>
         <label for="publicParaphraseTone">Choose your writing style</label>
         <select id="publicParaphraseTone" name="tone">
@@ -261,7 +262,7 @@
         <button class="pp-secondary" id="publicParaphraseDownload" type="button" disabled>Download TXT</button>
       </div>
       <p id="publicParaphraseStatus" class="pp-status" role="status" aria-live="polite" aria-atomic="true">Starting Prowell Humanizer… If this message remains, refresh the page.</p>
-      <p class="pp-fineprint"><strong>How Prowell Humanizer works:</strong> Choose a level from 1 to 10 to request increasingly extensive local edits. These are editing-intensity settings, not AI-detector scores. Local rewriting algorithms improve selected phrases and sentence structures while protecting numerical figures, %, $, &amp;, @, quotations, citations and recognized medical names. Fast editing uses bounded language rules; Levels 8–10 now reject a near-copy rather than claim it was substantially paraphrased. Unrestricted deep rewriting still needs a more capable, context-aware model. DeepRewrite, when activated by the owner, uses a privately hosted language model to generate several alternatives and screen them for factual consistency and fluency. The model requires separate hosting and is not enabled until its availability is confirmed. Fast and private-model editing process text on Prowell services. When OpenAI editing is selected, submitted text is sent to OpenAI's API for processing. The app requests that the API not store the generated response. Do not submit passwords, patient records, or confidential personal information. Submitted text is not stored in Prowell's website database. Always review the result for accuracy. Fair-use limits apply.</p>
+      <p class="pp-fineprint"><strong>How Prowell Humanizer works:</strong> Choose a level from 1 to 10 to request increasingly extensive local edits. These are editing-intensity settings, not AI-detector scores. Local rewriting algorithms improve selected phrases and sentence structures while protecting numerical figures, %, $, &amp;, @, quotations, citations and recognized medical names. Fast editing uses bounded language rules; Levels 8–10 now reject a near-copy rather than claim it was substantially paraphrased. Unrestricted deep rewriting still needs a more capable, context-aware model. DeepRewrite, when activated by the owner, uses a privately hosted language model to generate several alternatives and screen them for factual consistency and fluency. The model requires separate hosting and is not enabled until its availability is confirmed. Fast and private-model editing process text on Prowell services. When OpenAI or Gemini editing is selected, submitted text is sent to the chosen third-party provider (OpenAI or Google) for processing. The app requests that the API not store the generated response. Do not submit passwords, patient records, or confidential personal information. Submitted text is not stored in Prowell's website database. Always review the result for accuracy. Fair-use limits apply.</p>
     </form>
   </div>
 </section>
@@ -289,6 +290,7 @@
   const deepStatus=$('publicDeepRewriteStatus');
   let deepAvailable=false;
   let openaiAvailable=false;
+  let geminiAvailable=false;
   const depth=$('publicParaphraseLevel');
   const depthValue=$('publicParaphraseLevelValue');
   const depthDescription=$('publicParaphraseLevelDescription');
@@ -364,8 +366,12 @@
   engine.addEventListener('change',()=>{
     engine.dataset.userSelected='yes';
     rememberDraft();
-    notify(engine.value!=='local'?
-      'Advanced DeepRewrite selected. The private model will generate and compare multiple candidates; longer processing is normal.':
+    notify(engine.value==='gemini'?
+      'Gemini selected. This sends your submitted text to Google for rewriting, subject to provider quotas and safeguards.':
+      engine.value==='openai'?
+      'OpenAI selected. This sends your submitted text to OpenAI. An API credit balance or spending limit may block requests.':
+      engine.value!=='local'?
+      'Private DeepRewrite selected; the model checks rewritten alternatives for accuracy.':
       'Fast editing selected. This uses conservative rules, not full semantic paraphrasing.');
     refresh();
   });
@@ -401,7 +407,8 @@
       return;
     }
     if(engine.value!=='local' && (count>350 ||
-        (engine.value==='openai'?!openaiAvailable:!deepAvailable))){
+        (engine.value==='openai'?!openaiAvailable:
+         engine.value==='gemini'?!geminiAvailable:!deepAvailable))){
       notify(count>350?
         'Advanced rewriting supports up to 350 words per request. Please shorten the passage.':
         'This advanced rewriting provider is not configured or available. Select another engine.','error');
@@ -429,7 +436,7 @@
     refresh();
     const controller=new AbortController();
     const timeout=setTimeout(()=>controller.abort(),
-      engine.value==='hybrid'?240000:engine.value==='openai'?125000:engine.value==='deep'?135000:30000);
+      engine.value==='hybrid'?240000:(engine.value==='openai'||engine.value==='gemini')?125000:engine.value==='deep'?135000:30000);
     try{
       const response=await fetch('/api/paraphrase',{
         method:'POST',cache:'no-store',credentials:'omit',
@@ -447,7 +454,14 @@
       let data;
       try{data=await response.json();}
       catch(_){throw Error('Unexpected server response. Try again in a moment.');}
-      if(!response.ok)throw Error(data?.error||'Rewriting failed (HTTP '+response.status+').');
+      if(!response.ok){
+        let message=data?.error||'Rewriting failed (HTTP '+response.status+').';
+        if(engine.value==='openai' && geminiAvailable &&
+            /credit|billing|spend|quota|limit exhausted/i.test(message)){
+          message+=' You can choose Gemini DeepRewrite in the engine menu instead. Google will process text only if you select it.';
+        }
+        throw Error(message);
+      }
       if(!data||typeof data.paraphrased!=='string'||!data.paraphrased.trim()){
         throw Error('The editor returned no revised text.');
       }
@@ -571,18 +585,23 @@
       const info=await response.json();
       deepAvailable=Boolean(response.ok&&info.deepAvailable);
       openaiAvailable=Boolean(response.ok&&info.openaiAvailable);
+      geminiAvailable=Boolean(response.ok&&info.geminiAvailable);
       for(const option of engine.options){
         if(option.value==='deep'||option.value==='hybrid')option.disabled=!deepAvailable;
         if(option.value==='openai')option.disabled=!openaiAvailable;
+        if(option.value==='gemini')option.disabled=!geminiAvailable;
       }
       if(engine.dataset.userSelected!=='yes'){
         engine.value=openaiAvailable?'openai':deepAvailable?'hybrid':'';
       }
       if(openaiAvailable){
-        deepStatus.textContent='OpenAI DeepRewrite is configured and selected. Requests use a paid API with strict usage limits. Source text is sent to OpenAI for rewriting; do not submit sensitive personal information.';
+        deepStatus.textContent='OpenAI is configured, but billing access is not verified. '+(geminiAvailable?'Gemini is also available as a separately selected alternative. ':'')+'Each external provider processes submitted text under its own policies. Do not submit confidential personal information.';
+        deepStatus.dataset.state='ready';
+      }else if(geminiAvailable){
+        deepStatus.textContent='Gemini rewriting is configured. Select Gemini DeepRewrite explicitly to send text to Google. Model access and quota are not yet verified.';
         deepStatus.dataset.state='ready';
       }else if(deepAvailable){
-        deepStatus.textContent='Private Hybrid DeepRewrite is available, but the higher-quality OpenAI editor is not enabled. Maximum 350 words per request.';
+        deepStatus.textContent='Private Hybrid DeepRewrite is available. External providers are not enabled. Maximum 350 words per request.';
         deepStatus.dataset.state='ready';
       }else{
         deepStatus.textContent='Advanced writing engines are not configured. Fast editing can be selected manually but may produce only limited changes.';
@@ -592,6 +611,7 @@
       if(engine.dataset.userSelected!=='yes')engine.value='';
       deepAvailable=false;
       openaiAvailable=false;
+      geminiAvailable=false;
       deepStatus.textContent='Rewriting provider availability could not be checked. Please refresh or select Fast editing.';
       deepStatus.dataset.state='unavailable';
     }
