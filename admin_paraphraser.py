@@ -870,6 +870,30 @@ def _local_grammar_ok(before, after):
     )
 
 
+def _protected_rewrite_spans(text, protected_terms=()):
+    """Ranges that cannot be modified during a local rule substitution."""
+    patterns = (_QUOTATION, _CITATION, _URL, _EMAIL, _DOI,
+                _NUMBER, _MEDICAL_PATTERN)
+    spans = [match.span()
+             for pattern in patterns
+             for match in pattern.finditer(text)]
+    if protected_terms:
+        spans.extend(match.span() for match in
+                     _terms_pattern(protected_terms).finditer(text))
+    return spans
+
+
+def _apply_unprotected_rule(text, pattern, replacement, protected_terms=()):
+    """Skip matches within protected data, still edit other occurrences."""
+    spans = _protected_rewrite_spans(text, protected_terms)
+    def substitute(match):
+        if any(start < match.end() and end > match.start()
+               for start, end in spans):
+            return match.group(0)
+        return match.expand(replacement)
+    return pattern.sub(substitute, text)
+
+
 def rewrite_via_local(text, tone, count, protected_terms=()):
     """Multi-stage constrained rewrite with zero AI providers or network calls.
 
@@ -883,8 +907,9 @@ def rewrite_via_local(text, tone, count, protected_terms=()):
     # Apply independent edits progressively, verifying the entire source after
     # each edit. Exact quotations, clinical terms and figures are immutable.
     for pattern, replacement in rules:
-        candidate, used = pattern.subn(replacement, updated)
-        if not used:
+        candidate = _apply_unprotected_rule(
+            updated, pattern, replacement, protected_terms)
+        if candidate == updated:
             continue
         if (_safe_output(text, candidate, protected_terms)
                 and _local_grammar_ok(text, candidate)):
