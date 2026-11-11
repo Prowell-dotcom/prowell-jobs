@@ -18,13 +18,18 @@ class PublicParaphraserVisibilityTests(unittest.TestCase):
             'id="publicParaphraseProtectedTerms"',
             'id="publicParaphraseStatus"',
             'href="#paraphraser"',
-            'public-paraphraser.js?v=humanizer-v2',
+            'id="prowell-humanizer-inline"',
+            'novalidate onsubmit="return false;"',
             'public-paraphraser.css?v=admin-style-v3',
             'No login required',
         ):
             with self.subTest(required=name):
                 self.assertIn(name, markup)
         self.assertIn('Natural student voice', markup)
+        self.assertIn('sessionStorage.setItem', markup)
+        self.assertIn('sessionStorage.getItem', markup)
+        self.assertNotIn('src="public-paraphraser.js', markup)
+        self.assertIn("fetch('/api/paraphrase'", markup)
         self.assertIn('Prowell <span>Humanizer.</span>', markup)
         self.assertIn('Humanized result', markup)
         self.assertIn('>Humanize text ', markup)
