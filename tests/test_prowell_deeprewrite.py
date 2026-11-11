@@ -211,6 +211,53 @@ class DeepRewriteTests(unittest.TestCase):
         self.assertFalse(out["AlignScoreUsed"])
         self.assertEqual(gen.call_count,1)
 
+    def test_second_generation_repairs_invalid_first_pass(self):
+        original = (
+            "The clinic contacted patients before their visits. "
+            "Nurses confirmed appointments and documented barriers."
+        )
+        invalid = (
+            "Clinics contact patients during their visits. "
+            "Nurses document successful treatments."
+        )
+        valid = (
+            "Before their visits, the clinic reached patients. "
+            "Nurses verified appointments and recorded barriers."
+        )
+        calls = []
+
+        def generator(*args, **kwargs):
+            calls.append((args, kwargs))
+            return [invalid] if len(calls) == 1 else [valid]
+
+        with self.settings():
+            with patch.object(deep, "ollama_generate", side_effect=generator):
+                out = deep.rewrite(original, original, "student", 9)
+        self.assertEqual(out["paraphrased"], valid)
+        self.assertEqual(out["candidateCount"], 2)
+        self.assertEqual(out["validCandidateCount"], 1)
+        self.assertEqual(len(calls), 2)
+        self.assertFalse(calls[0][1]["fidelity_retry"])
+        self.assertTrue(calls[1][1]["fidelity_retry"])
+        self.assertEqual(calls[1][0][8], 101)
+
+    def test_factual_retry_never_bypasses_safety_checks(self):
+        original = (
+            "The clinic contacted patients before their visits. "
+            "Nurses confirmed appointments and documented barriers."
+        )
+        invalid = (
+            "Clinics contact patients during their visits. "
+            "Nurses document successful treatments."
+        )
+        with self.settings():
+            with patch.object(deep, "ollama_generate",
+                              return_value=[invalid]) as generator:
+                with self.assertRaisesRegex(
+                        deep.DeepRewriteError, "No generated version"):
+                    deep.rewrite(original, original, "student", 10)
+        self.assertEqual(generator.call_count, 2)
+
     def test_no_valid_candidate_fails_without_fake_output(self):
         original=("The clinic used appointment reminders so that staff "
                   "could contact patients before scheduled visits in 2025.")
