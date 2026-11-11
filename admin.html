@@ -13,12 +13,12 @@
 <section class="admin-panel" id="privateParaphraserPanel" hidden aria-labelledby="privateParaphraserTitle">
  <div class="admin-title"><h2 id="privateParaphraserTitle">My private AI Paraphrasing Studio</h2><span class="external-writer-private">ADMINISTRATOR ONLY</span></div>
  <p class="admin-status">Rewrite your text clearly while preserving its meaning, technical terms, names and citations. Accepts any nonempty text up to 3,000 words. Only your signed-in administrator account can use this tool.</p>
- <p class="admin-status"><strong>Default: local algorithms, no API key needed.</strong> This mode uses conservative grammar and sentence transformations. It can improve some wording but cannot match a context-aware language model; unchanged or unsafe passages receive a clear explanation. Gemini is available only if you select it and have configured an API key.</p>
+ <p class="admin-status"><strong>Default: local algorithms, no API key needed.</strong> This improved offline engine combines targeted language patterns, clause restructuring, and careful splitting of long sentences. It protects facts and terminology, but it is not a substitute for a context-aware language model; unsafe or unrewritable passages receive a clear explanation. Gemini is available only if you select it and have configured an API key.</p>
  <form id="paraphraseForm" class="paraphrase-tool">
   <div class="paraphrase-toolbar">
     <label for="paraphraseEngine">Rewriting engine</label>
     <select id="paraphraseEngine" name="engine">
-      <option value="local" selected>Local algorithms — no AI API</option>
+      <option value="local" selected>Advanced local algorithms — no AI API</option>
       <option value="gemini">Gemini AI — optional</option>
     </select>
   </div>
@@ -43,7 +43,7 @@
     <button type="button" class="button button-outline" id="paraphraseCopy" disabled>Copy result</button>
     <button type="button" class="button button-outline" id="paraphraseDownload" disabled>Save as TXT</button></div>
  </form>
- <p class="admin-status"><strong>Modes:</strong> Local algorithms improve known phrases and some sentence structures without an external AI service. Select Gemini only for contextual rewriting. The local mode cannot guarantee substantially different wording for every passage. Protected details are checked, but all writing should be reviewed before use.</p>
+ <p class="admin-status"><strong>Modes:</strong> Advanced local algorithms can simplify academic wording and restructure selected sentences without an external AI service. Select Gemini only for contextual rewriting. The local mode cannot guarantee substantially different wording for every passage. Protected details are checked, but all writing should be reviewed before use.</p>
  <p class="admin-status"><strong>Quality-focused editing:</strong> The studio rewrites and reviews grammar, clarity, and natural sentence flow while protecting citations and numerical details. Review the final meaning and references before use; automated proofreading cannot guarantee perfection.</p>
  <p class="admin-status">Text is sent to the configured AI provider only when you select Paraphrase. This tool does not store the submitted content in your website database.</p>
 </section>
