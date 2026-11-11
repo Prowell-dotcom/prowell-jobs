@@ -442,13 +442,15 @@ window.prowellAdminSignedIn = () => signedIn;
    if(n>3000){status('Maximum 3,000 words; please remove '+(n-3000)+' words.');return;}
    busy=true;
    submit.disabled=true;
+   const engine=byId('paraphraseEngine')?.value||'local';
+   const engineLabel=engine==='local'?'local algorithms':'Gemini';
    output.value='';
-   output.placeholder='Your rewrite is being generated. Processing with Gemini…';
+   output.placeholder='Your text is being edited using '+engineLabel+'…';
    const started=Date.now();
-   status('Request sent. Generating your rewritten text…');
+   status('Rewriting with '+engineLabel+'…');
    const progress=setInterval(()=>{
      const seconds=Math.floor((Date.now()-started)/1000);
-     status('Generating rewritten text… '+seconds+' seconds elapsed. Keep this page open.');
+     status('Rewriting with '+engineLabel+'… '+seconds+' seconds elapsed. Keep this page open.');
    },1000);
    const controller=new AbortController();
    const timeout=setTimeout(()=>controller.abort(),125000);
@@ -458,12 +460,14 @@ window.prowellAdminSignedIn = () => signedIn;
        signal:controller.signal,
        headers:{'Content-Type':'application/json'},
        body:JSON.stringify({text:source,tone:byId('paraphraseTone').value,
-         protectedTerms:byId('paraphraseProtectedTerms')?.value||''})
+         engine,protectedTerms:byId('paraphraseProtectedTerms')?.value||''})
      });
      if(typeof data.paraphrased!=='string'||!data.paraphrased.trim())throw Error('The server returned no rewritten text.');
      output.value=data.paraphrased;
      output.placeholder='Your rewritten text will appear here.';
-     status('Rewriting complete — '+words(output.value).toLocaleString()+' words. Protected details checked; review meaning and fluency.');
+     status((engine==='local'?'Local rule-based edit':'Gemini rewrite')+' complete — '+
+       words(output.value).toLocaleString()+
+       ' words. Protected details checked; review meaning, grammar, and fluency.');
    }catch(err){
      const message=err?.name==='AbortError'
        ?'The request exceeded two minutes. Check the Gemini connection and Railway logs.'
@@ -476,6 +480,12 @@ window.prowellAdminSignedIn = () => signedIn;
      busy=false;
      refresh();
    }
+ });
+
+ byId('paraphraseEngine')?.addEventListener('change',()=>{
+   if(!busy) status(byId('paraphraseEngine').value==='local'?
+     'Local algorithms selected: no AI API or API key is needed.':
+     'Gemini selected: requires a working Gemini API key.');
  });
 
  const connectionButton=byId('testParaphraserConnection');
