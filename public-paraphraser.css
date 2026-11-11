@@ -149,3 +149,10 @@
 .pp-section .pp-deep-availability[data-state="unavailable"]{background:#fffaf0;color:#8c6222}
 .pp-section #publicParaphraseEngine{min-width:236px}
 @media(max-width:680px){.pp-section .pp-deep-availability{padding:11px 17px 13px}.pp-section #publicParaphraseEngine{min-width:0}}
+
+/* Primary Humanize action directly beneath the first writing box. */
+.pp-section .pp-input-actions{display:flex;align-items:center;justify-content:flex-start;margin:12px 0 4px}
+.pp-section .pp-input-actions .pp-submit{display:inline-flex;justify-content:center;align-items:center;gap:8px;min-height:54px;min-width:210px;padding:13px 22px;border:1px solid #5355e5;border-radius:11px;background:#5355e5;color:#fff;font:800 14px "DM Sans",Arial,sans-serif;box-shadow:none;white-space:nowrap;cursor:pointer;transition:background .15s ease,transform .15s ease}
+.pp-section .pp-input-actions .pp-submit:not(:disabled):hover{background:#3e42ca;border-color:#3e42ca;transform:translateY(-1px)}
+.pp-section .pp-input-actions .pp-submit:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:680px){.pp-section .pp-input-actions .pp-submit{width:100%;min-width:0}}
