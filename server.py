@@ -1533,6 +1533,28 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 if __name__ == '__main__':
+    # Deployment quality gate: a failed test prevents a new app instance
+    # from being marked healthy. Railway keeps the previous good deployment.
+    # Avoid requesting the configured external models during unit tests.
+    import subprocess
+    import sys
+    if (ROOT / "tests").is_dir() and os.getenv("PROWELL_STARTUP_TESTS", "1") == "1":
+        print("[Prowell Quality Gate] Running unit tests before startup.", flush=True)
+        try:
+            checked = subprocess.run(
+                [sys.executable, "-m", "unittest", "discover",
+                 "-s", "tests", "-q"], cwd=str(ROOT),
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, timeout=120, check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError("Startup test suite exceeded 120 seconds.") from exc
+        if checked.returncode != 0:
+            # Keep output bounded. Tests should never print API keys or documents.
+            print("[Prowell Quality Gate] Tests failed:\\n" +
+                  checked.stdout[-9000:], flush=True)
+            raise RuntimeError("Unit tests failed; refusing unverified deployment.")
+        print("[Prowell Quality Gate] Tests passed.", flush=True)
     initialize_db()
     threading.Thread(target=notification_loop,daemon=True,name='prowell-notifier').start()
     notification_wake.set()
