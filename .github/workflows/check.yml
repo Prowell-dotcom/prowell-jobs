@@ -25,6 +25,8 @@ jobs:
         run: |
           node --check admin.js
           node --check public-paraphraser.js
+          python -m py_compile prowell_deeprewrite.py
+          node tests/test_prowell_deeprewrite_ui.cjs
           node --check admin-paraphraser.js
           node tests/test_paraphraser_paste.cjs
           node --check extension/4writers/content.js
