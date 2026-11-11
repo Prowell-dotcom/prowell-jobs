@@ -85,6 +85,28 @@ class DeepRewriteTests(unittest.TestCase):
         invented = safe.replace("verify appointments","confirm treatment results")
         self.assertFalse(deep._claims_and_tense_preserved(source,invented))
 
+    def test_fidelity_failure_labels_do_not_contain_source_text(self):
+        source = (
+            "The clinic contacted patients before their visits. "
+            "Nurses confirmed appointments and recorded concerns."
+        )
+        changed = (
+            "Clinics report successful treatment results during visits. "
+            "Nurses record concerns."
+        )
+        issue = deep._fidelity_issue(source, changed)
+        self.assertIsInstance(issue, str)
+        self.assertEqual(issue, "new unsupported outcome or certainty")
+        self.assertNotIn("clinic", issue.lower())
+        self.assertNotIn("Nurses", issue)
+        self.assertEqual(
+            deep._fidelity_issue(
+                "The clinic contacted patients before their visits. "
+                "Nurses confirmed appointments and recorded concerns.",
+                "Before their visits, the clinic reached patients. "
+                "Nurses verified appointments and documented concerns."
+            ), None)
+
     def test_live_model_hallucinated_results_are_rejected(self):
         original = (
             "The clinic contacted patients before scheduled follow-up appointments. "
