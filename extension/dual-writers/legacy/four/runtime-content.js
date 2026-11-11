@@ -26,80 +26,27 @@
   const ACTIONS = 'a,button,input[type="button"],input[type="submit"],[role="button"]';
   let state={...DEFAULTS}, tabId=null, busy=false, pendingScan=false;
   let nextRefresh=null, statusNode=null, lastAction=0;
-  // Pace the ENTIRE available-order acceptance from View to final confirmation:
-  // short=3 seconds, medium=4 seconds, long=5 seconds. Buttons are never
-  // clicked before their stage deadlines. Website latency can make it later.
-  // The order-details scroll itself remains adaptive at 300/500/700ms.
-  // For 4writers, final acknowledgement always scrolls in 300ms.
-  // Website rendering/confirmation latency is outside the extension's control.
-  const POST_VIEW_TARGET_MS=2000; // historical metric retained for compatibility
-  const COMPLETION_TARGETS={300:3000,500:4000,700:5000};
-  const STAGE_FRACTIONS={'take-clicked':0.40,'ok-clicked':0.72,'acknowledged':1};
-  async function setCompletionTarget(claim,scrollMs){
-    if(!active()||!state.claim||!sameOrder(state.claim.id,claim.id))return;
-    if(Number(state.claim.completionTargetMs)>0)return;
-    // Choose only once, from the FIRST order-details popup, so the final
-    // acknowledgement length never changes the total order-taking schedule.
-    const completionTargetMs=COMPLETION_TARGETS[scrollMs]||3000;
-    const completionSize=scrollMs===700?'long':scrollMs===500?'medium':'short';
-    const next={...state.claim,completionTargetMs,completionSize};
-    state.claim=next;
-    await chrome.storage.local.set({claim:next});
-  }
-  async function waitForStageDeadline(stage,claim){
-    const targetMs=Number(claim?.completionTargetMs)||0;
-    const fraction=STAGE_FRACTIONS[stage];
-    if(!targetMs||!fraction)return true; // e.g. processing preview
-    const started=Number(claim.viewClickedAt||claim.startedAt)||Date.now();
-    const deadline=started+Math.round(targetMs*fraction);
-    while(Date.now()<deadline){
-      if(!active()||!state.claim||!sameOrder(state.claim.id,claim.id)||
-         challenge())return false;
-      // Short cancellable waits retain responsiveness to STOP and website
-      // security checks, rather than one long uncancellable sleep.
-      await new Promise(resolve=>setTimeout(resolve,Math.min(120,deadline-Date.now())));
-    }
-    return active()&&state.claim&&sameOrder(state.claim.id,claim.id)&&
-      !challenge()&&Date.now()-state.claim.startedAt<=25000;
-  }
-  // Distance-based timing on order details: near=300ms, medium=500ms,
-  // long=700ms. Five evenly timed waits between six visible scroll steps.
-  // Use the scrollbar's remaining distance, not description word count:
-  // popup heights differ by theme and window size.
-  const SCROLL_STEPS=6;
-  function scrollDuration(el,bottom){
-    const remaining=Math.max(0,Number(bottom)-(Number(el.scrollTop)||0));
-    const viewport=Math.max(1,Number(el.clientHeight)||1);
-    if(remaining<=viewport)return 300;
-    if(remaining<=3*viewport)return 500;
-    return 700;
-  }
+  // Instant mode: no timed stages or gradual scrolling. Only jump to the
+  // bottom of verified order details / acknowledgement panels; never the
+  // available-orders background list. Preserve the original safety checks.
+  const POST_VIEW_TARGET_MS=2000; // legacy reporting threshold only
   let scrolling=false;
-  async function gradualScroll(el,bottom,forcedDurationMs){
-    if(!el || !Number.isFinite(Number(bottom)))return false;
+  function jumpToBottom(el,bottom){
+    if(!el||!Number.isFinite(Number(bottom)))return false;
     const start=Number(el.scrollTop)||0;
     const end=Math.max(start,Number(bottom));
     if(end-start<=2)return false;
-    const durationMs=forcedDurationMs??scrollDuration(el,end);
-    const stepDelayMs=durationMs/(SCROLL_STEPS-1);
-    for(let step=1;step<=SCROLL_STEPS;step++){
-      if(!active() || !state.claim)return false;
-      const t=step/SCROLL_STEPS;
-      const eased=t*t*(3-2*t);
-      try{el.scrollTop=start+(end-start)*eased;}catch(_){return false;}
-      if(step<SCROLL_STEPS)
-        await new Promise(resolve=>setTimeout(resolve,stepDelayMs));
-    }
+    try{el.scrollTop=end;}catch(_){return false;}
     return Number(el.scrollTop)>start+1;
   }
-  async function gradualTargets(nodes,forcedDurationMs){
-    const targets=[...new Set(nodes)].filter(el=>el && el!==document.body &&
-      el!==document.documentElement && el!==document.scrollingElement &&
-      Number(el.clientHeight)>40 &&
+  function jumpTargets(nodes){
+    const targets=[...new Set(nodes)].filter(el=>el&&el!==document.body &&
+      el!==document.documentElement&&el!==document.scrollingElement&&
+      Number(el.clientHeight)>40&&
       Number(el.scrollHeight)-Number(el.clientHeight)>10);
-    const results=await Promise.all(targets.map(el=>
-      gradualScroll(el,Math.max(0,Number(el.scrollHeight)-Number(el.clientHeight)),forcedDurationMs)));
-    return results.some(Boolean);
+    return targets.map(el=>jumpToBottom(el,
+      Math.max(0,Number(el.scrollHeight)-Number(el.clientHeight))))
+      .some(Boolean);
   }
 
   const sendResult = (payload) => chrome.runtime.sendMessage({type:'PROWELL_CLAIM_REPORT',payload},()=>void chrome.runtime.lastError);
@@ -135,9 +82,7 @@
   async function setClaim(id,stage,other={}){
     const claim={id,stage,startedAt:state.claim?.startedAt||Date.now(),
       listUrl:state.claim?.listUrl||location.href,
-      viewClickedAt:state.claim?.viewClickedAt||Date.now(),
-      completionTargetMs:state.claim?.completionTargetMs||null,
-      completionSize:state.claim?.completionSize||null,...other};
+      viewClickedAt:state.claim?.viewClickedAt||Date.now(),...other};
     state.claim=claim;
     await chrome.storage.local.set({claim});
   }
@@ -193,17 +138,7 @@
       // Scroll only inside the verified ORDER INFORMATION popup.
       const descendants=typeof panel.querySelectorAll==='function'
         ?[...panel.querySelectorAll('.modal-body,.modal-content,[class*="scroll"],[style*="overflow"],[data-order-details]')]:[];
-      const panes=[panel,...descendants].filter(el=>
-        el&&el!==document.body&&el!==document.documentElement&&
-        el!==document.scrollingElement&&Number(el.clientHeight)>40&&
-        Number(el.scrollHeight)-Number(el.clientHeight)>10);
-      const scrollMs=panes.length
-        ?Math.max(...panes.map(el=>scrollDuration(el,
-           Number(el.scrollHeight)-Number(el.clientHeight))))
-        :300;
-      if(claim.stage!=='processing-view-clicked')
-        await setCompletionTarget(claim,scrollMs);
-      await gradualTargets([panel,...descendants]);
+      jumpTargets([panel,...descendants]);
       return active() && state.claim && sameOrder(state.claim.id,claim.id);
     }
     // For real full-page View navigation, scroll that details page instead.
@@ -214,10 +149,8 @@
         const root=document.scrollingElement||document.documentElement;
         const bottom=Math.max(0,Number(root?.scrollHeight||document.body?.scrollHeight||0)
           -Number(root?.clientHeight||window.innerHeight||0));
-        if(claim.stage!=='processing-view-clicked')
-          await setCompletionTarget(claim,root?scrollDuration(root,bottom):300);
-        if(root)await gradualScroll(root,bottom);
-        else try{window.scrollTo({top:bottom,behavior:'smooth'});}catch(_){}
+        if(root)jumpToBottom(root,bottom);
+        else try{window.scrollTo(0,bottom);}catch(_){}
         return active()&&state.claim&&sameOrder(state.claim.id,claim.id);
       }
     }
@@ -249,16 +182,16 @@
         parent=parent.parentElement,depth++){
       if(Number(parent.scrollHeight)-Number(parent.clientHeight)>10)nodes.add(parent);
     }
-    // Scroll popup contents over short visible steps, while protecting the
-    // background page. Advance to I understand once the steps finish.
+    // Jump the popup to its bottom without scrolling the background page.
+    // The I understand action starts as soon as its real button exists.
     const scrollables=[...nodes].filter(el=>el!==document.body &&
       el!==document.documentElement && el!==document.scrollingElement &&
       Number(el.clientHeight)>40 &&
       Number(el.scrollHeight)-Number(el.clientHeight)>10);
     const alreadyAtBottom=scrollables.some(el=>
       Number(el.scrollTop)>=Number(el.scrollHeight)-Number(el.clientHeight)-3);
-    // 4writers final acknowledgement is ALWAYS 300ms, independent of length.
-    const moved=await gradualTargets(scrollables,300);
+    // Final acknowledgement: jump to the popup footer immediately.
+    const moved=jumpTargets(scrollables);
     // When the footer is visible without scrolling, it can be clicked now.
     void chrome.storage.local.set({
       lastAcknowledgementScroll:moved?'scrolled-popup':
@@ -275,10 +208,9 @@
     busy=true;stopRefresh();
     try{
       const current=state.claim;
-      if(!current || !await waitForStageDeadline(stage,current))return;
-      // The actual button may disappear, become disabled, or be replaced
-      // while waiting. Never click a stale control just to meet the deadline.
-      if(!visible(el)||!active()||challenge())return;
+      // No per-stage delay. Click only a currently available and valid
+      // button; never bypass website challenges or duplicate claim stages.
+      if(!current||!visible(el)||!active()||challenge())return;
       await setClaim(current.id,stage);
       lastAction=Date.now();
       if(stage==='take-clicked'){
@@ -293,10 +225,8 @@
           Number(state.claim?.viewClickedAt||state.claim?.startedAt||Date.now()));
         await report(message,{lastPostViewDurationMs:elapsedMs,
           lastPostViewWithin2s:elapsedMs<=POST_VIEW_TARGET_MS,
-          lastCompletionTargetMs:Number(state.claim?.completionTargetMs)||null,
-          lastCompletionDurationMs:elapsedMs,
-          lastCompletionNoEarlierThanTarget:elapsedMs>=
-            (Number(state.claim?.completionTargetMs)||0)});
+          lastCompletionTargetMs:null,lastCompletionDurationMs:elapsedMs,
+          lastCompletionNoEarlierThanTarget:null});
       }else await report(message);
     }catch(err){await report('Could not click: '+err.message);}
     finally{busy=false;}
