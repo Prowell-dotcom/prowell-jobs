@@ -35,7 +35,7 @@ async function run(){
  assert(html.includes('id="publicParaphraseInlineFeedback"'));
  assert(html.includes('pp-inline-retry'));
  assert(html.includes('Rehumanize text'));
- assert(html.includes('Your original passage remains unchanged.'));
+ assert(html.includes('The original passage stays unchanged.'));
  assert(html.includes('id="publicParaphraseLevel"'));
  assert(html.includes('min="1" max="10" step="1" value="9"'));
  assert(html.includes('Paraphrasing depth'));
