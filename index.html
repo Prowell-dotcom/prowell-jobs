@@ -193,7 +193,8 @@
         <label for="publicParaphraseEngine">Rewriting engine</label>
         <select id="publicParaphraseEngine" name="engine" aria-describedby="publicDeepRewriteStatus">
           <option value="local">Fast editing · basic algorithms</option>
-          <option value="deep" disabled>DeepRewrite · private language model</option>
+          <option value="deep" disabled>DeepRewrite · model-generated alternatives</option>
+          <option value="hybrid" disabled>Hybrid DeepRewrite · advanced editorial review</option>
         </select>
         <label for="publicParaphraseTone">Choose your writing style</label>
         <select id="publicParaphraseTone" name="tone">
@@ -335,7 +336,7 @@
         depth.value=String(saved.level);
       }
       updateDepth();
-      if(saved.engine==='local'||saved.engine==='deep'){
+      if(saved.engine==='local'||saved.engine==='deep'||saved.engine==='hybrid'){
         engine.dataset.savedChoice=saved.engine;
         if(saved.engine==='local')engine.value='local';
       }
@@ -378,8 +379,8 @@
   $('publicParaphraseTone').addEventListener('change',rememberDraft);
   engine.addEventListener('change',()=>{
     rememberDraft();
-    notify(engine.value==='deep'?
-      'DeepRewrite selected. The private model will generate and compare multiple candidates; longer processing is normal.':
+    notify(engine.value!=='local'?
+      'Advanced DeepRewrite selected. The private model will generate and compare multiple candidates; longer processing is normal.':
       'Fast editing selected. This uses conservative rules, not full semantic paraphrasing.');
     refresh();
   });
@@ -408,7 +409,7 @@
       notify('Maximum 3,000 words; remove '+(count-3000)+' words.','error');
       return;
     }
-    if(engine.value==='deep' && (!deepAvailable || count>350)){
+    if(engine.value!=='local' && (!deepAvailable || count>350)){
       notify(!deepAvailable?
         'DeepRewrite is not active. Select Fast editing or ask the website owner to configure the private model.':
         'DeepRewrite supports up to 350 words at a time. Select a shorter section to preserve quality.','error');
@@ -425,7 +426,7 @@
       // A failing new pass must never erase an already useful result.
       result.placeholder='A revised version will appear here if meaningful changes are possible…';
     }
-    notify(engine.value==='deep'?
+    notify(engine.value!=='local'?
       (again?
         'DeepRewrite is generating different candidates from your current result and checking their consistency…':
         'DeepRewrite is generating multiple alternatives and checking meaning, fluency and protected facts…'):
@@ -436,7 +437,7 @@
     refresh();
     const controller=new AbortController();
     const timeout=setTimeout(()=>controller.abort(),
-      engine.value==='deep'?135000:30000);
+      engine.value==='hybrid'?240000:engine.value==='deep'?135000:30000);
     try{
       const response=await fetch('/api/paraphrase',{
         method:'POST',cache:'no-store',credentials:'omit',
@@ -490,7 +491,7 @@
         (' '+data.editStrength+' edit: '+percent+'% of editable wording changed.'): '';
       const warning=typeof data.qualityWarning==='string'?
         data.qualityWarning.trim():'';
-      const candidates=engine.value==='deep'&&Number.isInteger(data.candidateCount)?
+      const candidates=engine.value!=='local'&&Number.isInteger(data.candidateCount)?
         ' Reviewed '+data.validCandidateCount+' of '+data.candidateCount+
         ' generated versions.':'';
       const intro=again?'Rehumanized result updated.':'Text revision complete.';
@@ -577,11 +578,12 @@
         credentials:'omit',cache:'no-store'});
       const info=await response.json();
       deepAvailable=Boolean(response.ok&&info.deepAvailable);
-      const option=Array.from(engine.options).find(o=>o.value==='deep');
-      if(option)option.disabled=!deepAvailable;
+      for(const option of engine.options){
+        if(option.value==='deep'||option.value==='hybrid')option.disabled=!deepAvailable;
+      }
       if(deepAvailable){
-        if(engine.dataset.savedChoice!=='local')engine.value='deep';
-        deepStatus.textContent='Prowell DeepRewrite is ready. A private language model generates and checks multiple candidates. Up to 350 words per request.';
+        if(engine.dataset.savedChoice!=='local')engine.value=engine.dataset.savedChoice==='deep'?'deep':'hybrid';
+        deepStatus.textContent='Hybrid DeepRewrite is available. It generates alternatives, validates factual details, and can make an additional editorial pass for passages up to 170 words. Maximum input: 350 words.';
         deepStatus.dataset.state='ready';
       }else{
         engine.value='local';
