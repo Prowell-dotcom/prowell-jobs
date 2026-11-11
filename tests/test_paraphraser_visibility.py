@@ -15,6 +15,8 @@ class PublicParaphraserVisibilityTests(unittest.TestCase):
             'id="publicParaphraseOutput"',
             'id="publicParaphraseSubmit"',
             'id="publicParaphraseAgain"',
+            'id="publicParaphraseInlineFeedback"',
+            'pp-inline-retry',
             'Rehumanize text',
             'id="publicParaphraseTone"',
             'id="publicParaphraseProtectedTerms"',
@@ -22,7 +24,7 @@ class PublicParaphraserVisibilityTests(unittest.TestCase):
             'href="#paraphraser"',
             'id="prowell-humanizer-inline"',
             'novalidate onsubmit="return false;"',
-            'public-paraphraser.css?v=humanizer-retry-v5',
+            'public-paraphraser.css?v=rehumanize-visible-v6',
             'No login required',
             'id="publicParaphraseLevel"',
             'id="publicParaphraseLevelValue"',
@@ -31,6 +33,12 @@ class PublicParaphraserVisibilityTests(unittest.TestCase):
         ):
             with self.subTest(required=name):
                 self.assertIn(name, markup)
+        result_header = markup.index('label for="publicParaphraseOutput"')
+        retry_button = markup.index('id="publicParaphraseAgain"')
+        result_textarea = markup.index('id="publicParaphraseOutput"')
+        self.assertTrue(result_header < retry_button < result_textarea)
+        self.assertEqual(markup.count('id="publicParaphraseAgain"'), 1)
+        self.assertIn("immediateStatus.textContent=message", markup)
         self.assertIn('Natural student voice', markup)
         self.assertIn('sessionStorage.setItem', markup)
         self.assertIn('retry.addEventListener', markup)
@@ -78,6 +86,9 @@ class PublicParaphraserVisibilityTests(unittest.TestCase):
         self.assertNotIn("if path == '/api/admin/paraphrase':", source)
         self.assertIn('public-paraphraser.css', docker)
         self.assertIn('public-paraphraser.js', docker)
+        self.assertIn("'/public-paraphraser.css'", source)
+        self.assertIn("'/public-paraphraser.js'", source)
+        self.assertIn("'Cache-Control','no-store, max-age=0, must-revalidate'", source)
         self.assertIn("fetch('/api/paraphrase'", client)
         self.assertNotIn('/api/admin/paraphrase', client)
         self.assertNotIn('csrfToken', client)
