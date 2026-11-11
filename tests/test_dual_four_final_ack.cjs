@@ -101,20 +101,19 @@ async function check(label,range){
    'Timing report should be derived from actual View-to-final click');
  assert.equal(panelY,expected.height-380,
    'Popup must reach its vertical bottom before final click');
- assert.equal(waits.length,4,'Fast acknowledgement uses four 16ms frame waits');
- assert.equal(waits.reduce((a,b)=>a+b,0),64);
+ assert.equal(waits.length,0,'No acknowledgement scroll pauses are permitted');
  assert.equal(pageY,0,
    'Background document must never be scrolled by post-OK step');
  assert.equal(state.lastAcknowledgementScroll,'scrolled-popup',
    'Show evidence of actual popup movement');
- assert.equal(popupEvents.filter(e=>e.startsWith('popup-scroll ')).length,5,
-   'Acknowledgement should move in five fast positions');
+ assert.equal(popupEvents.filter(e=>e.startsWith('popup-scroll ')).length,1,
+   'Acknowledgement should move directly to bottom once');
  assert.equal(popupEvents.at(-1),'acknowledgement-click',
    'Final acceptance must occur after reaching the popup bottom');
  assert.equal(popupEvents[0].startsWith('popup-scroll '),true);
  assert.equal(popupEvents.at(-2),'popup-scroll '+(expected.height-380));
  console.log('4writers post-OK '+label+' '+range+
-   ': fast 64ms popup scroll, then click PASS');
+   ': single bottom scroll, then click PASS');
 }
 
 (async()=>{
