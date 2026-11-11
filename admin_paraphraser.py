@@ -1443,8 +1443,8 @@ def handle_public_rewrite(handler, rate_checker):
         if not isinstance(data, dict):
             raise ValueError("The request must contain text.")
         engine = data.get("engine", "local")
-        if engine not in ("local", "deep"):
-            raise ValueError("Choose Fast editing or DeepRewrite.")
+        if engine not in ("local", "deep", "hybrid"):
+            raise ValueError("Choose Fast editing, DeepRewrite, or Hybrid DeepRewrite.")
         source, tone, count = validate_request(data)
         terms = _validate_protected_terms(data.get("protectedTerms"), source)
         level = validate_rewrite_level(data["level"]) if "level" in data else None
@@ -1474,7 +1474,7 @@ def handle_public_rewrite(handler, rate_checker):
         return handler.send_json(400, {"error": str(error) or "Invalid text."})
     # The private model is intentionally a separate, owner-configured
     # service. Visitors never gain access to it or its network address.
-    if engine == "deep":
+    if engine in ("deep", "hybrid"):
         if not rate_checker(ip, "public-paraphrase-deep", limit=6):
             return handler.send_json(429, {
                 "error":"DeepRewrite limit reached for this connection. Try later."
@@ -1485,7 +1485,8 @@ def handle_public_rewrite(handler, rate_checker):
                         "Fast editing remains available."
             })
         try:
-            generated = deep.rewrite(
+            rewrite_fn = deep.hybrid_rewrite if engine == "hybrid" else deep.rewrite
+            generated = rewrite_fn(
                 source, original_text, tone, level or 9, terms,
                 history=history, attempt=attempt)
             result = generated["paraphrased"]
@@ -1501,7 +1502,9 @@ def handle_public_rewrite(handler, rate_checker):
             return handler.send_json(status, {"error":str(error)})
         return handler.send_json(200, {
             "paraphrased":result,
-            "engine":"deep",
+            "engine":engine,
+            "pipeline":generated.get("enginePipeline", "model_candidates_and_validation"),
+            "editorialPass":generated.get("editorialPass", "not_requested"),
             "mode":mode,
             "revisionNumber":attempt,
             "levelRequested":level,
