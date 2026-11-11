@@ -258,6 +258,28 @@ class DeepRewriteTests(unittest.TestCase):
                     deep.rewrite(original, original, "student", 10)
         self.assertEqual(generator.call_count, 2)
 
+    def test_rejection_diagnostics_never_log_sensitive_text(self):
+        source = (
+            "The clinic contacted patients before appointments in 2025. "
+            "Nurses recorded follow-up issues after the phone calls."
+        )
+        invalid = source.replace("2025", "2026")
+        reasons = []
+        self.assertIsNone(deep.validate_candidate(
+            source, source, invalid, (), failures=reasons))
+        self.assertEqual(reasons, ["protected details"])
+        with self.settings():
+            with patch.object(deep, "ollama_generate",
+                              return_value=[invalid]):
+                with patch("builtins.print") as printer:
+                    with self.assertRaises(deep.DeepRewriteError):
+                        deep.rewrite(source, source, "student", 9)
+        shown = repr(printer.call_args_list)
+        self.assertIn("rejection categories", shown)
+        self.assertNotIn("2025", shown)
+        self.assertNotIn("2026", shown)
+        self.assertNotIn("Nurses recorded", shown)
+
     def test_no_valid_candidate_fails_without_fake_output(self):
         original=("The clinic used appointment reminders so that staff "
                   "could contact patients before scheduled visits in 2025.")
