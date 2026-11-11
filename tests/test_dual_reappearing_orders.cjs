@@ -50,28 +50,26 @@ async function clicks(site,kind){
  cards=[card()];
  vm.runInNewContext(source('legacy/'+site+'/runtime-content.js'),context);
  await settle();
- assert.equal(history.length,1,site+' '+kind+' first View, despite historical ID');
- assert.equal(state.claim?.stage,
-   kind==='processing'?'processing-view-clicked':'view-clicked');
- await store.set({claim:null});
- await settle();
- assert.equal(history.length,1,'Unchanged card must not be clicked again');
+ assert.equal(history.length,1,site+' '+kind+' first View despite historical ID');
+ assert.equal(state.claim,null,'View-only mode leaves no pending auto-claim');
+ assert.equal(state.armed,false,'Bot stops as soon as it opens View');
  cards=[card()];
  mutation([{target:document.body}]);await settle();
- assert.equal(history.length,2,site+' '+kind+' same ID, replacement card requires View');
- await store.set({claim:null});await settle();
- assert.equal(history.length,2,'Second same card must not double-click');
+ assert.equal(history.length,1,'New card must NOT click while stopped');
+ await store.set({armed:true,targetTabId:7,claim:null});await settle();
+ assert.equal(history.length,2,'Explicit START permits the same ID again');
+ assert.equal(state.armed,false,'Second handoff stops again');
  cards=[];mutation([{target:document.body}]);await settle();
  cards=[card()];mutation([{target:document.body}]);await settle();
- assert.equal(history.length,3,site+' '+kind+' after disappearance must trigger View');
- await store.set({claim:null});await settle();
- await store.set({armed:false});await settle();
- await store.set({armed:true});await settle();
- assert.equal(history.length,4,site+' '+kind+' manual restart must rearm same visible ID');
+ assert.equal(history.length,2,'No further View without explicit restart');
+ await store.set({armed:true,targetTabId:7});await settle();
+ assert.equal(history.length,3,'New appearance is eligible on another START');
+ await store.set({armed:true,targetTabId:7});await settle();
+ assert.equal(history.length,4,'Manual restart re-arms same visible ID');
  assert.equal(state.attemptedIds[0],id);
  assert.equal(state.completed[0],id);
  assert.equal(state.processingPreviewedIds[0],id);
- console.log(site+' '+kind+' returning same ID: 4 View actions, no duplicate unchanged card PASS');
+ console.log(site+' '+kind+' returning ID: View once per START, never after STOP PASS');
 }
 async function sound(site){
  const host=site==='four'?'4writers.net':'good-writers.com';
