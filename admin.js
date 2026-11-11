@@ -465,9 +465,12 @@ window.prowellAdminSignedIn = () => signedIn;
      if(typeof data.paraphrased!=='string'||!data.paraphrased.trim())throw Error('The server returned no rewritten text.');
      output.value=data.paraphrased;
      output.placeholder='Your rewritten text will appear here.';
+     const strength=engine==='local'&&data.editStrength?
+       (' '+data.editStrength+' edit ('+Number(data.editableTextChangePercent||0)+
+        '% of editable wording changed; not an AI-detector score).'):'';
      status((engine==='local'?'Local rule-based edit':'Gemini rewrite')+' complete — '+
-       words(output.value).toLocaleString()+
-       ' words. Protected details checked; review meaning, grammar, and fluency.');
+       words(output.value).toLocaleString()+' words.'+strength+
+       ' Protected details checked; review meaning, grammar, and fluency.');
    }catch(err){
      const message=err?.name==='AbortError'
        ?'The request exceeded two minutes. Check the Gemini connection and Railway logs.'

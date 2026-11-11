@@ -31,11 +31,12 @@ class GeminiIntegrationTests(unittest.TestCase):
                     else "In 2025, the results improved by 12%.")
         with patch.dict("os.environ",{
             "GEMINI_API_KEY":"test-key","OPENAI_API_KEY":"",
-            "PARAPHRASER_PROVIDER":"gemini"},clear=False):
+            "PARAPHRASER_PROVIDER":"gemini",
+            "GEMINI_SECOND_PASS":"0"},clear=False):
             with patch.object(p,"_request_gemini",side_effect=fake_request):
                 result=p.rewrite_via_provider(
                     "In 2025, results showed a 12% improvement.","natural",8)
-        self.assertEqual(len(steps),2)
+        self.assertEqual(len(steps),1)  # one-call default avoids extra quota cost
         self.assertEqual(steps[0][1],"gemini-3.8-flash")
         self.assertIn("12%",result)
         self.assertIn("2025",result)
@@ -75,7 +76,7 @@ class GeminiIntegrationTests(unittest.TestCase):
                 p._request_gemini("sensitive-key","gemini-3.8-flash",
                     "Write naturally.","Test")
                 
-    def test_preserves_original_if_proofread_drops_facts(self):
+    def test_rejects_unreliable_rewrite_instead_of_claiming_success(self):
         calls=[]
         def fake_request(*args):
             calls.append(1)
@@ -85,8 +86,9 @@ class GeminiIntegrationTests(unittest.TestCase):
             "GEMINI_API_KEY":"test-key",
             "PARAPHRASER_PROVIDER":"gemini"},clear=False):
             with patch.object(p,"_request_gemini",side_effect=fake_request):
-                result=p.rewrite_via_provider("In 2024, 9% improved.","academic",5)
-        self.assertEqual(result,"In 2024, 9% improved.")
+                with self.assertRaisesRegex(RuntimeError, "protected facts"):
+                    p.rewrite_via_provider("In 2024, 9% improved.","academic",5)
+        self.assertEqual(len(calls), 2, "One near-copy retry must not alter numbers")
 
 if __name__=="__main__":
     unittest.main()
