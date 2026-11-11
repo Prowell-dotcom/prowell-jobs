@@ -190,6 +190,42 @@ class ParaphraserTests(unittest.TestCase):
         self.assertEqual(result, draft)
         self.assertIn("mycophenolate mofetil", calls[0])
 
+    def test_student_style_rewrites_formulaic_text_and_preserves_quotation(self):
+        self.assertIn("college-student", tool.TONES["student"])
+        source = (
+            "It is important to note that regular telephone reminders can "
+            "help the clinic contact patients about upcoming appointments. "
+            "Staff members also explain the schedule and answer questions."
+        )
+        final = (
+            "Clinic staff use regular reminder calls to discuss future "
+            "appointments with patients. During the calls, staff can "
+            "explain the schedule and respond to questions."
+        )
+        self.assertTrue(tool._stilted_prose(source))
+        self.assertFalse(tool._stilted_prose(final))
+        calls = []
+        def fake_request(key, model, instructions, prompt):
+            calls.append((instructions, prompt))
+            return source if len(calls) == 1 else final
+        output = tool._editorial_rewrite(
+            source, "student", fake_request, "test-key", "test-model",
+            second_pass=False)
+        self.assertEqual(output, final)
+        self.assertEqual(len(calls), 2)
+        self.assertIn("college-student", calls[0][0])
+        self.assertFalse(tool._too_similar(source, output))
+        quoted = ('The student copied the phrase '
+                  '"It is important to note that every appointment matters."')
+        self.assertFalse(tool._stilted_prose(quoted))
+
+    def test_symbol_order_can_move_but_literals_cannot_change(self):
+        source = "The clinic spent $90 and helped 20% of patients & staff @ work."
+        output = "At work, staff & patients @ the clinic received help. The clinic spent $90 to reach 20%."
+        self.assertTrue(tool._safe_output(source, output))
+        self.assertFalse(tool._safe_output(source, output.replace("20%", "20 percent")))
+        self.assertFalse(tool._safe_output(source, output.replace("$90", "$91")))
+
     def test_no_key_fails_cleanly(self):
         with patch.dict('os.environ',{'OPENAI_API_KEY':''}):
             with self.assertRaisesRegex(RuntimeError,'not configured'):
