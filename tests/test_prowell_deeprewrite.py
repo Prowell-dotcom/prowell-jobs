@@ -63,6 +63,36 @@ class DeepRewriteTests(unittest.TestCase):
             next(iter(tokens)),""),tokens))
         self.assertIsNone(deep.unmask_candidate(hidden+next(iter(tokens)),tokens))
 
+    def test_named_people_places_acronyms_are_protected(self):
+        text = (
+            "The Homeland Threat Assessment from the United States "
+            "discusses national coordination with DHS and FEMA."
+        )
+        hidden, tokens = deep.mask_protected(text)
+        self.assertNotIn("Homeland Threat Assessment", hidden)
+        self.assertNotIn("United States", hidden)
+        self.assertNotIn("DHS", hidden)
+        self.assertNotIn("FEMA", hidden)
+        self.assertEqual(deep.unmask_candidate(hidden,tokens),text)
+        changed=text.replace("United States","United Kingdom")
+        self.assertIsNone(deep.validate_candidate(
+            text,text,changed,()
+        ))
+
+    def test_deep_model_single_concurrent_slot(self):
+        source = (
+            "The clinic used appointment reminders so that staff "
+            "could contact patients before their scheduled visits."
+        )
+        with self.settings():
+            self.assertTrue(deep._MODEL_SLOT.acquire(blocking=False))
+            try:
+                with self.assertRaisesRegex(
+                        deep.DeepRewriteUnavailable, "processing another request"):
+                    deep.rewrite(source,source,"student",10)
+            finally:
+                deep._MODEL_SLOT.release()
+
     def test_candidate_rejects_changed_figures_and_negation(self):
         original=("The clinic did not contact patients who took metformin "
                   "during 2025 because appointments were cancelled.")
