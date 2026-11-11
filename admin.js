@@ -457,12 +457,13 @@ window.prowellAdminSignedIn = () => signedIn;
        method:'POST',
        signal:controller.signal,
        headers:{'Content-Type':'application/json'},
-       body:JSON.stringify({text:source,tone:byId('paraphraseTone').value})
+       body:JSON.stringify({text:source,tone:byId('paraphraseTone').value,
+         protectedTerms:byId('paraphraseProtectedTerms')?.value||''})
      });
      if(typeof data.paraphrased!=='string'||!data.paraphrased.trim())throw Error('The server returned no rewritten text.');
      output.value=data.paraphrased;
      output.placeholder='Your rewritten text will appear here.';
-     status('Paraphrasing complete — '+words(output.value).toLocaleString()+' words. Review the result before using it.');
+     status('Rewriting complete — '+words(output.value).toLocaleString()+' words. Protected details checked; review meaning and fluency.');
    }catch(err){
      const message=err?.name==='AbortError'
        ?'The request exceeded two minutes. Check the Gemini connection and Railway logs.'
@@ -507,7 +508,9 @@ window.prowellAdminSignedIn = () => signedIn;
 
  byId('paraphraseClear').addEventListener('click',()=>{
    if(busy){status('A rewrite is already in progress.');return;}
-   input.value='';output.value='';status('Cleared.');refresh();
+   input.value='';output.value='';
+   if(byId('paraphraseProtectedTerms'))byId('paraphraseProtectedTerms').value='';
+   status('Cleared.');refresh();
  });
  byId('paraphraseCopy').addEventListener('click',async()=>{
    if(!signedIn||!output.value.trim())return;
