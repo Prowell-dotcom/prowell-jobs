@@ -375,6 +375,36 @@ class ParaphraserAudit(unittest.TestCase):
             request, lambda ip, name, limit: calls.append((name,limit)) or True)
         self.assertEqual(calls, [("public-paraphrase-local", 24)])
 
+    def test_stronger_local_academic_rules_at_high_depth(self):
+        original = (
+            "The report emphasizes the findings in conjunction with a "
+            "discussion of community needs. In the realm of local care, "
+            "a large number of patients have not yet been addressed by "
+            "a follow-up program. The nurse provided a description of "
+            "the existing process."
+        )
+        revised = editor.rewrite_via_local(
+            original, "student", editor.count_words(original), level=10)
+        self.assertIn("report highlights", revised)
+        self.assertIn("alongside", revised)
+        self.assertIn("many patients remain unresolved", revised)
+        self.assertIn("nurse described", revised)
+        self.assertTrue(editor._safe_output(original, revised))
+        self.assertTrue(editor._local_grammar_ok(original, revised))
+
+    def test_rehumanize_no_more_patterns_reports_truth_not_same_text(self):
+        original = "The nurse read the patient's letter carefully."
+        request = Handler({
+            "text": original, "originalText": original,
+            "tone": "student", "level": 10,
+            "mode": "again", "attempt": 1
+        })
+        code, response = editor.handle_public_rewrite(
+            request, lambda *args, **kwargs: True)
+        self.assertEqual(code, 422)
+        self.assertIn("No further safe rewording", response["error"])
+        self.assertNotIn("paraphrased", response)
+
     def test_local_api_response_reports_engine_and_edit_strength(self):
         text=("It is important to note that staff regularly contacted "
               "patients before their follow-up appointments.")
