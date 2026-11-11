@@ -1384,10 +1384,6 @@ class Handler(SimpleHTTPRequestHandler):
             return self.admin_logout()
         if path == '/api/admin/tab-viewed':
             return self.mark_admin_tab_viewed()
-        if path == '/api/admin/paraphrase':
-            return admin_paraphraser.handle_rewrite(self, check_rate)
-        if path == '/api/admin/paraphrase/test-connection':
-            return admin_paraphraser.check_connection(self, check_rate)
         if path == '/api/admin/documents/send':
             return admin_docs.handle_post(self, db_connection, check_rate)
         if path == '/api/admin/good-writers/pair':
