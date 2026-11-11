@@ -625,9 +625,9 @@ def rewrite_via_gemini(text, tone, count, protected_terms=()):
 
 
 
-# Deterministic, no-network rewriting. This is conservative editing, not a
-# replacement for context-sensitive language-model generation. Keep changes
-# limited to idiomatic constructions whose meaning is sufficiently stable.
+# Context-constrained deterministic editing: no external API and no model.
+# A safe editor must prefer accurate light editing to invented paraphrases.
+# Never use random synonyms: substitution is restricted to common equivalences.
 _LOCAL_RULES = (
     (r"\bit is important to note that\s+", ""),
     (r"\bit should be noted that\s+", ""),
@@ -657,35 +657,95 @@ _LOCAL_RULES = (
     (r"\bfurthermore\b", "also"),
     (r"\bmoreover\b", "also"),
     (r"\bnevertheless\b", "still"),
-    (r"\bthe purpose of this (study|paper|report) is to\b",
-     r"this \1 aims to"),
-    (r"\bthe purpose of the (study|paper|report) was to\b",
-     r"the \1 aimed to"),
-    (r"\bthe results of this study showed that\b",
-     "this study found that"),
-    (r"\bthe results of the study showed that\b",
-     "the study found that"),
+    (r"\bin terms of\b", "regarding"),
+    (r"\bat the same time\b", "meanwhile"),
+    (r"\ba key factor in\b", "important for"),
+    (r"\ba key component of\b", "an important part of"),
+    (r"\bwith the aim of\b", "to"),
+    (r"\bto a large extent\b", "largely"),
+    (r"\bthe purpose of this (study|paper|report) is to\b", r"this \1 aims to"),
+    (r"\bthe purpose of the (study|paper|report) was to\b", r"the \1 aimed to"),
+    (r"\bthe objective of this (study|paper|report) is to\b", r"this \1 aims to"),
+    (r"\bthe objective of the (study|paper|report) was to\b", r"the \1 aimed to"),
+    (r"\bthe results of this study showed that\b", "this study found that"),
+    (r"\bthe results of the study showed that\b", "the study found that"),
     (r"\bthe findings of this study suggest that\b",
      "this study's findings suggest that"),
+    (r"\bthe findings of the study suggest that\b",
+     "the study's findings suggest that"),
+    (r"\bmade a decision to\b", "decided to"),
+    (r"\bmakes a decision to\b", "decides to"),
+    (r"\bmake a decision to\b", "decide to"),
+    (r"\bcarried out an assessment of\b", "assessed"),
+    (r"\bconducted an assessment of\b", "assessed"),
+    (r"\bconducted an evaluation of\b", "evaluated"),
+    (r"\bconducted a review of\b", "reviewed"),
+    (r"\bperformed an analysis of\b", "analyzed"),
+    (r"\bconducted an analysis of\b", "analyzed"),
+    (r"\bprovided an explanation of\b", "explained"),
+    (r"\bgave an explanation of\b", "explained"),
+    (r"\bprovide an explanation of\b", "explain"),
+    (r"\bprovided assistance to\b", "helped"),
+    (r"\bprovide assistance to\b", "help"),
+    (r"\bthe implementation of\b", "using"),
+)
+# These choices change the register and are never used for technical,
+# academic, or professional tone.
+_STUDENT_RULES = (
+    (r"\butilized\b", "used"),
+    (r"\butilize\b", "use"),
+    (r"\butilizes\b", "uses"),
+    (r"\butilizing\b", "using"),
+    (r"\bcommenced\b", "began"),
+    (r"\bcommence\b", "begin"),
+    (r"\bcommences\b", "begins"),
+    (r"\bapproximately\b", "about"),
+    (r"\bsubsequently\b", "later"),
+    (r"\bregarding\b", "about"),
+    (r"\bnumerous\b", "many"),
+    (r"\bdemonstrates\b", "shows"),
+    (r"\bdemonstrated\b", "showed"),
+    (r"\bdemonstrate\b", "show"),
 )
 _LOCAL_COMPILED_RULES = tuple(
-    (re.compile(expression, re.IGNORECASE), replacement)
-    for expression, replacement in _LOCAL_RULES
+    (re.compile(pattern, re.IGNORECASE), replacement)
+    for pattern, replacement in _LOCAL_RULES
 )
+_STUDENT_COMPILED_RULES = tuple(
+    (re.compile(pattern, re.IGNORECASE), replacement)
+    for pattern, replacement in _STUDENT_RULES
+)
+
+# Rewriting a causal or contrast clause is far safer than global
+# synonym replacement. Reordering only applies to single simple
+# declarative sentences, with intact clauses.
+_LOWER_AFTER_COMMA = frozenset({
+    "The", "A", "An", "This", "That", "These", "Those",
+    "We", "They", "He", "She", "It", "Nurses", "Patients",
+    "Staff", "Students", "Researchers", "Clinicians", "Teachers",
+    "People", "Parents", "Doctors", "Participants",
+})
+
+
+def _lower_clause_start(clause):
+    """Lowercase common sentence starters, never the proper noun or 'I'."""
+    word = clause.split(" ", 1)[0] if clause else ""
+    if word in _LOWER_AFTER_COMMA:
+        return word.lower() + clause[len(word):]
+    return clause
 
 
 def _capitalize_sentence_starts(value):
-    """Restore capitalization after deleting introductory filler."""
-    # Preserve line breaks, proper nouns, abbreviations and quoted spans.
-    def cap_line(match):
-        prefix, first = match.groups()
-        return prefix + first.upper()
-    return re.sub(r"(^|(?<=[.!?])\s+)([a-z])", cap_line, value,
+    """Capitalize safe sentence starts after removing introductory filler."""
+    def first_letter(match):
+        prefix, letter = match.groups()
+        return prefix + letter.upper()
+    return re.sub(r"(^|(?<=[.!?])\s+)([a-z])", first_letter, value,
                   flags=re.MULTILINE)
 
 
 def _reorder_leading_clause(sentence):
-    """Rearrange a clear initial condition without rewriting terminology."""
+    """Move 'Because/Although/If/When reason, main' after the main clause."""
     found = re.fullmatch(
         r"(Because|Although|If|When)\s+([^,!?]{12,140}),\s+"
         r"([A-Za-z][^!?]{12,260}?)([.!?])",
@@ -694,58 +754,116 @@ def _reorder_leading_clause(sentence):
     if not found:
         return sentence
     conjunction, reason, main, ending = found.groups()
-    main = main.rstrip()
-    # Don't alter proper names, I, or technical abbreviations.
+    if sentence.count(",") != 1 or '"' in sentence or "“" in sentence:
+        return sentence
     if reason.startswith("I ") or re.match(r"[A-Z]{2,}\b", reason):
         reason_text = reason
     else:
         reason_text = reason[0].lower() + reason[1:]
-    candidate = (main + " " + conjunction.lower() + " " +
-                 reason_text + ending)
-    return candidate[0].upper() + candidate[1:]
+    main = main.rstrip()
+    result = main + " " + conjunction.lower() + " " + reason_text + ending
+    return result[:1].upper() + result[1:]
+
+
+def _reorder_trailing_clause(sentence):
+    """Reposition clear 'main because/although reason' into initial clause."""
+    found = re.fullmatch(
+        r"([A-Z][^,;.!?]{16,220}?)\s+(because|although)\s+"
+        r"([a-z][^,;.!?]{12,180})([.!?])",
+        sentence.strip()
+    )
+    if not found or '"' in sentence or "“" in sentence:
+        return sentence
+    main, conjunction, reason, ending = found.groups()
+    if not re.search(r"\b(?:is|are|was|were|has|have|had|did|do|"
+                     r"used|worked|called|helped|completed|provided|"
+                     r"received|found|showed|asked|reported|contacted|"
+                     r"reduced|increased|can|could|will|would)\b",
+                     main, flags=re.IGNORECASE):
+        return sentence
+    result = (conjunction.capitalize() + " " + reason[0].lower() +
+              reason[1:] + ", " + _lower_clause_start(main) + ending)
+    return result
+
+
+def _reframe_contrast(sentence):
+    """Use a dependent 'although' clause for a clear adversative relation."""
+    found = re.fullmatch(
+        r"([A-Z][^;.!?]{14,190}?),\s+but\s+"
+        r"([a-z][^;.!?]{14,190})([.!?])",
+        sentence.strip()
+    )
+    if not found or sentence.count(",") != 1 or '"' in sentence:
+        return sentence
+    first, second, ending = found.groups()
+    return ("Although " + _lower_clause_start(first) + ", " + second +
+            ending)
+
+
+def _local_grammar_ok(before, after):
+    """Reject clearly broken output; this is not a full grammar checker."""
+    if not after.strip() or len(after) > max(220000, len(before) * 4):
+        return False
+    if re.search(r"\b(?:to to|and and|the the|because because|"
+                 r"although although|, ,)\b", after, flags=re.IGNORECASE):
+        return False
+    if re.search(r"[,;]\s*[.!?]", after):
+        return False
+    if len(re.findall(r"[.!?]", after)) < len(re.findall(r"[.!?]", before)):
+        return False
+    # Don't drop negations or modality/uncertainty markers.
+    meaning_words = r"\b(?:not|never|no|without|unless|may|might|must|should)\b"
+    return Counter(re.findall(meaning_words, before.lower())) == Counter(
+        re.findall(meaning_words, after.lower())
+    )
 
 
 def rewrite_via_local(text, tone, count, protected_terms=()):
-    """Run strict no-API, no-model text transformations on the server.
+    """Multi-stage constrained rewrite with zero AI providers or network calls.
 
-    When no conservative rewrite is possible, return an honest explanation
-    instead of copying the source or fabricating information.
+    Intended for safe grammar and stylistic edits, not general semantic
+    paraphrasing. Each accepted change must preserve critical source details.
     """
     updated = text
-    changes = 0
-    for pattern, replacement in _LOCAL_COMPILED_RULES:
-        def fix_case(match):
-            result = match.expand(replacement)
-            return result
-        candidate, used = pattern.subn(fix_case, updated)
-        if used and _safe_output(updated, candidate, protected_terms):
+    rules = list(_LOCAL_COMPILED_RULES)
+    if tone in ("student", "simple", "natural"):
+        rules.extend(_STUDENT_COMPILED_RULES)
+    # Apply independent edits progressively, verifying the entire source after
+    # each edit. Exact quotations, clinical terms and figures are immutable.
+    for pattern, replacement in rules:
+        candidate, used = pattern.subn(replacement, updated)
+        if not used:
+            continue
+        if (_safe_output(text, candidate, protected_terms)
+                and _local_grammar_ok(text, candidate)):
             updated = candidate
-            changes += used
-    updated = _capitalize_sentence_starts(updated)
-    if not _safe_output(text, updated, protected_terms):
-        # Capitalization may have affected an exact case-sensitive medical term.
-        updated = text
-        for pattern, replacement in _LOCAL_COMPILED_RULES:
-            candidate, used = pattern.subn(replacement, updated)
-            if used and _safe_output(text, candidate, protected_terms):
-                updated = candidate
-    # Clause changes are independent: failed candidates leave prior edits intact.
+    capitalized = _capitalize_sentence_starts(updated)
+    if (_safe_output(text, capitalized, protected_terms)
+            and _local_grammar_ok(text, capitalized)):
+        updated = capitalized
+
+    # One structural move per sentence prevents oscillations/reversions.
     segments = re.split(r"(?<=[.!?])(\s+)(?=[A-Z])", updated)
     for i in range(0, len(segments), 2):
         if not segments[i]:
             continue
-        candidate_sentence = _reorder_leading_clause(segments[i])
-        if candidate_sentence == segments[i]:
-            continue
-        trial = "".join(segments[:i] + [candidate_sentence] + segments[i+1:])
-        if _safe_output(text, trial, protected_terms):
-            segments[i] = candidate_sentence
-            changes += 1
+        before_sentence = segments[i]
+        for strategy in (_reorder_leading_clause, _reorder_trailing_clause,
+                         _reframe_contrast):
+            revised_sentence = strategy(before_sentence)
+            if revised_sentence == before_sentence:
+                continue
+            candidate = "".join(segments[:i] + [revised_sentence] + segments[i+1:])
+            if (_safe_output(text, candidate, protected_terms)
+                    and _local_grammar_ok(text, candidate)):
+                segments[i] = revised_sentence
+                break
     updated = "".join(segments).strip()
-    if not updated or not _safe_output(text, updated, protected_terms):
+    if (not _safe_output(text, updated, protected_terms)
+            or not _local_grammar_ok(text, updated)):
         raise RuntimeError(
-            "Local rules could not safely preserve all protected details. "
-            "No changes were applied."
+            "The local editor could not safely preserve the passage's "
+            "facts, terminology and grammatical structure."
         )
     if re.sub(r"\s+", " ", updated).casefold() == re.sub(
         r"\s+", " ", text).casefold():
