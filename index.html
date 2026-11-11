@@ -159,6 +159,16 @@
         </select>
         <span class="pp-counter" id="publicParaphraseCount">0 / 3,000 words</span>
       </div>
+      <div class="pp-depth-control">
+        <div class="pp-depth-head">
+          <label for="publicParaphraseLevel">Paraphrasing depth</label>
+          <output id="publicParaphraseLevelValue" for="publicParaphraseLevel">Level 9 / 10</output>
+        </div>
+        <input id="publicParaphraseLevel" type="range" min="1" max="10" step="1" value="9"
+          aria-describedby="publicParaphraseLevelDescription">
+        <div class="pp-depth-scale"><span>1 · Light editing</span><span>10 · Maximum safe rewrite</span></div>
+        <p id="publicParaphraseLevelDescription">Extensive safe sentence and phrase changes. The amount rewritten depends on your passage; no AI-detector score is guaranteed.</p>
+      </div>
       <div class="pp-columns">
         <div class="pp-field">
           <div class="pp-field-head">
@@ -187,7 +197,7 @@
         <button class="pp-secondary" id="publicParaphraseDownload" type="button" disabled>Download TXT</button>
       </div>
       <p id="publicParaphraseStatus" class="pp-status" role="status" aria-live="polite" aria-atomic="true">Starting Prowell Humanizer… If this message remains, refresh the page.</p>
-      <p class="pp-fineprint"><strong>How Prowell Humanizer works:</strong> Local rewriting algorithms improve selected phrases and sentence structures while protecting numerical figures, %, $, &amp;, @, quotations, citations and recognized medical names. Some text may not be safely rewritten by algorithms alone. Your writing is processed on the Prowell Jobs server without an external AI API and is not saved to the website database. Always review the result for accuracy. Fair-use limits apply.</p>
+      <p class="pp-fineprint"><strong>How Prowell Humanizer works:</strong> Choose a level from 1 to 10 to request increasingly extensive local edits. These are editing-intensity settings, not AI-detector scores. Local rewriting algorithms improve selected phrases and sentence structures while protecting numerical figures, %, $, &amp;, @, quotations, citations and recognized medical names. Some text may not be safely rewritten by algorithms alone. Your writing is processed on the Prowell Jobs server without an external AI API and is not saved to the website database. Always review the result for accuracy. Fair-use limits apply.</p>
     </form>
   </div>
 </section>
