@@ -1,14 +1,69 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0B1B33"><title>Prowell Jobs — Every skill deserves an opportunity</title><meta name="description" content="One platform for work of every kind. Explore opportunities, create a free job-seeker or employer account and connect with possibilities at Prowell Jobs."><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="membership.css?v=responsive-20261105"><script src="member.js?v=writing1" defer></script><link rel="stylesheet" href="public-paraphraser.css?v=public1"><script src="public-paraphraser.js?v=public1" defer></script></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0B1B33"><title>Prowell Jobs — Every skill deserves an opportunity</title><meta name="description" content="One platform for work of every kind. Explore opportunities, create a free job-seeker or employer account and connect with possibilities at Prowell Jobs."><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="membership.css?v=responsive-20261105"><script src="member.js?v=writing1" defer></script><link rel="stylesheet" href="public-paraphraser.css?v=humanizer-v2"><style id="prowell-humanizer-critical-styles">
+/* PROWELL HUMANIZER — deliberately mirrored inline in the homepage
+   so the editor keeps its spacious layout even if a static CSS asset fails. */
+.pp-section{position:relative;isolation:isolate;padding:88px 0 96px;background:linear-gradient(150deg,#eef5f9 0%,#f5f9ff 54%,#f1f8f1 100%);scroll-margin-top:90px;color:#14283f}
+.pp-section::before{content:"";position:absolute;inset:0 0 auto;height:7px;background:linear-gradient(90deg,#0d2442,#3c719e 60%,#b6da72);z-index:-1}
+.pp-section .pp-wrap{max-width:1196px;margin:0 auto;padding:0 30px}
+.pp-section .pp-intro{display:flex;align-items:flex-end;justify-content:space-between;gap:32px;margin:0 0 30px}
+.pp-section .pp-eyebrow{display:inline-flex;gap:9px;align-items:center;color:#2c715b;font-size:12px;font-weight:850;letter-spacing:.12em;text-transform:uppercase;margin:0 0 15px}
+.pp-section .pp-eyebrow::before{content:"";width:9px;height:9px;border-radius:100%;background:#85b84d;box-shadow:0 0 0 5px #d8ebc2}
+.pp-section .pp-intro h2{font-family:Manrope,"DM Sans",Arial,sans-serif;letter-spacing:-.048em;line-height:1.08;font-size:clamp(38px,4.5vw,61px);margin:0 0 16px;color:#0b1b33}
+.pp-section .pp-intro h2 span{color:#659b40}
+.pp-section .pp-intro p{font-size:15px;line-height:1.85;color:#52637c;max-width:670px;margin:0}
+.pp-section .pp-access{display:inline-flex;align-items:center;gap:9px;flex-shrink:0;color:#2f6942;font-size:12px;font-weight:800;padding:11px 16px;border-radius:999px;background:#e4f5de;border:1px solid #c4e7b8;white-space:nowrap}
+.pp-section .pp-access::before{content:"✓";font-weight:900}
+.pp-section .pp-panel{display:block;width:100%;background:#fff;border:1px solid #d9e5ef;border-radius:24px;overflow:hidden;box-shadow:0 24px 75px rgba(15,38,61,.085)}
+.pp-section .pp-panel *{box-sizing:border-box}
+.pp-section .pp-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:13px;padding:21px 27px;background:linear-gradient(90deg,#f8fafc,#fff);border-bottom:1px solid #e5edf5}
+.pp-section .pp-toolbar label{font-size:13px;font-weight:800;color:#2c4360}
+.pp-section .pp-toolbar select{appearance:auto;font:650 14px "DM Sans",Arial,sans-serif;color:#1b3654;min-width:205px;max-width:100%;border:1px solid #cdddea;border-radius:10px;padding:11px 16px;min-height:47px;background:#fff}
+.pp-section .pp-toolbar select:focus-visible,.pp-section textarea:focus-visible,.pp-section button:focus-visible{outline:3px solid #9bc9f2;outline-offset:2px}
+.pp-section .pp-counter{margin-left:auto;display:inline-flex;align-items:center;gap:6px;color:#536b84;background:#edf3f8;border-radius:999px;padding:9px 13px;font-size:12px;font-weight:800}
+.pp-section .pp-counter.pp-over{color:#b02d42;background:#fff0f1}
+.pp-section .pp-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0;min-width:0}
+.pp-section .pp-field{display:flex;flex-direction:column;gap:0;min-width:0;min-height:470px;background:#fff}
+.pp-section .pp-field+.pp-field{border-left:1px solid #e3ebf2;background:#fbfdff}
+.pp-section .pp-field-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 24px;border-bottom:1px solid #edf1f6;background:rgba(247,250,254,.7)}
+.pp-section .pp-field-head label{display:block;color:#1c3653;font-size:15px;font-weight:850}
+.pp-section .pp-field-hint{display:inline-block;color:#6a8299;font-size:12px;font-weight:650}
+.pp-section .pp-field textarea{display:block;width:100%;flex:1 1 auto;border:0;border-radius:0;outline:none;box-shadow:none;padding:25px 26px 28px;background:transparent;min-height:380px;height:400px;resize:vertical;color:#18324b;font:16px/1.86 "DM Sans",Arial,sans-serif;letter-spacing:.005em}
+.pp-section .pp-field textarea::placeholder{color:#8295a9;opacity:1}
+.pp-section .pp-field textarea[readonly]{background:#f9fbfe;color:#23405b}
+.pp-section .pp-field textarea:focus{outline:0;background:#fafdff}
+.pp-section .pp-field+.pp-field textarea:focus{background:#f9fbfe}
+.pp-section .pp-advanced{margin:0;padding:17px 27px;background:#fafcff;border-top:1px solid #e5edf4;border-bottom:1px solid #e5edf4}
+.pp-section .pp-advanced summary{cursor:pointer;color:#284c68;font-size:13px;font-weight:800;list-style-position:inside}
+.pp-section .pp-advanced label{display:block;margin:18px 0 10px;color:#2c4660;font-weight:800;font-size:13px}
+.pp-section .pp-advanced textarea{display:block;width:100%;min-height:94px;resize:vertical;font:14px/1.75 "DM Sans",Arial,sans-serif;padding:15px 16px;border:1px solid #d7e4ef;border-radius:11px;background:#fff;color:#18324b}
+.pp-section .pp-advanced textarea::placeholder{color:#8190a2}
+.pp-section .pp-actions{display:flex;align-items:center;flex-wrap:wrap;gap:11px;padding:22px 27px 11px}
+.pp-section .pp-actions button{display:inline-flex;justify-content:center;align-items:center;gap:8px;font:800 13px "DM Sans",Arial,sans-serif;min-height:49px;padding:12px 20px;border-radius:11px;white-space:nowrap;cursor:pointer;transition:transform .15s ease,background .15s ease,border-color .15s ease}
+.pp-section .pp-actions button:not(:disabled):hover{transform:translateY(-1px)}
+.pp-section .pp-submit{border:1px solid #0b1b33;background:#0b1b33;color:#fff;box-shadow:0 7px 18px rgba(11,27,51,.15);min-width:192px}
+.pp-section .pp-submit:not(:disabled):hover{background:#24496d}
+.pp-section .pp-secondary{border:1px solid #d8e4ee;background:#fff;color:#36516b}
+.pp-section .pp-secondary:not(:disabled):hover{background:#f0f6fa;border-color:#bbd2e2}
+.pp-section .pp-actions button:disabled{opacity:.45;cursor:not-allowed}
+.pp-section .pp-status{margin:0;padding:3px 28px 19px;color:#356287;font-size:13px;line-height:1.7;overflow-wrap:anywhere}
+.pp-section .pp-status[data-state=error]{color:#ae2940}
+.pp-section .pp-status[data-state=success]{color:#206f4d}
+.pp-section .pp-fineprint{margin:0;padding:19px 27px 23px;border-top:1px solid #e5edf4;background:#f8fafc;font-size:12px;line-height:1.8;color:#5b6d80}
+.pp-section .pp-fineprint strong{color:#2e4860}
+@media(max-width:850px){.pp-section{padding:62px 0}.pp-section .pp-intro{align-items:flex-start}.pp-section .pp-panel{border-radius:18px}.pp-section .pp-field{min-height:395px}.pp-section .pp-field textarea{height:325px;min-height:320px;padding:19px 20px;font-size:15px}.pp-section .pp-field-head{padding:15px 19px}.pp-section .pp-intro h2{font-size:clamp(34px,5vw,49px)}}
+@media(max-width:680px){.pp-section{padding:48px 0 64px}.pp-section .pp-wrap{padding:0 17px}.pp-section .pp-intro{display:block;margin-bottom:23px}.pp-section .pp-access{margin-top:17px}.pp-section .pp-toolbar{padding:18px 17px;gap:10px}.pp-section .pp-toolbar select{flex:1 1 160px;min-width:0}.pp-section .pp-counter{margin-left:0}.pp-section .pp-columns{grid-template-columns:minmax(0,1fr)}.pp-section .pp-field{min-height:350px}.pp-section .pp-field textarea{height:280px;min-height:275px}.pp-section .pp-field+.pp-field{border-left:0;border-top:1px solid #e3ebf2}.pp-section .pp-advanced{padding:17px}.pp-section .pp-actions{padding:20px 17px 12px}.pp-section .pp-status{padding:1px 17px 17px}.pp-section .pp-fineprint{padding:17px}.pp-section .pp-actions button{flex:1 1 calc(50% - 12px)}.pp-section .pp-actions .pp-submit{flex:1 1 100%}}
+@media(max-width:380px){.pp-section .pp-access{font-size:11px;white-space:normal}.pp-section .pp-intro h2{font-size:34px}.pp-section .pp-field-head{flex-wrap:wrap}.pp-section .pp-toolbar label{width:100%}.pp-section .pp-actions button{padding:11px 13px}}
+
+</style><script src="public-paraphraser.js?v=humanizer-v2" defer></script></head>
 <body data-page="home">
 <div class="announcement"><div class="m-container"><span><b class="ann-dot"></b> One platform. Every kind of work. Every ambition.</span><a href="/account.html?mode=signup">Membership is 100% free <span aria-hidden="true">↗</span></a></div></div>
-<header class="m-header"><div class="m-container m-header-inner"><a class="m-logo" href="/"><span class="m-logo-icon">P<span>✦</span></span><span class="m-logo-type">prowell<span class="m-logo-accent">.</span><small>JOBS</small></span></a><nav class="m-nav" aria-label="Main navigation"><a href="/jobs.html#jobs">Find jobs</a><a href="/writing.html">Writing & digital services</a><a href="/career-resources.html">Career resources</a><a href="#paraphraser">Free paraphraser</a><a href="#who">Who we serve</a><a href="#why">Why Prowell</a><a href="#ceo">Our CEO</a><a href="#contact">Contact</a></nav><div class="m-header-actions"><a class="m-link" href="/account.html?mode=login" data-member-guest>Log in</a><a class="m-link" href="/dashboard.html" data-member-user hidden>My dashboard</a><a class="m-btn m-btn-small" href="/account.html?mode=signup" data-member-guest>Join for free <span>↗</span></a><a class="m-btn m-btn-small" href="/jobs.html" data-member-user hidden>Find opportunities <span>↗</span></a></div><details class="m-mobile-menu">
+<header class="m-header"><div class="m-container m-header-inner"><a class="m-logo" href="/"><span class="m-logo-icon">P<span>✦</span></span><span class="m-logo-type">prowell<span class="m-logo-accent">.</span><small>JOBS</small></span></a><nav class="m-nav" aria-label="Main navigation"><a href="/jobs.html#jobs">Find jobs</a><a href="/writing.html">Writing & digital services</a><a href="/career-resources.html">Career resources</a><a href="#paraphraser">Prowell Humanizer</a><a href="#who">Who we serve</a><a href="#why">Why Prowell</a><a href="#ceo">Our CEO</a><a href="#contact">Contact</a></nav><div class="m-header-actions"><a class="m-link" href="/account.html?mode=login" data-member-guest>Log in</a><a class="m-link" href="/dashboard.html" data-member-user hidden>My dashboard</a><a class="m-btn m-btn-small" href="/account.html?mode=signup" data-member-guest>Join for free <span>↗</span></a><a class="m-btn m-btn-small" href="/jobs.html" data-member-user hidden>Find opportunities <span>↗</span></a></div><details class="m-mobile-menu">
 <summary aria-label="Open website navigation"><span aria-hidden="true">☰</span><span class="mobile-menu-label">Menu</span></summary>
 <nav class="m-mobile-menu-links" aria-label="Mobile navigation">
 <a href="/jobs.html#jobs">Find jobs</a>
 <a href="/account.html?mode=signup&role=employer">Find employees / Post a vacancy</a>
 <a href="/writing.html">Writing services</a>
-<a href="#paraphraser">Free paraphraser</a>
+<a href="#paraphraser">Prowell Humanizer</a>
 <a href="#contact">Web development &amp; digital solutions</a>
 <a href="#who">Who we serve</a>
 <a href="#why">Why Prowell</a>
@@ -19,52 +74,62 @@
 <a href="/dashboard.html" data-member-user hidden>My dashboard</a>
 </nav></details></div></header>
 <main>
-<section class="m-hero"><div class="m-hero-glow"></div><div class="m-container hero-grid"><div class="hero-copy"><div class="eyebrow light"><span class="eyebrow-circle">✦</span> THE FUTURE OF WORK IS FOR EVERYONE</div><h1>Your skills.<br>Your ambition.<br><em>Your opportunity.</em></h1><p class="hero-lede">From your first shift to your next big career move, Prowell Jobs brings opportunities and people together — across industries, borders and experience levels.</p><div class="hero-buttons"><a class="m-btn m-btn-lime" href="/jobs.html#jobs">Explore opportunities <span>↗</span></a><a class="m-btn m-btn-ghost" href="#paraphraser">Try free paraphraser <span>↓</span></a><a class="m-btn m-btn-ghost" href="/account.html?mode=signup">Create free account <span>→</span></a></div><div class="hero-trust"><span class="hero-mark">✓</span> Free to join <i></i><span>Open to all career paths</span> <i></i><span>Listings reviewed before publication</span></div></div><div class="hero-art" aria-label="Illustration representing work across industries"><div class="hero-art-frame"><img src="/assets/world-of-work.svg" alt="Illustration of people working across different career paths"></div><div class="floating floating-a"><span>✧</span><div><b>Find your way forward</b><small>Opportunities across sectors</small></div></div><div class="floating floating-b"><span>✓</span><div><b>Every job counts</b><small>Casual, skilled & professional</small></div></div><div class="art-spark art-spark-one">✦</div><div class="art-spark art-spark-two">✳</div></div></div><div class="m-container hero-bottom"><span>Discover roles in</span><strong>TRANSPORT & DELIVERY</strong><strong>HEALTHCARE</strong><strong>DOMESTIC WORK</strong><strong>TECHNOLOGY</strong><strong>HOSPITALITY</strong><strong>TRADES</strong></div></section>
+<section class="m-hero"><div class="m-hero-glow"></div><div class="m-container hero-grid"><div class="hero-copy"><div class="eyebrow light"><span class="eyebrow-circle">✦</span> THE FUTURE OF WORK IS FOR EVERYONE</div><h1>Your skills.<br>Your ambition.<br><em>Your opportunity.</em></h1><p class="hero-lede">From your first shift to your next big career move, Prowell Jobs brings opportunities and people together — across industries, borders and experience levels.</p><div class="hero-buttons"><a class="m-btn m-btn-lime" href="/jobs.html#jobs">Explore opportunities <span>↗</span></a><a class="m-btn m-btn-ghost" href="#paraphraser">Try Prowell Humanizer <span>↓</span></a><a class="m-btn m-btn-ghost" href="/account.html?mode=signup">Create free account <span>→</span></a></div><div class="hero-trust"><span class="hero-mark">✓</span> Free to join <i></i><span>Open to all career paths</span> <i></i><span>Listings reviewed before publication</span></div></div><div class="hero-art" aria-label="Illustration representing work across industries"><div class="hero-art-frame"><img src="/assets/world-of-work.svg" alt="Illustration of people working across different career paths"></div><div class="floating floating-a"><span>✧</span><div><b>Find your way forward</b><small>Opportunities across sectors</small></div></div><div class="floating floating-b"><span>✓</span><div><b>Every job counts</b><small>Casual, skilled & professional</small></div></div><div class="art-spark art-spark-one">✦</div><div class="art-spark art-spark-two">✳</div></div></div><div class="m-container hero-bottom"><span>Discover roles in</span><strong>TRANSPORT & DELIVERY</strong><strong>HEALTHCARE</strong><strong>DOMESTIC WORK</strong><strong>TECHNOLOGY</strong><strong>HOSPITALITY</strong><strong>TRADES</strong></div></section>
+
 
 <section id="paraphraser" class="pp-section" aria-labelledby="pp-title">
- <div class="m-container">
-  <div class="pp-intro"><div><span class="eyebrow">FREE WRITING TOOL · NO ACCOUNT NEEDED</span>
-   <h2 id="pp-title">Free online <em>paraphraser.</em></h2>
-   <p>Improve repetitive wording and simplify certain sentence structures in clear, natural English. Paste text and start without signing in.</p></div>
-   <span class="pp-access">Free to use · No login required</span>
+  <div class="pp-wrap">
+    <div class="pp-intro">
+      <div>
+        <span class="pp-eyebrow">PROWELL WRITING STUDIO</span>
+        <h2 id="pp-title">Prowell <span>Humanizer.</span></h2>
+        <p>Refine your writing with clearer sentences and a natural flow. Select a writing style, paste your text, and improve it in seconds.</p>
+      </div>
+      <span class="pp-access">No account or login needed</span>
+    </div>
+    <form id="publicParaphraseForm" class="pp-panel" novalidate>
+      <div class="pp-toolbar">
+        <label for="publicParaphraseTone">Choose your writing style</label>
+        <select id="publicParaphraseTone" name="tone">
+          <option value="natural">Natural and fluent</option>
+          <option value="student" selected>Natural student voice</option>
+          <option value="simple">Simple English</option>
+          <option value="academic">Academic</option>
+          <option value="professional">Professional</option>
+        </select>
+        <span class="pp-counter" id="publicParaphraseCount">0 / 3,000 words</span>
+      </div>
+      <div class="pp-columns">
+        <div class="pp-field">
+          <div class="pp-field-head">
+            <label for="publicParaphraseInput">Your original writing</label>
+            <span class="pp-field-hint">Paste or type here</span>
+          </div>
+          <textarea id="publicParaphraseInput" rows="13" maxlength="85000" placeholder="Paste your paragraph or document here to improve its wording and clarity…" spellcheck="true" required></textarea>
+        </div>
+        <div class="pp-field">
+          <div class="pp-field-head">
+            <label for="publicParaphraseOutput">Humanized result</label>
+            <span class="pp-field-hint">Your refined version</span>
+          </div>
+          <textarea id="publicParaphraseOutput" rows="13" placeholder="Your rewritten text will appear here after you select Humanize text." readonly></textarea>
+        </div>
+      </div>
+      <details class="pp-advanced">
+        <summary>Protect additional medical or technical terms</summary>
+        <label for="publicParaphraseProtectedTerms">Exact words or phrases to keep unchanged</label>
+        <textarea id="publicParaphraseProtectedTerms" rows="3" maxlength="3000" placeholder="Enter uncommon medication names, medical conditions or technical terms, separated by commas or new lines"></textarea>
+      </details>
+      <div class="pp-actions">
+        <button class="pp-submit" id="publicParaphraseSubmit" type="submit">Humanize text <span aria-hidden="true">✦</span></button>
+        <button class="pp-secondary" id="publicParaphraseClear" type="button">Clear text</button>
+        <button class="pp-secondary" id="publicParaphraseCopy" type="button" disabled>Copy result</button>
+        <button class="pp-secondary" id="publicParaphraseDownload" type="button" disabled>Download TXT</button>
+      </div>
+      <p id="publicParaphraseStatus" class="pp-status" role="status" aria-live="polite" aria-atomic="true">Ready to improve your writing. No login required.</p>
+      <p class="pp-fineprint"><strong>How Prowell Humanizer works:</strong> Local rewriting algorithms improve selected phrases and sentence structures while protecting numerical figures, %, $, &amp;, @, quotations, citations and recognized medical names. Some text may not be safely rewritten by algorithms alone. Your writing is processed on the Prowell Jobs server without an external AI API and is not saved to the website database. Always review the result for accuracy. Fair-use limits apply.</p>
+    </form>
   </div>
-  <form id="publicParaphraseForm" class="pp-panel" novalidate>
-   <div class="pp-toolbar">
-    <label for="publicParaphraseTone">Writing style</label>
-    <select id="publicParaphraseTone" name="tone">
-     <option value="natural">Natural and fluent</option>
-     <option value="student" selected>Natural student voice</option>
-     <option value="simple">Simple English</option>
-     <option value="academic">Academic</option>
-     <option value="professional">Professional</option>
-    </select>
-    <span class="pp-counter" id="publicParaphraseCount">0 / 3,000 words</span>
-   </div>
-   <div class="pp-columns">
-    <div class="pp-field">
-     <label for="publicParaphraseInput">Original text</label>
-     <textarea id="publicParaphraseInput" rows="10" maxlength="85000" placeholder="Paste your writing here..." spellcheck="true" required></textarea>
-    </div>
-    <div class="pp-field">
-     <label for="publicParaphraseOutput">Paraphrased result</label>
-     <textarea id="publicParaphraseOutput" rows="10" placeholder="Your revised text will appear here." readonly></textarea>
-    </div>
-   </div>
-   <details class="pp-advanced">
-    <summary>Protect additional medical or technical terms</summary>
-    <label for="publicParaphraseProtectedTerms">Exact words or phrases to keep unchanged</label>
-    <textarea id="publicParaphraseProtectedTerms" rows="2" maxlength="3000" placeholder="Add uncommon medication names, diagnoses or technical terms, separated by commas or new lines"></textarea>
-   </details>
-   <div class="pp-actions">
-    <button class="pp-submit" id="publicParaphraseSubmit" type="submit">Paraphrase text <span aria-hidden="true">↗</span></button>
-    <button class="pp-secondary" id="publicParaphraseClear" type="button">Clear</button>
-    <button class="pp-secondary" id="publicParaphraseCopy" type="button" disabled>Copy result</button>
-    <button class="pp-secondary" id="publicParaphraseDownload" type="button" disabled>Save as TXT</button>
-   </div>
-   <p id="publicParaphraseStatus" class="pp-status" role="status" aria-live="polite" aria-atomic="true">Ready. No account or AI API key is needed.</p>
-   <p class="pp-fineprint"><strong>How this works:</strong> Free local algorithms run on our server. They protect numeric figures, %, $, &amp;, @, citations, quotations and recognized medical terms. The editor may be unable to substantially rewrite some passages without changing their meaning. No third-party AI API is used and no submitted text is saved in the website database. Review all edits before use. Fair-use limits apply.</p>
-  </form>
- </div>
 </section>
 <section id="who" class="m-section m-who"><div class="m-container"><div class="section-head"><div><span class="eyebrow">BUILT FOR REAL PEOPLE</span><h2>One home for<br><em>every kind of work.</em></h2></div><p>Whether you have formal qualifications, practical skills, years of experience, or you're just starting out — you belong here.</p></div><div class="audience-grid"><article class="audience-card card-seeker"><div class="audience-icon">↗</div><span class="card-overline">FOR JOB SEEKERS</span><h3>Opportunity isn't one-size-fits-all.</h3><p>Discover casual jobs, gigs, apprenticeships, skilled trades, and professional careers. Make your skills visible and apply with confidence.</p><div class="tag-row"><span>Boda boda & drivers</span><span>Househelps & caregivers</span><span>Graduates & professionals</span><span>Every skill level</span></div><a href="/account.html?mode=signup&role=jobseeker">Create a free job-seeker account <span>↗</span></a></article><article class="audience-card card-employer"><div class="audience-icon">⌁</div><span class="card-overline">FOR EMPLOYERS</span><h3>Great people build great businesses.</h3><p>Find people for one-day tasks, ongoing positions, specialist roles, and growing teams. Share opportunities for administrator review.</p><div class="tag-row"><span>Families & households</span><span>Small businesses</span><span>Startups & organisations</span><span>Experienced hiring teams</span></div><a href="/account.html?mode=signup&role=employer">Create a free employer account <span>↗</span></a></article></div></div></section>
 <section class="m-sectors"><div class="m-container"><span class="eyebrow">EXPLORE YOUR POSSIBILITIES</span><h2>From hands-on work<br>to high-level careers.</h2><div class="sector-grid"><a href="/jobs.html#jobs"><span>🛵</span><b>Transport & delivery</b><small>Ride-hailing, boda boda, couriers</small></a><a href="/jobs.html#jobs"><span>🏡</span><b>Domestic & care</b><small>Househelps, childcare, caregiving</small></a><a href="/jobs.html#jobs"><span>🛠</span><b>Trades & construction</b><small>Artisans, builders, technicians</small></a><a href="/jobs.html#jobs"><span>💻</span><b>Technology & digital</b><small>IT, design, remote work</small></a><a href="/jobs.html#jobs"><span>🩺</span><b>Health & education</b><small>Nurses, teachers, support staff</small></a><a href="/jobs.html#jobs"><span>🌍</span><b>And everything else</b><small>Agriculture, hospitality, finance & more</small></a></div><a class="m-outline-link" href="/jobs.html#categories">Explore all employment sectors <span>→</span></a></div></section>
