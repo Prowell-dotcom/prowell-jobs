@@ -30,7 +30,7 @@ class PublicParaphraserVisibilityTests(unittest.TestCase):
             'href="#paraphraser"',
             'id="prowell-humanizer-inline"',
             'novalidate onsubmit="return false;"',
-            'public-paraphraser.css?v=deeprewrite-v7',
+            'public-paraphraser.css?v=material-edit-v8',
             'No login required',
             'id="publicParaphraseLevel"',
             'id="publicParaphraseLevelValue"',

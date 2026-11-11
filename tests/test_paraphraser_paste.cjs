@@ -201,7 +201,10 @@ async function run(){
  await fail.pending;
  assert(fail.wasPrevented(),'Backend failure must not navigate away');
  assert.equal(requests.length,5);
- assert.equal(ui.node('publicParaphraseOutput').value,'');
+ assert.equal(ui.node('publicParaphraseOutput').value,
+   'The nurses regularly contacted the patients.',
+   'A failed new rewrite must preserve the previously valid result');
+ assert.match(ui.node('publicParaphraseStatus').textContent,/previous result was preserved/);
  assert.match(ui.node('publicParaphraseStatus').textContent,/context-sensitive/);
  assert.equal(input.value,'Another example which the rules cannot safely rewrite.',
    'Original input must never be erased when rewriting fails');
