@@ -386,7 +386,7 @@ class ParaphraserAudit(unittest.TestCase):
             original, "student", editor.count_words(original), level=10)
         self.assertIn("report highlights", revised)
         self.assertIn("alongside", revised)
-        self.assertIn("many issues remain unresolved", revised)
+        self.assertIn("many issues have still not been addressed", revised)
         self.assertIn("nurse described", revised)
         self.assertTrue(editor._safe_output(original, revised))
         self.assertTrue(editor._local_grammar_ok(original, revised))
