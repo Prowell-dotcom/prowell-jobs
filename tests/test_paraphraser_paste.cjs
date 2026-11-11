@@ -14,6 +14,10 @@ async function run(){
  assert(index.includes('Prowell <span>Humanizer.</span>'));
  assert(index.includes('id="prowell-humanizer-critical-styles"'));
  assert(index.includes('min-height:380px'));
+ assert(index.includes('original administrator studio presentation'));
+ assert(index.includes('grid-template-columns:minmax(0,1fr);gap:22px'));
+ assert(index.includes('height:300px'));
+ assert(index.includes('background:#5355e5'));
  assert(index.includes('class="pp-columns"'));
  assert(index.includes('Humanize text'));
  const nodes={};

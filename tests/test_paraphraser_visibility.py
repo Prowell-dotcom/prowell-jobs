@@ -19,7 +19,7 @@ class PublicParaphraserVisibilityTests(unittest.TestCase):
             'id="publicParaphraseStatus"',
             'href="#paraphraser"',
             'public-paraphraser.js?v=humanizer-v2',
-            'public-paraphraser.css?v=humanizer-v2',
+            'public-paraphraser.css?v=admin-style-v3',
             'No login required',
         ):
             with self.subTest(required=name):
@@ -31,6 +31,11 @@ class PublicParaphraserVisibilityTests(unittest.TestCase):
         self.assertIn('id="prowell-humanizer-critical-styles"', markup)
         self.assertIn('grid-template-columns:minmax(0,1fr) minmax(0,1fr)', markup)
         self.assertIn('min-height:380px', markup)
+        self.assertIn('original administrator studio presentation', markup)
+        self.assertIn('grid-template-columns:minmax(0,1fr);gap:22px', markup)
+        self.assertIn('height:300px', markup)
+        self.assertIn('background:#5355e5', markup)
+        self.assertIn('border:1px solid #e5ebf7', markup)
         self.assertIn('@media(max-width:680px)', markup)
         self.assertNotIn('Free online <em>paraphraser.</em>', markup)
         self.assertNotIn('>Free paraphraser</a>', markup)
