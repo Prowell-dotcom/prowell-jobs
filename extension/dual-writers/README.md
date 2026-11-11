@@ -1,4 +1,4 @@
-# Prowell Dual-Platform Bot v2.1.13
+# Prowell Dual-Platform Bot v2.1.14
 
 ## Source engines and changes
 
@@ -57,7 +57,7 @@ orders and processing-order previews, and also the long post-OK
 acknowledgement popup. The next Take it or I understand click happens only
 after the gradual scroll finishes.
 
-**Instant acceptance mode (v2.1.13):** After View, the bot jumps directly to
+**Instant acceptance mode (v2.1.14):** After View, the bot jumps directly to
 the bottom of the verified order details, then clicks Take it, OK, and the
 final I understand button as soon as each control is available. The former
 3/4/5-second staged delays and gradual scrolling are disabled. The bot
@@ -105,7 +105,7 @@ report other errors unrelated to these fixes; inspect the extension's
 ## Installation
 
 After ProwellJobs is deployed from the new repository commit, download
-**Dual Bot v2.1.13** from the Prowell administrator dashboard. Remove/disable
+**Dual Bot v2.1.14** from the Prowell administrator dashboard. Remove/disable
 the previous dual and separate bots, extract the new ZIP, and load the folder
 containing `manifest.json` through `chrome://extensions` with Developer Mode
 enabled. Reload the 4writers and Good-Writers site tabs. Press START separately
@@ -137,20 +137,24 @@ Previously stored attempted/completed/previewed IDs are now **history only**: th
 
 Both sites' gradual scrolling still uses six visible increments, now spaced by 18 milliseconds, approximately 0.09 seconds per popup under normal foreground browser timing. This is a speed target, not a guarantee under browser throttling.
 
-### 500 ms gradual scrolling (v2.1.13)
+### 500 ms gradual scrolling (v2.1.14)
 
 The active 4writers and Good-Writers order-details and final acknowledgement popups now scroll in **six visible positions over five 100 ms intervals**, totaling approximately **500 milliseconds per scroll** when browser timers run normally. The Take it and I understand actions still begin after their corresponding scroll completes; refreshing, notifications, repeated-order handling and other steps are unchanged. A full new-order acceptance includes up to two such scrolls and may exceed the earlier two-second target if website responses are slow. Browser throttling can also increase actual duration.
 
-### Adaptive scroll timing (v2.1.13)
+### Adaptive scroll timing (v2.1.14)
 
 The dual bot measures the **remaining scroll distance** of each visible scrollable order-details panel relative to its visible height. If the target is within one popup-height, the motion takes **300 ms**; between one and three heights, **500 ms**; beyond three heights, **700 ms**. It keeps six smooth steps, waits for scrolling to finish, and only then proceeds to Take it. Good-Writers uses these same three categories for its post-OK acknowledgement.
 
 **Special 4writers rule:** the *final* post-OK **I understand, take the order** acknowledgement popup always scrolls in **300 ms** regardless of length. This rule does not affect the first order-details popup. Processing orders use the same adaptive first-popup scrolling but do not click Take it. A zero-distance popup can proceed immediately because no scrolling is needed. Other steps, sound, refresh logic, same-ID reappearance handling, and the small popup controls are unchanged. Website load time and browser throttling can extend actual durations.
 
-### Deliberate 3/4/5-second complete acceptance (v2.1.13)
+### Deliberate 3/4/5-second complete acceptance (v2.1.14)
 
 On BOTH 4writers and Good-Writers, the first order-details popup determines the total schedule after **View**: **short = 3,000 ms**, **medium = 4,000 ms**, **long = 5,000 ms**. The automated workflow now spreads actions over that period rather than completing every click immediately: Take it no earlier than 40% of the target, OK at 72%, and I understand at 100%. The selected size and target are carried through every claim stage, including navigation and content updates. The final acknowledgement click cannot occur before its deadline. The website may respond too slowly to finish exactly on time, and the bot does not skip controls or bypass security checks to meet the target. Processing-order previews remain View → gradual scrolling → stop, not an acceptance flow. Restarted/returning orders remain eligible and the compact START/STOP buttons are unchanged.
 
-### Instant order-taking and direct bottom jump (v2.1.13)
+### Instant order-taking and direct bottom jump (v2.1.14)
 
-On both websites, order details and final acknowledgement popups **jump directly to the bottom** rather than scrolling in increments. No artificial waiting for Take it, OK or I understand remains. The bot clicks each real available control in sequence as soon as it appears. The former 3/4/5-second whole-flow pacing is disabled. The prior gradual-scrolling and timing sections above document older versions, not the current mode. Processing previews still perform only View → instant details jump → stop; they do not accept orders. Same-ID reappearance handling, scoped START/STOP buttons, security challenge checks, section refreshing and audible notifications remain unchanged. A website that loads buttons slowly can still delay completion.
+On both websites, order details **jump directly to the bottom** rather than scrolling in increments. **Only 4writers** jumps to the bottom of its final acknowledgement popup; Good-Writers clicks its already-visible **I understand** button without another scroll. No artificial waiting for Take it, OK or I understand remains. The bot clicks each real available control in sequence as soon as it appears. The former 3/4/5-second whole-flow pacing is disabled. The prior gradual-scrolling and timing sections above document older versions, not the current mode. Processing previews still perform only View → instant details jump → stop; they do not accept orders. Same-ID reappearance handling, scoped START/STOP buttons, security challenge checks, section refreshing and audible notifications remain unchanged. A website that loads buttons slowly can still delay completion.
+
+### Good-Writers final acknowledgement — no scrolling (v2.1.14)
+
+The Good-Writers sequence is **View → instant bottom jump through order details → Take it → OK → I understand**. There is **no second scroll after OK** on Good-Writers: its final confirmation button is already visible, so the bot clicks it immediately when ready. 4writers retains the distinct **View → instant details jump → Take it → OK → instant final popup jump → I understand** sequence. Other behavior, including order detection, duplicate-appearance protection, processing previews, notification sound, refreshing and compact START/STOP controls, remains unchanged.
