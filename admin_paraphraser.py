@@ -67,7 +67,7 @@ def extract_text(response):
 _NUMBER = re.compile(r"(?<![\w])[-−+]?[$€£]?\d+(?:,\d{3})*(?:\.\d+)?%?(?![\w])")
 _CITATION = re.compile(r"\([^)\n]{0,160}\b(?:19|20)\d{2}[a-z]?\b[^)\n]{0,100}\)")
 _URL = re.compile(r"https?://[^\s)>\]]+")
-_EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}")
+_EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 _DOI = re.compile(r"\b10\.\d{4,9}/[^\s)>\]]+", re.IGNORECASE)
 _QUOTATION = re.compile(r'“[^”\n]{15,}”|"[^"\n]{15,}"')
 _SYMBOLS = re.compile(r"[%$&@]")
