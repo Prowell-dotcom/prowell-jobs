@@ -1099,8 +1099,9 @@ def _rehumanize_local(text, tone, protected_terms, level, attempt,
                _REHUMANIZE_COMPILED_RULES[:start])
     edited = prior
     for pattern, replacement in choices:
-        alternative = _apply_unprotected_rule(
-            edited, pattern, replacement, protected_terms)
+        alternative = _capitalize_sentence_starts(
+            _apply_unprotected_rule(
+                edited, pattern, replacement, protected_terms))
         if alternative == edited:
             continue
         if (_safe_output(original_text, alternative, protected_terms)
@@ -1117,8 +1118,9 @@ def _rehumanize_local(text, tone, protected_terms, level, attempt,
                 original_text, tone, count_words(original_text),
                 protected_terms, level=level)
             for pattern, replacement in choices:
-                changed = _apply_unprotected_rule(
-                    alternate, pattern, replacement, protected_terms)
+                changed = _capitalize_sentence_starts(
+                    _apply_unprotected_rule(
+                        alternate, pattern, replacement, protected_terms))
                 if (_safe_output(original_text, changed, protected_terms)
                         and _local_grammar_ok(original_text, changed)):
                     alternate = changed
