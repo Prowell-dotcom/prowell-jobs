@@ -91,8 +91,14 @@
       const percent=Number(data.editableTextChangePercent);
       const description=(typeof data.editStrength==='string'&&Number.isFinite(percent))?
         (' '+data.editStrength+' edit: '+percent+'% of editable wording changed (not a human-authorship score).'):'';
-      notify('Completed — '+wordCount(result.value).toLocaleString()+
-        ' words.'+description+' Review the revised text for accuracy.','success');
+      const warning=typeof data.qualityWarning==='string'?
+        data.qualityWarning.trim():'';
+      if(warning){
+        notify('Light edit only — '+description.trim()+' '+warning,'warning');
+      }else{
+        notify('Completed — '+wordCount(result.value).toLocaleString()+
+          ' words.'+description+' Review the revised text for accuracy.','success');
+      }
     }catch(error){
       const message=error?.name==='AbortError'?
         'The request timed out. Please try a shorter passage.':
