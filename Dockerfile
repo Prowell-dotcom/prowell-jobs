@@ -8,5 +8,10 @@ COPY extension/4writers/ ./extension/4writers/
 COPY extension/good-writers/ ./extension/good-writers/
 COPY extension/dual-writers/ ./extension/dual-writers/
 COPY assets/ ./assets/
+# This is a deployment gate, not a post-deploy warning. A failing test
+# prevents Docker from producing an image for Railway to promote.
+COPY tests/ ./tests/
+RUN python -m compileall -q server.py admin_paraphraser.py prowell_deeprewrite.py tests \
+    && python -m unittest discover -s tests -q
 EXPOSE 8000
 CMD ["python", "server.py"]
