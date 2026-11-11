@@ -775,8 +775,11 @@ _DEEP_LOCAL_RULES = (
     (9, r"\boffers an explanation of\b", "explains"),
     (9, r"\bhas the ability to\b", "can"),
     (9, r"\bhave the ability to\b", "can"),
-    (10, r"\bhave not yet been addressed\b", "remain unresolved"),
-    (10, r"\bhas not yet been addressed\b", "remains unresolved"),
+    # Only unresolved issues/gaps, not people or medical conditions.
+    (10, r"\b(issues|concerns|problems|gaps) have not yet been addressed\b",
+     r"\1 remain unresolved"),
+    (10, r"\b(an issue|a concern|a problem|the issue|the concern|the problem) has not yet been addressed\b",
+     r"\1 remains unresolved"),
     (10, r"\bthe readiness of all sectors\b", "how prepared each sector is"),
     (10, r"\bthe coordinated system of responses\b", "coordinated responses"),
     (10, r"\bas outlined in the guidance\b", "as described in the guidance"),
