@@ -7,13 +7,14 @@ const path=require('node:path');
 async function run(){
   const html=fs.readFileSync(path.join(__dirname,'../admin.html'),'utf8');
   assert.match(html,/id="paraphraseSubmit"(?!\s+disabled)/);
-  assert(html.includes('admin.js?v=medical-safe-paraphrase-v8'));
+  assert(html.includes('admin.js?v=student-fluency-v9'));
   assert(!html.includes('<script src="admin-paraphraser.js'), 'No competing paraphraser script should load');
   const full=fs.readFileSync(path.join(__dirname,'../admin.js'),'utf8');
   const start=full.indexOf('// BEGIN PRIVATE PARAPHRASER');
   assert(start>0,'The paraphraser handler must be in admin.js');
   const code=full.slice(start);
 
+  assert(html.includes('value="student"'), 'Student writing style must be visible');
   const nodes={}, timed=[],listeners={},posts=[];
   let fail=false;
   function node(id){
@@ -32,7 +33,7 @@ async function run(){
     'paraphraseCopy','paraphraseDownload','paraphraseTone','paraphraseClear',
     'privateParaphraserPanel','paraphraserShortcut','paraphraseProtectedTerms'];
   ids.forEach(node);
-  node('paraphraseTone').value='natural';
+  node('paraphraseTone').value='student';
   const document={
     hidden:false,getElementById:node,
     addEventListener(name,cb){listeners['document:'+name]=cb;}
@@ -57,10 +58,10 @@ async function run(){
   assert.equal(posts.length,0);
 
   node('paraphraseProtectedTerms').value='metformin';
-  input.value='First paragraph is deliberately added without an input event.';
+  input.value='First paragraph is deliberately added with metformin without an input event.';
   timed[0]();
   assert.equal(button.disabled,false);
-  assert.equal(node('paraphraseInputCount').textContent,'9 / 3,000 words');
+  assert.equal(node('paraphraseInputCount').textContent,'11 / 3,000 words');
   form.dispatch('submit');
   assert.equal(button.disabled,true,'Button must be disabled only during a request');
   await new Promise(resolve=>setImmediate(resolve));
@@ -68,6 +69,7 @@ async function run(){
   assert.equal(posts[0].request,'/api/admin/paraphrase');
   assert.equal(posts[0].opts.method,'POST');
   assert.equal(JSON.parse(posts[0].opts.body).protectedTerms,'metformin');
+  assert.equal(JSON.parse(posts[0].opts.body).tone,'student');
   assert.equal(posts[0].opts.body.includes(input.value),true);
   assert.equal(button.disabled,false);
   assert.match(node('paraphraseOutput').value,/revised paragraph/);
@@ -86,7 +88,7 @@ async function run(){
   assert.equal(button.disabled,false,'Over-length input must show error rather than dead button');
   form.dispatch('submit');
   assert.match(node('paraphraseStatus').textContent,/Maximum 3,000 words/);
-  assert.equal(posts.length,1);
+  assert.equal(posts.length,2, 'Error case sends a request but over-limit text does not');
   assert.equal(typeof window.updateProwellParaphraser,'function');
 }
 run().then(()=>console.log('Paraphraser button click and API request simulation PASS'))
