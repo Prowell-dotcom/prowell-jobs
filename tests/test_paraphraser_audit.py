@@ -262,6 +262,119 @@ class ParaphraserAudit(unittest.TestCase):
         self.assertIn("not a full paraphrase", data["qualityWarning"])
         self.assertTrue(editor._safe_output(original, data["paraphrased"]))
 
+    def test_rehumanize_uses_current_result_and_keeps_original_intact(self):
+        original = (
+            "It is important to note that this paper considers "
+            "2025 homeland security threats."
+        )
+        first_request = Handler({
+            "text": original, "engine": "local",
+            "tone": "student", "level": 10
+        })
+        status, first = editor.handle_public_rewrite(
+            first_request, lambda *args, **kwargs: True)
+        self.assertEqual(status, 200)
+        self.assertIn("This paper examines", first["paraphrased"])
+        revised = first["paraphrased"]
+        second_request = Handler({
+            "text": revised, "originalText": original,
+            "engine": "local", "mode": "again", "attempt": 1,
+            "tone": "student", "level": 10
+        })
+        status, second = editor.handle_public_rewrite(
+            second_request, lambda *args, **kwargs: True)
+        self.assertEqual(status, 200)
+        self.assertEqual(second["mode"], "again")
+        self.assertEqual(second["revisionNumber"], 1)
+        self.assertIn("This paper looks at", second["paraphrased"])
+        self.assertNotEqual(revised, second["paraphrased"])
+        self.assertTrue(editor._safe_output(original, second["paraphrased"]))
+        self.assertEqual(
+            original,
+            "It is important to note that this paper considers "
+            "2025 homeland security threats."
+        )
+
+    def test_rehumanize_retains_medical_terms_figures_symbols(self):
+        original = (
+            "It is important to note that this paper considers "
+            "2025 follow-up results for 25% of patients with hypertension "
+            "taking metformin at a cost of $90 & receiving services @ clinic."
+        )
+        first = editor.rewrite_via_local(
+            original, "student", editor.count_words(original), level=10)
+        request = Handler({
+            "text": first, "originalText": original,
+            "tone": "student", "level": 10, "mode": "again",
+            "attempt": 1
+        })
+        code, data = editor.handle_public_rewrite(
+            request, lambda *args, **kwargs: True)
+        self.assertEqual(code, 200)
+        self.assertTrue(editor._safe_output(original, data["paraphrased"]))
+        self.assertNotEqual(data["paraphrased"], first)
+        for unchanged in (
+            "2025", "25%", "hypertension", "metformin",
+            "$90", "&", "@"
+        ):
+            self.assertIn(unchanged, data["paraphrased"])
+
+    def test_rehumanize_refuses_fabricated_rewrites(self):
+        original = "The nurse read the patient's letter carefully."
+        request = Handler({
+            "text": original, "originalText": original,
+            "tone": "natural", "level": 10,
+            "mode": "again", "attempt": 1
+        })
+        code, data = editor.handle_public_rewrite(
+            request, lambda *args, **kwargs: True)
+        self.assertEqual(code, 422)
+        self.assertNotIn("paraphrased", data)
+        self.assertIn("No further safe rewording", data["error"])
+
+    def test_rehumanize_rejects_invalid_attempt_or_changed_facts(self):
+        original = (
+            "It is important to note that this paper considers "
+            "25% of patients receiving metformin."
+        )
+        current = (
+            "This paper examines 25% of patients receiving metformin."
+        )
+        for wrong in (0, -1, 21, 1.5, "1", True, None):
+            with self.subTest(attempt=wrong):
+                code, response = editor.handle_public_rewrite(
+                    Handler({
+                        "text": current, "originalText": original,
+                        "tone": "student", "level": 10,
+                        "mode": "again", "attempt": wrong
+                    }), lambda *args, **kwargs: True)
+                self.assertEqual(code, 400)
+                self.assertIn("attempt", response["error"].lower())
+        for change in (
+            current.replace("25%", "26%"),
+            current.replace("metformin", "insulin")
+        ):
+            with self.subTest(current=change):
+                code, response = editor.handle_public_rewrite(
+                    Handler({
+                        "text": change, "originalText": original,
+                        "tone": "student", "level": 10,
+                        "mode": "again", "attempt": 1
+                    }), lambda *args, **kwargs: True)
+                self.assertEqual(code, 400)
+                self.assertIn("protected", response["error"].lower())
+
+    def test_rehumanize_public_flow_uses_rate_limiter(self):
+        source = ("This paper examines the results of a safety assessment.")
+        calls = []
+        request = Handler({
+            "text": source, "originalText": source,
+            "tone": "student", "mode": "again", "attempt": 1, "level": 9
+        })
+        editor.handle_public_rewrite(
+            request, lambda ip, name, limit: calls.append((name,limit)) or True)
+        self.assertEqual(calls, [("public-paraphrase-local", 24)])
+
     def test_local_api_response_reports_engine_and_edit_strength(self):
         text=("It is important to note that staff regularly contacted "
               "patients before their follow-up appointments.")
