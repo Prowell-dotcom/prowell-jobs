@@ -158,18 +158,21 @@ def _safe_output(source, candidate, protected_terms=()):
     )
 
 
-def _rewritable_words(text):
+def _rewritable_words(text, protected_terms=()):
     """Compare editable prose, ignoring legally/academically fixed text.
 
     Citations, quotations, figures, URLs, and DOIs are protected from editing.
     Their overlap should not make a genuinely revised paragraph look copied.
     """
-    for pattern in (_QUOTATION, _CITATION, _URL, _EMAIL, _DOI, _NUMBER, _MEDICAL_PATTERN):
+    patterns = [_QUOTATION, _CITATION, _URL, _EMAIL, _DOI, _NUMBER, _MEDICAL_PATTERN]
+    if protected_terms:
+        patterns.append(_terms_pattern(protected_terms))
+    for pattern in patterns:
         text = pattern.sub(" ", text)
     return re.findall(r"[A-Za-z]+(?:'[A-Za-z]+)?", text.lower())
 
 
-def _too_similar(source, rewritten):
+def _too_similar(source, rewritten, protected_terms=()):
     """Flag exact copies and near-copies; not an AI-detection metric."""
     if not isinstance(rewritten, str) or not rewritten.strip():
         return True
@@ -177,7 +180,8 @@ def _too_similar(source, rewritten):
         r"\s+", " ", rewritten
     ).strip().casefold():
         return True
-    before, after = _rewritable_words(source), _rewritable_words(rewritten)
+    before, after = (_rewritable_words(source, protected_terms),
+                     _rewritable_words(rewritten, protected_terms))
     if len(before) < 9 or len(after) < 9:
         # Short snippets cannot support reliable structural comparison.
         return False
@@ -498,7 +502,7 @@ def _editorial_rewrite(text, tone, request_function, api_key, model, second_pass
                 "No unreliable rewrite was returned. Please revise the input or retry."
             )
 
-    if _too_similar(text, draft):
+    if _too_similar(text, draft, protected_terms):
         # Only spend a second call when the first result is not a paraphrase.
         # Never advertise identical source text as a successful rewrite.
         draft = request_function(
@@ -511,7 +515,7 @@ def _editorial_rewrite(text, tone, request_function, api_key, model, second_pass
                 "The stronger rewrite changed protected facts or citations. "
                 "No unreliable result was returned. Try a shorter section."
             )
-        if _too_similar(text, draft):
+        if _too_similar(text, draft, protected_terms):
             raise RuntimeError(
                 "Gemini returned wording too close to the original, even after "
                 "a second attempt. Try a shorter paragraph or a different style."
@@ -532,7 +536,7 @@ def _editorial_rewrite(text, tone, request_function, api_key, model, second_pass
     except RuntimeError:
         return draft
     return (polished if _safe_output(text, polished, protected_terms)
-            and not _too_similar(text, polished) else draft)
+            and not _too_similar(text, polished, protected_terms) else draft)
 
 
 def rewrite_via_openai(text, tone, count, protected_terms=()):
@@ -674,7 +678,7 @@ def handle_rewrite(handler, rate_checker, rewrite=rewrite_via_provider):
                 "The rewrite altered protected numbers, symbols, citations "
                 "or medical terms. No unreliable output was returned."
             )
-        if _too_similar(source, output):
+        if _too_similar(source, output, protected_terms):
             raise RuntimeError(
                 "The response was too similar to your original text. "
                 "Please retry or select a different writing style."
