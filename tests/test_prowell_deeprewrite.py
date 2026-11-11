@@ -395,6 +395,21 @@ class DeepRewriteTests(unittest.TestCase):
                                         "No generated version"):
                 deep.rewrite(source, source, "student", 9)
 
+    def test_compact_model_json_rewrite_variants(self):
+        # Small models often return a single rewrite instead of a list.
+        for payload in (
+            '{"rewrite":"Before their visits, staff contacted patients."}',
+            '{"text":"Before their visits, staff contacted patients."}',
+            '{"candidates":["Before their visits, staff contacted patients."]}',
+            '{"rewrites":[{"text":"Before their visits, staff contacted patients."}]}',
+        ):
+            self.assertEqual(
+                deep._parse_candidates(payload),
+                ["Before their visits, staff contacted patients."],
+            )
+        self.assertEqual(deep._parse_candidates("not JSON"), [])
+        self.assertEqual(deep._parse_candidates('{"candidates":null}'), [])
+
     def test_fast_edit_zero_change_is_not_reported_as_success(self):
         # Even very short passages must not show a completed 0% rewrite.
         source = "The clinic contacted patients."
