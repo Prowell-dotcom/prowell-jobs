@@ -291,36 +291,40 @@ def _claims_and_tense_preserved(original, candidate):
     return True
 
 
-def validate_candidate(original, current, candidate, terms, history=()):
+def validate_candidate(original, current, candidate, terms, history=(), failures=None):
+    def reject(reason):
+        if failures is not None:
+            failures.append(reason)
+        return None
     if not candidate or not core._safe_output(original,candidate,terms):
-        return None
+        return reject('protected details')
     if not core._safe_output(current,candidate,terms):
-        return None
+        return reject('current details')
     if not _same_named_content(original,candidate):
-        return None
+        return reject('proper names')
     if not _claims_and_tense_preserved(original,candidate):
-        return None
+        return reject('factual claims or tense')
     original_count = core.count_words(original)
     n = core.count_words(candidate)
     if not .72*original_count <= n <= 1.36*original_count:
-        return None
+        return reject('length distortion')
     if Counter(_NEGATION.findall(original.lower())) != Counter(
             _NEGATION.findall(candidate.lower())):
-        return None
+        return reject('negation or certainty')
     if _naturalness(candidate) < .55:
-        return None
+        return reject('fluency patterns')
     coverage = topic_coverage(original,candidate)
     if coverage < (.40 if original_count < 80 else .43):
-        return None
+        return reject('topic drift')
     norm = " ".join(candidate.casefold().split())
     if norm == " ".join(current.casefold().split()):
-        return None
+        return reject('identical candidate')
     if any(norm == " ".join(h.casefold().split()) for h in history):
-        return None
+        return reject('previous version')
     edit = core._rewrite_edit_metrics(original,candidate,terms)[
         "editableTextChangePercent"]
     if edit < 18:
-        return None
+        return reject('insufficient edits')
     # Meaning and fluency are weighted more heavily than surface variation.
     naturalness = _naturalness(candidate)
     variety = min(1.0, edit / 55.0)
@@ -446,6 +450,7 @@ def rewrite(text, original, tone, level, terms=(), history=(), attempt=0):
             "DeepRewrite is processing another request. Please try again shortly.")
     total_candidates = 0
     ranked = []
+    rejected_reasons = Counter()
     try:
         # On a resource-limited small model, the first generation may
         # change tense or invent results. One explicitly guided attempt
@@ -461,15 +466,25 @@ def rewrite(text, original, tone, level, terms=(), history=(), attempt=0):
             for draft in raw:
                 candidate = unmask_candidate(draft, tokens)
                 if candidate:
+                    reasons = []
                     entry = validate_candidate(
-                        original, text, candidate, terms, safe_history)
+                        original, text, candidate, terms, safe_history,
+                        failures=reasons)
                     if entry:
                         ranked.append(entry)
+                    else:
+                        rejected_reasons.update(reasons or ['other'])
+                else:
+                    rejected_reasons.update(['missing protected tokens'])
             if ranked:
                 break
     finally:
         _MODEL_SLOT.release()
     if not ranked:
+        # Record only rejection categories, NEVER user text, candidates,
+        # quotations or model prompts in production logs.
+        print("Prowell DeepRewrite candidate rejection categories: " +
+              repr(sorted(rejected_reasons.items())), flush=True)
         raise DeepRewriteError(
             "No generated version passed the factual, grammar and variation "
             "checks. Your previous writing was preserved. Try a shorter "
