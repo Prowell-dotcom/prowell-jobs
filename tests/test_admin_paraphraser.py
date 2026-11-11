@@ -339,6 +339,80 @@ class ParaphraserTests(unittest.TestCase):
         self.assertEqual(result, "Nurses contacted them before their appointments because patients needed reminder calls.")
         self.assertTrue(tool._safe_output(source, result))
 
+    def test_local_multi_stage_academic_rewrite(self):
+        source = (
+            "The clinic conducted an evaluation of the reminder program "
+            "because patients missed their appointments. "
+            "Furthermore, the staff provided assistance to patients "
+            "on a regular basis before scheduled follow-up visits."
+        )
+        result = tool.rewrite_via_local(
+            source, "student", tool.count_words(source))
+        self.assertIn("the clinic evaluated the reminder program", result.lower())
+        self.assertIn("because patients missed their appointments", result.lower())
+        self.assertIn("staff helped patients regularly", result.lower())
+        self.assertNotIn("conducted an evaluation", result.lower())
+        self.assertNotIn("provided assistance", result.lower())
+        self.assertTrue(tool._safe_output(source, result))
+
+    def test_local_contrast_sentence_restructure(self):
+        original = "Nurses contacted patients, but several did not respond."
+        result = tool.rewrite_via_local(
+            original, "natural", tool.count_words(original))
+        self.assertEqual(result,
+                         "Although nurses contacted patients, several did not respond.")
+        self.assertTrue(tool._safe_output(original, result))
+
+    def test_local_trailing_cause_restructure(self):
+        original = (
+            "The clinic contacted patients because they missed their "
+            "scheduled appointments."
+        )
+        result = tool.rewrite_via_local(
+            original, "student", tool.count_words(original))
+        self.assertEqual(
+            result,
+            "Because they missed their scheduled appointments, "
+            "the clinic contacted patients."
+        )
+
+    def test_local_student_register_preserves_qualifiers_and_terminology(self):
+        original = (
+            "Researchers utilized simple language to explain medication "
+            "instructions to 25% of patients with hypertension. "
+            "Patients should not stop metformin without advice."
+        )
+        result = tool.rewrite_via_local(
+            original, "student", tool.count_words(original))
+        self.assertIn("Researchers used simple language", result)
+        self.assertIn("25%", result)
+        self.assertIn("hypertension", result)
+        self.assertIn("metformin", result)
+        self.assertIn("should not stop", result)
+        self.assertTrue(tool._safe_output(original, result))
+
+    def test_local_retains_exact_quotes_and_dois(self):
+        original = (
+            'Researchers said "Patients should use the prescribed metformin '
+            'without making changes." It is important to note that their '
+            "recommendations appear at https://example.org/paper "
+            "and DOI 10.1234/abc."
+        )
+        result = tool.rewrite_via_local(
+            original, "student", tool.count_words(original))
+        self.assertIn(
+            '"Patients should use the prescribed metformin without making changes."',
+            result
+        )
+        self.assertIn("https://example.org/paper", result)
+        self.assertIn("10.1234/abc", result)
+        self.assertTrue(tool._safe_output(original, result))
+
+    def test_local_never_rewrites_unsupported_plain_prose_into_synonym_soup(self):
+        source = "The doctor read the patient's letter quietly."
+        with self.assertRaisesRegex(RuntimeError, "cannot safely"):
+            tool.rewrite_via_local(source, "student", tool.count_words(source))
+
     def test_no_key_fails_cleanly(self):
         with patch.dict('os.environ',{'OPENAI_API_KEY':''}):
             with self.assertRaisesRegex(RuntimeError,'not configured'):
