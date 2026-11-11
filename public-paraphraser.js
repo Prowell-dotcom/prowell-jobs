@@ -1,5 +1,5 @@
 'use strict';
-// Free public paraphraser: independent of membership/admin authentication.
+// Prowell Humanizer: public writing editor, no login required.
 // Only local editing is available. Do not send credentials or private API keys.
 (() => {
   const $ = id => document.getElementById(id);
@@ -31,12 +31,12 @@
     if(busy)return;
     const text=source.value.trim();
     const count=wordCount(text);
-    if(!count){notify('Paste or type some text before selecting Paraphrase text.','error');return;}
+    if(!count){notify('Paste or type some text before selecting Humanize text.','error');return;}
     if(count>3000){notify('Maximum 3,000 words; remove '+(count-3000)+' words.','error');return;}
     busy=true;
     result.value='';
-    result.placeholder='Applying local rewriting algorithms…';
-    notify('Checking the text and applying safe rewriting rules…');
+    result.placeholder='Improving wording and sentence clarity…';
+    notify('Prowell Humanizer is improving your writing…');
     refresh();
     const controller=new AbortController();
     const timeout=setTimeout(()=>controller.abort(),30000);
@@ -58,7 +58,7 @@
         throw Error('The editor returned no revised text.');
       }
       result.value=data.paraphrased;
-      result.placeholder='Your revised text will appear here.';
+      result.placeholder='Your humanized result will appear here.';
       const percent=Number(data.editableTextChangePercent);
       const description=(typeof data.editStrength==='string'&&Number.isFinite(percent))?
         (' '+data.editStrength+' edit: '+percent+'% of editable wording changed (not a human-authorship score).'):'';
@@ -80,16 +80,16 @@
     if(busy)return;
     source.value='';
     result.value='';
-    result.placeholder='Your revised text will appear here.';
+    result.placeholder='Your humanized result will appear here.';
     $('publicParaphraseProtectedTerms').value='';
-    notify('Ready. No account or AI API key is needed.');
+    notify('Ready to improve your writing. No login required.');
     refresh();
   });
   copy.addEventListener('click',async()=>{
     if(!result.value.trim())return;
     try{
       await navigator.clipboard.writeText(result.value);
-      notify('Rewritten text copied.','success');
+      notify('Humanized text copied.','success');
     }catch(_){
       result.focus();
       result.select();
@@ -102,12 +102,12 @@
     const url=URL.createObjectURL(blob);
     const link=document.createElement('a');
     link.href=url;
-    link.download='prowell-paraphrased-text.txt';
+    link.download='prowell-humanized-text.txt';
     document.body.appendChild(link);
     link.click();
     link.remove();
     setTimeout(()=>URL.revokeObjectURL(url),2500);
-    notify('The rewritten text has been saved.','success');
+    notify('Humanized text saved.','success');
   });
   refresh();
 })();
