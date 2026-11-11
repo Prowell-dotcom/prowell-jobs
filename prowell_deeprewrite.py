@@ -5,10 +5,9 @@ This module is unavailable until the owner configures a private Ollama service.
 It uses controlled generation and heuristic semantic checks, NOT the trained
 LingConv/AESOP/SynPG/NLI/AlignScore checkpoints.
 """
-import ipaddress
 import json
-import math
 import os
+import threading
 import re
 import urllib.error
 import urllib.request
@@ -36,6 +35,9 @@ _PLANS = (
     "Use simpler constructions with mature rhythm and precise, natural transitions.",
 )
 _PLACEHOLDER = re.compile(r"\[\[PWR\d{4}\]\]")
+_PROPER_NAMES = re.compile(r"\b(?:[A-Z][a-z]{2,}\s+){1,4}[A-Z][a-z]{2,}\b")
+_ACRONYMS = re.compile(r"\b[A-Z]{2,7}\b")
+_MODEL_SLOT = threading.BoundedSemaphore(1)
 _WORD = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)?")
 _BAD = re.compile(r"\b(?:although|because|if|when)\s+[^.!?\n]{8,180},\s+"
                   r"(?:is|are|was|were|has|have|can|could|will|would)\b",
@@ -110,6 +112,8 @@ def _protected_spans(source, terms):
     # The source may contain percentage symbols, '$', '&', '@' not covered by
     # numeric regex (e.g. a stand-alone '@' in a name).
     spans += [m.span() for m in core._SYMBOLS.finditer(source)]
+    spans += [m.span() for m in _PROPER_NAMES.finditer(source)]
+    spans += [m.span() for m in _ACRONYMS.finditer(source)]
     spans.sort(key=lambda pair:(pair[0], -(pair[1]-pair[0])))
     chosen = []
     for lo,hi in spans:
@@ -177,10 +181,19 @@ def _naturalness(text):
                .09*sum(n<3 for n in counts))
 
 
+def _same_named_content(a,b):
+    return (
+        Counter(_PROPER_NAMES.findall(a)) == Counter(_PROPER_NAMES.findall(b))
+        and Counter(_ACRONYMS.findall(a)) == Counter(_ACRONYMS.findall(b))
+    )
+
+
 def validate_candidate(original, current, candidate, terms, history=()):
     if not candidate or not core._safe_output(original,candidate,terms):
         return None
     if not core._safe_output(current,candidate,terms):
+        return None
+    if not _same_named_content(original,candidate):
         return None
     original_count = core.count_words(original)
     n = core.count_words(candidate)
@@ -303,8 +316,14 @@ def rewrite(text, original, tone, level, terms=(), history=(), attempt=0):
     masked, tokens = mask_protected(text,terms)
     # A longer input uses fewer full-length candidates to limit CPU latency.
     n = 4 if core.count_words(text)<=170 else 2
-    raw = ollama_generate(config[0],config[1],masked,tone,level,tokens,
-                          n,safe_history,attempt)
+    if not _MODEL_SLOT.acquire(blocking=False):
+        raise DeepRewriteUnavailable(
+            "DeepRewrite is processing another request. Please try again shortly.")
+    try:
+        raw = ollama_generate(config[0],config[1],masked,tone,level,tokens,
+                              n,safe_history,attempt)
+    finally:
+        _MODEL_SLOT.release()
     ranked = []
     for draft in raw:
         candidate = unmask_candidate(draft,tokens)
