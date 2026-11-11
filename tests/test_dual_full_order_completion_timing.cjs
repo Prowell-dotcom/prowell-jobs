@@ -1,126 +1,66 @@
 'use strict';
-// Full-flow simulation for BOTH dual engines: one immediate bottom movement
-// with no gradual animation or 3/4/5-second acceptance timing.
-// 4writers also scrolls its final popup; Good-Writers has no post-OK scroll.
-const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+// An older bot may leave a saved View/Take it/OK/acknowledgement claim.
+// The new dual handoff engine MUST NOT resume those automatic clicks.
 const assert=require('node:assert/strict');
-const root=path.join(__dirname,'../extension/dual-writers');
-const tick=async()=>{for(let i=0;i<80;i++)await Promise.resolve();
-  await new Promise(resolve=>setImmediate(resolve));};
-async function run(site,size,stopEarly=false){
-  const four=site==='four',host=four?'4writers.net':'good-writers.com';
-  const h={short:600,medium:1200,long:2200}[size];
-  // Description length must not impose a minimum acceptance duration.
-  const src=fs.readFileSync(path.join(root,'legacy/'+site+'/runtime-content.js'),'utf8');
-  assert.match(src,/function rapidScroll\(el,bottom\)/);
-  assert.doesNotMatch(src,/FAST_SCROLL_POSITIONS|FAST_SCROLL_FRAME_MS|setTimeout\(resolve/,
-    'No paused multi-step scrolling allowed');
-  assert.doesNotMatch(src,/STAGE_FRACTIONS|COMPLETION_TARGETS|SCROLL_STEPS/,
-    'No 3/4/5-second pacing or gradual scrolling may remain');
-  let time=1700000000000,activeButton='take',scroll=0,ackScroll=0;
-  const start=time,events=[],listeners=[];
-  class VirtualDate extends Date{
-    constructor(...args){super(...(args.length?args:[time]));}
-    static now(){return time;}
-  }
-  const id='0192065941';
-  const claim={id,stage:'view-clicked',viewClickedAt:start,startedAt:start,
-    listUrl:'https://'+host+'/available_orders'};
-  const state={armed:!stopEarly,targetTabId:17,claim,
-    claimConsentVersion:four?'0.5.4':'1.0.4',
-    attemptedIds:[],completed:[],processingPreviewedIds:[]};
-  const store={
-    async get(defaults){return Object.fromEntries(Object.keys(defaults).map(k=>
-      [k,Object.hasOwn(state,k)?state[k]:defaults[k]]));},
-    async set(patch){
-      const changes=Object.fromEntries(Object.entries(patch).map(([k,v])=>
-        [k,{newValue:v,oldValue:state[k]}]));
-      Object.assign(state,patch);
-      for(const fn of listeners)fn(changes,'local');
-    }
-  };
-  const chrome={runtime:{lastError:null,onMessage:{addListener(){}},
-    sendMessage(msg,cb){
-      if(msg.type===(four?'PROWELL_TAB_ID':'GW_TAB_ID'))cb?.({tabId:17});
-      else cb?.({ok:true});
-    }},storage:{local:store,onChanged:{addListener(fn){listeners.push(fn);}}}};
-  const orderPanel={isConnected:true,scrollHeight:h,clientHeight:400,
-    innerText:'ORDER INFORMATION Order #'+id,
-    textContent:'ORDER INFORMATION Order #'+id,
-    getClientRects(){return[{}];},
-    get scrollTop(){return scroll;},set scrollTop(v){scroll=v;},
-    querySelectorAll(){return[]}
-  };
-  const ackPane={clientHeight:380,scrollHeight:h,
-    get scrollTop(){return ackScroll;},set scrollTop(v){ackScroll=v;},
-    querySelectorAll(){return[]}
-  };
-  const popup={clientHeight:600,scrollHeight:600,scrollTop:0,parentElement:null,
-    querySelectorAll(){return[ackPane,ackButton];}};
-  function makeButton(name,next){
-    return {isConnected:true,disabled:false,value:'',
-      innerText:name,textContent:name,getClientRects(){return[{}]},
-      getAttribute(){return null},closest(){return popup;},
-      click(){events.push({action:name,elapsed:time-start});
-        activeButton=next;}
-    };
-  }
-  const take=makeButton('Take it','ok');
-  const ok=makeButton('OK','ack');
-  const ackButton=makeButton(four?'I understand, take the order':'I understand','done');
-  const document={
-    body:{innerText:'Order #'+id,scrollHeight:3000},
-    documentElement:{appendChild(){},scrollHeight:3000},
-    scrollingElement:{clientHeight:800,scrollHeight:3000},
-    querySelectorAll(selector){
-      if(selector.startsWith('dialog[open]'))return [orderPanel];
-      if(selector.startsWith('a,button,input')){
-        return activeButton==='take'?[take]:activeButton==='ok'?[ok]:
-          activeButton==='ack'?[ackButton]:[];
-      }
-      return[];
-    },
-    querySelector(){return null},addEventListener(){},
-    createElement(){return {style:{},textContent:'',remove(){}};}
-  };
-  const win={__prowellLegacyChrome:chrome,dispatchEvent(){}};
-  win.top=win;
-  const context={
-    window:win,document,chrome,VirtualDate,Date:VirtualDate,URL,
-    Promise,Set,Map,Number,Error,Event:class{},console,queueMicrotask,
-    location:{href:'https://'+host+'/available_orders',
-      origin:'https://'+host},
-    getComputedStyle(){return{position:'fixed',overflowY:'auto'};},
-    MutationObserver:class{observe(){}},
-    clearTimeout(){},setInterval(){return 1;},
-    setTimeout(fn,ms){
-      if(ms>0)time+=ms;
-      queueMicrotask(fn);return 1;
-    }
-  };
-  vm.runInNewContext(src,context,{filename:'runtime-'+site+'.js'});
-  await tick();
-  if(stopEarly){
-    assert.equal(events.length,0,site+': STOP must prevent all acceptance clicks');
-    return;
-  }
-  assert.equal(events.length,3,site+' '+size+': all three buttons must click');
-  assert.deepEqual(events.map(e=>e.action),
-    ['Take it','OK',four?'I understand, take the order':'I understand']);
-  assert.deepEqual(events.map(e=>e.elapsed),[0,0,0],
-    site+' '+size+': no timed delay before Take it, OK or acknowledgement');
-  assert.equal(state.lastCompletionTargetMs,null);
-  assert.equal(state.lastCompletionDurationMs,0);
-  assert.equal(scroll,h-400,'Order-details popup should scroll to bottom');
-  assert.equal(ackScroll,four?h-380:0,
-    four?'4writers acknowledgement must jump to bottom':
-      'Good-Writers acknowledgement must NOT scroll after OK');
-  console.log(site+' '+size+': single bottom movement → Take it → OK → '+
-    (four?'single final bottom movement → ':'')+'I understand PASS');
+const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+const base=path.join(__dirname,'../extension/dual-writers');
+const tick=async()=>{for(let i=0;i<28;i++)await Promise.resolve();
+ await new Promise(r=>setImmediate(r));};
+async function run(site,stage){
+ const four=site==='four',host=four?'4writers.net':'good-writers.com';
+ const source=fs.readFileSync(path.join(base,'legacy/'+site+'/runtime-content.js'),'utf8');
+ assert.match(source,/async function handoffToOwner\(card\)/);
+ assert.doesNotMatch(source,/clickStage\(|scrollOpenedOrder\(|scrollAcknowledgment\(/);
+ const events=[],listeners=[],id='0192065941';
+ let y=0;
+ const state={armed:true,targetTabId:17,
+   claimConsentVersion:four?'0.5.4':'1.0.4',
+   claim:{id,stage,startedAt:Date.now(),listUrl:'https://'+host+'/available_orders'}};
+ const buttons=['Take it','OK','I understand','I understand, take the order']
+  .map(text=>({isConnected:true,disabled:false,innerText:text,
+    textContent:text,getClientRects(){return[{}]},getAttribute(){return null},
+    click(){events.push('CLICK '+text);}}));
+ const doc={body:{innerText:'ORDER INFORMATION ID: '+id},
+   documentElement:{appendChild(){}},
+   querySelectorAll(q){return q.startsWith('a,button,input')?buttons:[];},
+   querySelector(){return null},addEventListener(){},
+   createElement(){return {style:{},textContent:'',remove(){},contains(){return false}};},
+   get scrollTop(){return y;},set scrollTop(v){y=v;events.push('SCROLL');}};
+ const store={
+   async get(defaults){return Object.fromEntries(Object.entries(defaults)
+     .map(([k,v])=>[k,Object.hasOwn(state,k)?state[k]:v]));},
+   async set(patch){const changes=Object.fromEntries(Object.entries(patch)
+       .map(([k,v])=>[k,{oldValue:state[k],newValue:v}]));
+     Object.assign(state,patch);
+     for(const fn of listeners)fn(changes,'local');
+   }
+ };
+ const chrome={runtime:{lastError:null,onMessage:{addListener(){}},
+   sendMessage(msg,cb){if(msg.type===(four?'PROWELL_TAB_ID':'GW_TAB_ID'))
+     cb?.({tabId:17});
+     else cb?.({ok:true});
+   }},storage:{local:store,onChanged:{addListener(fn){listeners.push(fn);}}}};
+ const win={__prowellLegacyChrome:chrome,
+   __prowellCardDetector:{cards:()=>[],pageKind:()=>'available'},
+   scrollTo(){events.push('WINDOW SCROLL');},dispatchEvent(){}};
+ win.top=win;
+ vm.runInNewContext(source,{window:win,document:doc,chrome,location:{
+   origin:'https://'+host,href:'https://'+host+'/available_orders'
+  },Date,Promise,Set,Map,Number,URL,Error,Event:class{},queueMicrotask,
+   setTimeout(){throw Error('No scheduled auto-accept allowed');},
+   clearTimeout(){},setInterval(){throw Error('No auto-accept polling allowed');},
+   MutationObserver:class{observe(){}}
+ });
+ await tick();
+ assert.equal(state.armed,false,site+' '+stage+': old claim must pause');
+ assert.equal(state.claim,null,site+' '+stage+': discard old claim');
+ assert.equal(state.autoAcceptEnabled,false);
+ assert.deepEqual(events,[],site+' '+stage+': NEVER click or scroll');
+ console.log(site+' previous '+stage+': manual-only, no click or scroll PASS');
 }
 (async()=>{
-  for(const site of ['four','good']){
-    for(const size of ['short','medium','long'])await run(site,size);
-    await run(site,'short',true);
-  }
-})().catch(error=>{console.error(error);process.exitCode=1;});
+ for(const site of ['four','good']){
+   for(const stage of ['view-clicked','take-clicked','ok-clicked','acknowledged'])
+     await run(site,stage);
+ }
+})().catch(e=>{console.error(e);process.exitCode=1;});
