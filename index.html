@@ -157,6 +157,13 @@
 .pp-section #publicParaphraseEngine{min-width:236px}
 @media(max-width:680px){.pp-section .pp-deep-availability{padding:11px 17px 13px}.pp-section #publicParaphraseEngine{min-width:0}}
 
+
+/* Primary action sits directly beneath the original-writing field. */
+.pp-section .pp-input-actions{display:flex;align-items:center;justify-content:flex-start;margin:12px 0 4px}
+.pp-section .pp-input-actions .pp-submit{display:inline-flex;justify-content:center;align-items:center;gap:8px;min-height:54px;min-width:210px;padding:13px 22px;border:1px solid #5355e5;border-radius:11px;background:#5355e5;color:#fff;font:800 14px "DM Sans",Arial,sans-serif;box-shadow:none;white-space:nowrap;cursor:pointer;transition:background .15s ease,transform .15s ease}
+.pp-section .pp-input-actions .pp-submit:not(:disabled):hover{background:#3e42ca;border-color:#3e42ca;transform:translateY(-1px)}
+.pp-section .pp-input-actions .pp-submit:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:680px){.pp-section .pp-input-actions .pp-submit{width:100%;min-width:0}}
 </style></head>
 <body data-page="home">
 <div class="announcement"><div class="m-container"><span><b class="ann-dot"></b> One platform. Every kind of work. Every ambition.</span><a href="/account.html?mode=signup">Membership is 100% free <span aria-hidden="true">↗</span></a></div></div>
@@ -232,6 +239,9 @@
           </div>
           <textarea id="publicParaphraseInput" rows="13" maxlength="85000" placeholder="Paste your paragraph or document here to improve its wording and clarity…" spellcheck="true" required></textarea>
           <output id="publicParaphraseInputWords" class="pp-word-count" for="publicParaphraseInput" aria-live="polite">Input: 0 words</output>
+          <div class="pp-input-actions">
+            <button class="pp-submit" id="publicParaphraseSubmit" type="submit">Humanize text <span aria-hidden="true">✦</span></button>
+          </div>
         </div>
         <div class="pp-field">
           <div class="pp-field-head pp-result-heading">
@@ -255,8 +265,6 @@
       </details>
       <p class="pp-retry-help">Not satisfied with your result? The <strong>Rehumanize text</strong> button is now next to the result heading and becomes available after your first successful rewrite. The original passage stays unchanged.</p>
       <div class="pp-actions">
-        <button class="pp-submit" id="publicParaphraseSubmit" type="submit">Humanize text <span aria-hidden="true">✦</span></button>
-
         <button class="pp-secondary" id="publicParaphraseClear" type="button">Clear text</button>
         <button class="pp-secondary" id="publicParaphraseCopy" type="button" disabled>Copy result</button>
         <button class="pp-secondary" id="publicParaphraseDownload" type="button" disabled>Download TXT</button>
