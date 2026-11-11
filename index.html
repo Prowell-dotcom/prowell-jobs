@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0B1B33"><title>Prowell Jobs — Every skill deserves an opportunity</title><meta name="description" content="One platform for work of every kind. Explore opportunities, create a free job-seeker or employer account and connect with possibilities at Prowell Jobs."><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="membership.css?v=responsive-20261105"><script src="member.js?v=writing1" defer></script><link rel="stylesheet" href="public-paraphraser.css?v=humanizer-retry-v5"><style id="prowell-humanizer-critical-styles">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0B1B33"><title>Prowell Jobs — Every skill deserves an opportunity</title><meta name="description" content="One platform for work of every kind. Explore opportunities, create a free job-seeker or employer account and connect with possibilities at Prowell Jobs."><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="membership.css?v=responsive-20261105"><script src="member.js?v=writing1" defer></script><link rel="stylesheet" href="public-paraphraser.css?v=rehumanize-visible-v6"><style id="prowell-humanizer-critical-styles">
 /* PROWELL HUMANIZER — deliberately mirrored inline in the homepage
    so the editor keeps its spacious layout even if a static CSS asset fails. */
 .pp-section{position:relative;isolation:isolate;padding:88px 0 96px;background:linear-gradient(150deg,#eef5f9 0%,#f5f9ff 54%,#f1f8f1 100%);scroll-margin-top:90px;color:#14283f}
@@ -134,6 +134,19 @@
 .pp-section .pp-actions .pp-rehumanize:disabled{opacity:.5}
 @media(max-width:680px){.pp-section .pp-retry-help{padding:14px 17px 0}}
 
+/* Humanized result actions and quality state are visible above the result. */
+.pp-section .pp-result-heading{flex-wrap:wrap;gap:12px}
+.pp-section .pp-inline-retry{display:inline-flex;align-items:center;gap:7px;justify-content:center;min-height:39px;padding:9px 15px;border:1px solid #8589e5;border-radius:9px;background:#f0f1ff;color:#353cb2;font:800 12px "DM Sans",Arial,sans-serif;cursor:pointer}
+.pp-section .pp-inline-retry:not(:disabled):hover{background:#dfe3ff;border-color:#545adb}
+.pp-section .pp-inline-retry:disabled{opacity:.7;background:#f3f4f8;color:#68728c;border-color:#dae0ed;cursor:not-allowed}
+.pp-section .pp-inline-feedback{color:#596d89;border:1px solid #e4eaf4;background:#f9fbff;border-radius:8px;padding:11px 14px;margin:10px 0 0;font-size:12px;line-height:1.65;overflow-wrap:anywhere}
+.pp-section .pp-inline-feedback[data-state="success"]{background:#f1f9f5;color:#286946;border-color:#cfe8d7}
+.pp-section .pp-inline-feedback[data-state="warning"]{background:#fffbf1;color:#945912;border-color:#f0dfa9}
+.pp-section .pp-inline-feedback[data-state="error"]{background:#fff4f4;color:#a72f40;border-color:#f3d0d6}
+.pp-section .pp-inline-feedback[data-state="working"]{background:#eff3ff;color:#3948a3;border-color:#d3ddfd}
+.pp-section .pp-result-heading label{margin-right:auto}
+@media(max-width:440px){.pp-section .pp-result-heading{align-items:stretch}.pp-section .pp-inline-retry{width:100%}}
+
 </style></head>
 <body data-page="home">
 <div class="announcement"><div class="m-container"><span><b class="ann-dot"></b> One platform. Every kind of work. Every ambition.</span><a href="/account.html?mode=signup">Membership is 100% free <span aria-hidden="true">↗</span></a></div></div>
@@ -161,7 +174,7 @@
   <div class="pp-wrap">
     <div class="pp-intro">
       <div>
-        <span class="pp-eyebrow">PROWELL WRITING STUDIO</span>
+        <span class="pp-eyebrow">PROWELL WRITING STUDIO · UPDATED EDITOR</span>
         <h2 id="pp-title">Prowell <span>Humanizer.</span></h2>
         <p>Refine your writing with clearer sentences and a natural flow. Select a writing style, paste your text, and improve it in seconds.</p>
       </div>
@@ -198,11 +211,17 @@
           <textarea id="publicParaphraseInput" rows="13" maxlength="85000" placeholder="Paste your paragraph or document here to improve its wording and clarity…" spellcheck="true" required></textarea>
         </div>
         <div class="pp-field">
-          <div class="pp-field-head">
+          <div class="pp-field-head pp-result-heading">
             <label for="publicParaphraseOutput">Humanized result</label>
-            <span class="pp-field-hint">Your refined version</span>
+            <button class="pp-inline-retry" id="publicParaphraseAgain" type="button" disabled
+              title="Get another version from the current result without replacing your original writing">
+              <span aria-hidden="true">↻</span> Rehumanize text
+            </button>
           </div>
           <textarea id="publicParaphraseOutput" rows="13" placeholder="Your rewritten text will appear here after you select Humanize text." readonly></textarea>
+          <div id="publicParaphraseInlineFeedback" class="pp-inline-feedback" role="status" aria-live="polite">
+            Humanize your writing first, then use Rehumanize text here to request another version.
+          </div>
         </div>
       </div>
       <details class="pp-advanced">
@@ -210,11 +229,10 @@
         <label for="publicParaphraseProtectedTerms">Exact words or phrases to keep unchanged</label>
         <textarea id="publicParaphraseProtectedTerms" rows="3" maxlength="3000" placeholder="Enter uncommon medication names, medical conditions or technical terms, separated by commas or new lines"></textarea>
       </details>
-      <p class="pp-retry-help">Not satisfied with your result? Choose <strong>Rehumanize text</strong> to request another version. Your original passage remains unchanged.</p>
+      <p class="pp-retry-help">Not satisfied with your result? The <strong>Rehumanize text</strong> button is now next to the result heading and becomes available after your first successful rewrite. The original passage stays unchanged.</p>
       <div class="pp-actions">
         <button class="pp-submit" id="publicParaphraseSubmit" type="submit">Humanize text <span aria-hidden="true">✦</span></button>
-        <button class="pp-secondary pp-rehumanize" id="publicParaphraseAgain" type="button" disabled
-          title="Rewrite the current result again while keeping your original text unchanged">Rehumanize text <span aria-hidden="true">↻</span></button>
+
         <button class="pp-secondary" id="publicParaphraseClear" type="button">Clear text</button>
         <button class="pp-secondary" id="publicParaphraseCopy" type="button" disabled>Copy result</button>
         <button class="pp-secondary" id="publicParaphraseDownload" type="button" disabled>Download TXT</button>
