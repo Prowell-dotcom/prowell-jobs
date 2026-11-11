@@ -31,13 +31,20 @@ for(const site of ['four','good']){
    const original=read('legacy/'+site+'/'+name);
    const runner=read('legacy/'+site+'/runtime-'+name);
    if(name==='content.js'){
-     // Archived supplied engine is still exact, but the active wrapper has
-     // two necessary, screenshot-grounded fixes: final acknowledgement label
-     // and scrolling the acknowledgement modal instead of the background.
+     // The archived supplied engines are unchanged. Their active wrappers
+     // keep screenshot-specific final acknowledgement behavior per site.
      assert.match(runner,/const ACCEPT = \/\^i\\s\+understand/);
-     assert.match(runner,/lastAcknowledgementScroll/);
-     if(site==='four')assert.match(runner,/I understand, take the/);
-     else assert.match(runner,/Good-Writers acknowledgements/);
+     if(site==='four'){
+       assert.match(runner,/lastAcknowledgementScroll/);
+       assert.match(runner,/I understand, take the/);
+       assert.match(runner,/scrollAcknowledgment\(accept\)/);
+     }else{
+       assert.match(runner,/Good-Writers acknowledgements/);
+       assert.doesNotMatch(runner,/scrollAcknowledgment\(/,
+         'Good-Writers must not scroll after OK');
+       assert.doesNotMatch(runner,/lastAcknowledgementScroll/,
+         'Good-Writers must not record a nonexistent post-OK scroll');
+     }
      assert.doesNotMatch(original,/lastAcknowledgementScroll/,
        'Original uploaded archive must remain unchanged');
    }else if(name==='refresh.js'&&site==='good'){
