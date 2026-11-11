@@ -142,3 +142,10 @@
 .pp-section .pp-inline-feedback[data-state="working"]{background:#eff3ff;color:#3948a3;border-color:#d3ddfd}
 .pp-section .pp-result-heading label{margin-right:auto}
 @media(max-width:440px){.pp-section .pp-result-heading{align-items:stretch}.pp-section .pp-inline-retry{width:100%}}
+
+/* Private-model availability; no false claim when Ollama isn't configured. */
+.pp-section .pp-deep-availability{padding:11px 27px 14px;font-size:12px;line-height:1.6;color:#566a85;background:#fafbff;border-bottom:1px solid #e7ecf5}
+.pp-section .pp-deep-availability[data-state="ready"]{background:#effaf3;color:#246444}
+.pp-section .pp-deep-availability[data-state="unavailable"]{background:#fffaf0;color:#8c6222}
+.pp-section #publicParaphraseEngine{min-width:236px}
+@media(max-width:680px){.pp-section .pp-deep-availability{padding:11px 17px 13px}.pp-section #publicParaphraseEngine{min-width:0}}
