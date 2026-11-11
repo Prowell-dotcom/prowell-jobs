@@ -1,7 +1,7 @@
 'use strict';
 // Exercise the active dual engine for both View paths. The 4writers and
-// Order-details popup uses a fast 64ms gradual scroll in the foreground
-// and jumps instantly when hidden. Take it waits for scrolling to finish.
+// Order-details popup moves to bottom in one operation with zero pauses.
+// Take it follows immediately when the correct order details are ready.
 // Processing orders preview only, never Take it.
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const assert=require('node:assert/strict');
@@ -12,7 +12,8 @@ async function run(site,kind,range,visibility='visible'){
  const source=fs.readFileSync(path.join(dir,'legacy/'+site+'/runtime-content.js'),'utf8');
  assert.match(source,/function rapidScroll\(el,bottom\)/);
  assert.match(source,/function rapidTargets\(nodes\)/);
- assert.match(source,/FAST_SCROLL_POSITIONS=5, FAST_SCROLL_FRAME_MS=16/);
+ assert.doesNotMatch(source,/FAST_SCROLL_POSITIONS|FAST_SCROLL_FRAME_MS|requestAnimationFrame|setTimeout\(resolve/,
+   'Instant scroll cannot contain frame pauses');
  assert.doesNotMatch(source,/STAGE_FRACTIONS|COMPLETION_TARGETS/,
    'No 3/4/5-second full-order pacing');
  const options={near:{height:600,ms:300},medium:{height:1200,ms:500},
@@ -79,13 +80,11 @@ async function run(site,kind,range,visibility='visible'){
  vm.runInNewContext(source,context);
  await tick();
  const scrolled=events.filter(x=>x.startsWith('SCROLL '));
- assert.equal(scrolled.length,visibility==='hidden'?1:5,
-   site+' '+kind+': correct scroll positions');
+ assert.equal(scrolled.length,1,
+   site+' '+kind+': bottom jump must be one movement');
  assert.equal(pos,expected.height-400);
  assert.equal(backgroundPos,0,'Background page must not scroll');
- assert.equal(waits.length,visibility==='hidden'?0:4,
-   '64ms gradual scroll in foreground; zero timers when hidden');
- assert.equal(waits.reduce((a,b)=>a+b,0),visibility==='hidden'?0:64);
+ assert.equal(waits.length,0,'No gradual-scroll delays in foreground or background');
  if(kind==='available')
    assert.equal(events.at(-2),'SCROLL '+Math.round(expected.height-400),
      'Take it only after reaching bottom');
@@ -97,7 +96,7 @@ async function run(site,kind,range,visibility='visible'){
    assert.equal(state.armed,false,'Processing preview stops after scroll');
    assert.equal(state.claim,null);
  }
- console.log(site+' '+kind+' '+range+' '+visibility+': rapid scroll and correct action PASS');
+ console.log(site+' '+kind+' '+range+' '+visibility+': instant bottom movement and correct action PASS');
 }
 (async()=>{
  for(const site of ['four','good']){
