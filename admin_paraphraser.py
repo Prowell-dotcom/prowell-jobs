@@ -688,7 +688,7 @@ def _reorder_leading_clause(sentence):
     """Rearrange a clear initial condition without rewriting terminology."""
     found = re.fullmatch(
         r"(Because|Although|If|When)\s+([^,!?]{12,140}),\s+"
-        r"([A-Z][^!?]{12,260}?)([.!?])",
+        r"([A-Za-z][^!?]{12,260}?)([.!?])",
         sentence.strip()
     )
     if not found:
