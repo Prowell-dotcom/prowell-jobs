@@ -239,7 +239,7 @@ class DeepRewriteTests(unittest.TestCase):
         self.assertEqual(len(calls), 2)
         self.assertFalse(calls[0][1]["fidelity_retry"])
         self.assertTrue(calls[1][1]["fidelity_retry"])
-        self.assertEqual(calls[1][0][7], 101)
+        self.assertEqual(calls[1][0][8], 101)
 
     def test_factual_retry_never_bypasses_safety_checks(self):
         original = (
