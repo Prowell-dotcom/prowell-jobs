@@ -459,6 +459,12 @@
         throw Error('The editor returned no revised text.');
       }
       const next=data.paraphrased.trim();
+      // A response that simply echoes the input is not a completed rewrite.
+      // Guard the UI as well as the API, so stale deployments cannot show a
+      // misleading "Text revision complete" message for a 0% change.
+      if(normalize(next)===normalize(text)){
+        throw Error('No meaningful wording change was produced. The previous result was preserved. Try DeepRewrite when it is available, or revise the passage manually.');
+      }
       if(again && versionHistory.some(previous=>normalize(previous)===normalize(next))){
         throw Error('This variation matches an earlier result. Your current version was kept. Try changing the writing style or depth.');
       }
@@ -477,6 +483,9 @@
         versionHistory=[next];
       }
       const percent=Number(data.editableTextChangePercent);
+      if(Number.isFinite(percent) && percent===0){
+        throw Error('The editor returned 0% wording change. This is not a substantive paraphrase.');
+      }
       const description=(typeof data.editStrength==='string'&&Number.isFinite(percent))?
         (' '+data.editStrength+' edit: '+percent+'% of editable wording changed.'): '';
       const warning=typeof data.qualityWarning==='string'?
@@ -576,7 +585,7 @@
         deepStatus.dataset.state='ready';
       }else{
         engine.value='local';
-        deepStatus.textContent='DeepRewrite is not active yet: the website owner needs to configure its private model service. Fast editing remains available.';
+        deepStatus.textContent='DeepRewrite is currently unavailable. Fast editing can only make limited rule-based improvements and may leave your wording unchanged. It is not a substitute for deep paraphrasing.';
         deepStatus.dataset.state='unavailable';
       }
     }catch(_){
