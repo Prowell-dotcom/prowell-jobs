@@ -82,6 +82,40 @@ class ParaphraserTests(unittest.TestCase):
         self.assertEqual(len(captured),2)
         self.assertIn('senior copy editor',json.loads(captured[1].data)['instructions'].lower())
 
+    def test_gemini_rewrite_returns_after_one_request_by_default(self):
+        calls=[]
+        class FakeResponse:
+            def __enter__(self): return self
+            def __exit__(self,*args): return None
+            def read(self):
+                return json.dumps({"candidates":[{"content":{"parts":[{
+                    "text":"A clearer, natural rewrite."}]}}]}).encode("utf-8")
+        def fake_open(request, timeout):
+            calls.append(request)
+            return FakeResponse()
+        env={"GEMINI_API_KEY":"test-gemini-key",
+             "GEMINI_MODEL":"gemini-3.8-flash",
+             "GEMINI_SECOND_PASS":"0",
+             "PARAPHRASER_PROVIDER":"gemini"}
+        with patch.dict("os.environ",env):
+            with patch("urllib.request.urlopen",side_effect=fake_open):
+                result=tool.rewrite_via_gemini("Original sentence.", "natural", 2)
+        self.assertEqual(result,"A clearer, natural rewrite.")
+        self.assertEqual(len(calls),1,"Do not wait for a second request by default")
+        self.assertEqual(calls[0].get_header("X-goog-api-key"),"test-gemini-key")
+
+    def test_gemini_second_pass_can_be_enabled(self):
+        prompts=[]
+        def fake_model(key, model, instructions, prompt):
+            prompts.append(prompt)
+            return "A better sentence."
+        with patch.dict("os.environ",{"GEMINI_API_KEY":"test-key",
+            "GEMINI_MODEL":"gemini-3.8-flash","GEMINI_SECOND_PASS":"1"}):
+            with patch.object(tool,"_request_gemini",side_effect=fake_model):
+                text=tool.rewrite_via_gemini("Original sentence.", "natural", 2)
+        self.assertEqual(text,"A better sentence.")
+        self.assertEqual(len(prompts),2)
+
     def test_no_key_fails_cleanly(self):
         with patch.dict('os.environ',{'OPENAI_API_KEY':''}):
             with self.assertRaisesRegex(RuntimeError,'not configured'):
