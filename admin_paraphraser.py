@@ -1428,6 +1428,7 @@ def handle_public_rewrite(handler, rate_checker):
     """
     import prowell_deeprewrite as deep
     import prowell_openai_rewrite as paid
+    import prowell_gemini_rewrite as google
     ip = handler.client_address[0]
     if not rate_checker(ip, "public-paraphrase-local", limit=24):
         return handler.send_json(429, {
@@ -1444,8 +1445,8 @@ def handle_public_rewrite(handler, rate_checker):
         if not isinstance(data, dict):
             raise ValueError("The request must contain text.")
         engine = data.get("engine", "local")
-        if engine not in ("local", "deep", "hybrid", "openai"):
-            raise ValueError("Choose Fast editing, DeepRewrite, Hybrid DeepRewrite, or OpenAI editing.")
+        if engine not in ("local", "deep", "hybrid", "openai", "gemini"):
+            raise ValueError("Choose Fast editing, DeepRewrite, Hybrid DeepRewrite, OpenAI editing, or Gemini editing.")
         source, tone, count = validate_request(data)
         terms = _validate_protected_terms(data.get("protectedTerms"), source)
         level = validate_rewrite_level(data["level"]) if "level" in data else None
@@ -1473,27 +1474,31 @@ def handle_public_rewrite(handler, rate_checker):
             raise ValueError("Rewrite history is invalid.")
     except (ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError) as error:
         return handler.send_json(400, {"error": str(error) or "Invalid text."})
-    # Explicitly selected paid editor. Strict per-IP quota plus an overall
-    # per-process budget stop public requests from running unlimited charges.
-    if engine == "openai":
-        if not rate_checker(ip, "public-paraphrase-openai", limit=3):
+    # The visitor must explicitly choose an external provider. Both
+    # options use server-side credentials, separate IP limits and bounded
+    # per-process quotas. No automatic cross-provider transmission occurs.
+    if engine in ("openai", "gemini"):
+        provider = paid if engine == "openai" else google
+        quota_key = "public-paraphrase-" + engine
+        if not rate_checker(ip, quota_key, limit=3):
             return handler.send_json(429, {
-                "error": "OpenAI writing limit reached for this connection."
+                "error": "Writing limit reached for this provider and connection."
             })
         try:
-            generated = paid.rewrite(
+            generated = provider.rewrite(
                 source, original_text, tone, level or 9, terms,
                 history=history, attempt=attempt,
             )
             result = generated["paraphrased"]
             metrics = _rewrite_edit_metrics(source, result, terms)
-        except (paid.ProviderUnavailable, ValueError) as error:
+        except (paid.ProviderUnavailable, google.GeminiUnavailable, ValueError) as error:
             return handler.send_json(
-                503 if isinstance(error, paid.ProviderUnavailable) else 400,
+                503 if isinstance(error, (paid.ProviderUnavailable,
+                                          google.GeminiUnavailable)) else 400,
                 {"error": str(error)},
             )
         return handler.send_json(200, {
-            "paraphrased": result, "engine": "openai",
+            "paraphrased": result, "engine": engine,
             "pipeline": generated["enginePipeline"],
             "editorialPass": generated["editorialPass"],
             "mode": mode, "revisionNumber": attempt,
