@@ -477,7 +477,7 @@ class ParaphraserTests(unittest.TestCase):
             'Do not expose owner Gemini to visitors')):
             code, data = tool.handle_public_rewrite(user, lambda *args, **kw: True)
         self.assertEqual(code, 400)
-        self.assertIn('Fast editing, DeepRewrite, or Hybrid DeepRewrite', data['error'])
+        self.assertIn('Fast editing, DeepRewrite, Hybrid DeepRewrite, or OpenAI editing', data['error'])
 
     def test_public_paraphraser_rate_limit_and_invalid_text(self):
         request = FakeHandler({'text': 'Hello.', 'tone': 'natural'})
