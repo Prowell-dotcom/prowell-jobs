@@ -121,3 +121,11 @@
 .pp-section .pp-depth-control p{font-size:12px;color:#5e728a;line-height:1.6;margin:0}
 .pp-section .pp-status[data-state=warning]{color:#925a0d;background:#fffbf1;border-top:1px solid #f4dfbc;padding-top:14px}
 @media(max-width:680px){.pp-section .pp-depth-control{padding:15px 17px 17px}.pp-section .pp-depth-head{flex-wrap:wrap}}
+
+/* Optional repeat pass remains visually secondary but clearly available. */
+.pp-section .pp-retry-help{padding:15px 27px 0;margin:0;color:#5d6d85;font-size:12px;line-height:1.7}
+.pp-section .pp-retry-help strong{color:#4249a5}
+.pp-section .pp-actions .pp-rehumanize{border-color:#c9cdf8;color:#4348bd;background:#f1f2ff;min-width:173px}
+.pp-section .pp-actions .pp-rehumanize:not(:disabled):hover{background:#e6e8ff;border-color:#969de8}
+.pp-section .pp-actions .pp-rehumanize:disabled{opacity:.5}
+@media(max-width:680px){.pp-section .pp-retry-help{padding:14px 17px 0}}

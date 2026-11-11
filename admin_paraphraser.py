@@ -1043,6 +1043,111 @@ def rewrite_via_local(text, tone, count, protected_terms=(), level=None):
     return updated
 
 
+# Safe alternatives for a second pass. These are not arbitrary synonyms: the
+# patterns target fairly stable idioms and avoid medical/academic terminology.
+# A repeated pass cannot promise novel wording for every passage.
+_REHUMANIZE_RULES = (
+    (r"\bthis paper examines\b", "this paper looks at"),
+    (r"\bthe paper examines\b", "the paper looks at"),
+    (r"\bthis report examines\b", "this report looks at"),
+    (r"\bthe report examines\b", "the report looks at"),
+    (r"\bthis study examines\b", "this study looks at"),
+    (r"\bthe study examines\b", "the study looks at"),
+    (r"\bthe purpose of the\b", "the aim of the"),
+    (r"\bthe purpose of this\b", "the aim of this"),
+    (r"\bwas carried out by\b", "was conducted by"),
+    (r"\bwere carried out by\b", "were conducted by"),
+    (r"\bhas an effect on\b", "affects"),
+    (r"\bhad an effect on\b", "affected"),
+    (r"\btook part in\b", "participated in"),
+    (r"\bnot prepared for\b", "unprepared for"),
+    (r"\bin addition to\b", "along with"),
+    (r"\bin response to\b", "as a response to"),
+    (r"\bfor example,\s+", "for instance, "),
+    (r"\bnevertheless,\s+", "even so, "),
+    (r"\bstill,\s+", "even so, "),
+    (r"\btherefore,\s+", "as a result, "),
+)
+_REHUMANIZE_COMPILED_RULES = tuple(
+    (re.compile(pattern, re.IGNORECASE), replacement)
+    for pattern, replacement in _REHUMANIZE_RULES
+)
+
+
+def _rehumanize_local(text, tone, protected_terms, level, attempt,
+                      original_text):
+    """Generate another safe candidate without changing the initial source.
+
+    Always start with the *currently displayed result*. If all known editing
+    rules have already been used, try a few limited alternative constructions.
+    When nothing distinct remains, fail explicitly rather than falsely
+    claiming another rewording was produced.
+    """
+    prior = text.strip()
+    candidates = []
+    try:
+        standard = rewrite_via_local(
+            prior, tone, count_words(prior), protected_terms, level=level)
+        candidates.append(standard)
+    except RuntimeError:
+        pass
+
+    # Rotate the *starting point* so successive requests can explore other
+    # natural phrases instead of applying the same deterministic substitution.
+    start = (attempt - 1) % len(_REHUMANIZE_COMPILED_RULES)
+    choices = (_REHUMANIZE_COMPILED_RULES[start:] +
+               _REHUMANIZE_COMPILED_RULES[:start])
+    edited = prior
+    for pattern, replacement in choices:
+        alternative = _capitalize_sentence_starts(
+            _apply_unprotected_rule(
+                edited, pattern, replacement, protected_terms))
+        if alternative == edited:
+            continue
+        if (_safe_output(original_text, alternative, protected_terms)
+                and _local_grammar_ok(prior, alternative)):
+            edited = alternative
+    if edited != prior:
+        candidates.append(edited)
+
+    # Reattempt from the original only as a distinct alternative, never
+    # overwrite its preserved text or return the identical current result.
+    if not candidates:
+        try:
+            alternate = rewrite_via_local(
+                original_text, tone, count_words(original_text),
+                protected_terms, level=level)
+            for pattern, replacement in choices:
+                changed = _capitalize_sentence_starts(
+                    _apply_unprotected_rule(
+                        alternate, pattern, replacement, protected_terms))
+                if (_safe_output(original_text, changed, protected_terms)
+                        and _local_grammar_ok(original_text, changed)):
+                    alternate = changed
+            if alternate != prior:
+                candidates.append(alternate)
+        except RuntimeError:
+            pass
+
+    seen = set()
+    for candidate in candidates:
+        normalized = re.sub(r"\s+", " ", candidate).strip().casefold()
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        if (normalized != re.sub(r"\s+", " ", prior).strip().casefold()
+                and _safe_output(original_text, candidate, protected_terms)
+                and _safe_output(prior, candidate, protected_terms)
+                and _local_grammar_ok(prior, candidate)):
+            return candidate
+    raise RuntimeError(
+        "No further safe rewording was available for this passage using "
+        "the local algorithms. Your current result is unchanged. "
+        "Try a different writing style, adjust the depth level, or revise "
+        "a smaller section manually."
+    )
+
+
 def rewrite_via_provider(text, tone, count, protected_terms=()):
     provider = (os.environ.get("PARAPHRASER_PROVIDER", "gemini").strip().lower()
                 or "gemini")
@@ -1220,11 +1325,36 @@ def handle_public_rewrite(handler, rate_checker):
         source, tone, count = validate_request(data)
         terms = _validate_protected_terms(data.get("protectedTerms"), source)
         level = validate_rewrite_level(data["level"]) if "level" in data else None
+        mode = data.get("mode", "first")
+        if mode not in ("first", "again"):
+            raise ValueError("Select a supported rewrite mode.")
+        attempt = data.get("attempt", 1)
+        if mode == "again":
+            if type(attempt) is not int or not 1 <= attempt <= 20:
+                raise ValueError("Rehumanize attempts must be from 1 to 20.")
+            original_text, _, _ = validate_request({
+                "text": data.get("originalText"), "tone": tone
+            })
+            if not _safe_output(original_text, source, terms):
+                raise ValueError(
+                    "The current result has changed protected details. "
+                    "Start from the original text instead."
+                )
+        else:
+            original_text = source
+            attempt = 0
     except (ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError) as error:
         return handler.send_json(400, {"error": str(error) or "Invalid text."})
     try:
-        result = rewrite_via_local(source, tone, count, terms, level=level)
-        if not _safe_output(source, result, terms):
+        if mode == "again":
+            result = _rehumanize_local(
+                source, tone, terms, level, attempt, original_text)
+        else:
+            result = rewrite_via_local(
+                source, tone, count, terms, level=level)
+        if not _safe_output(source, result, terms) or not _safe_output(
+            original_text, result, terms
+        ):
             raise RuntimeError("Protected details could not be preserved.")
         if count_words(result) > MAX_WORDS:
             raise RuntimeError("The revised text exceeded the 3,000-word limit.")
@@ -1247,6 +1377,8 @@ def handle_public_rewrite(handler, rate_checker):
     return handler.send_json(200, {
         "paraphrased": result,
         "engine": "local",
+        "mode": mode,
+        "revisionNumber": attempt,
         "levelRequested": level,
         "inputWords": count,
         "outputWords": count_words(result),

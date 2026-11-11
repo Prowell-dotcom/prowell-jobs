@@ -8,7 +8,8 @@
   if(!form)return;
   window.__prowellHumanizerInitialized=true;
   const source=$('publicParaphraseInput'), result=$('publicParaphraseOutput');
-  const submit=$('publicParaphraseSubmit'), status=$('publicParaphraseStatus');
+  const submit=$('publicParaphraseSubmit'), retry=$('publicParaphraseAgain');
+  const status=$('publicParaphraseStatus');
   const copy=$('publicParaphraseCopy'), save=$('publicParaphraseDownload');
   const counter=$('publicParaphraseCount');
   const depth=$('publicParaphraseLevel');
@@ -34,6 +35,10 @@
   }
   const wordCount=value=>(String(value||'').trim().match(/\S+/gu)||[]).length;
   let busy=false;
+  let originalForResult='';
+  let retryCount=0;
+  let versionHistory=[];
+  const normalize=value=>String(value||'').replace(/\s+/g,' ').trim().toLowerCase();
   const draftKey='prowell-humanizer-draft-v1';
   // Drafts stay in this browser tab; no text is sent to storage services.
   // Continue operating when storage is blocked by a privacy setting.
@@ -43,7 +48,10 @@
         text:source.value,
         tone:$('publicParaphraseTone').value,
         level:Number(depth.value),
-        protectedTerms:$('publicParaphraseProtectedTerms').value
+        protectedTerms:$('publicParaphraseProtectedTerms').value,
+        humanizedResult:result.value,
+        originalForResult,
+        retryCount
       }));
     } catch(_){}
   }
@@ -60,6 +68,13 @@
       updateDepth();
       const terms=$('publicParaphraseProtectedTerms');
       if(!terms.value&&typeof saved.protectedTerms==='string')terms.value=saved.protectedTerms.slice(0,3000);
+      if(!result.value&&typeof saved.humanizedResult==='string')
+        result.value=saved.humanizedResult.slice(0,85000);
+      if(typeof saved.originalForResult==='string')
+        originalForResult=saved.originalForResult.slice(0,85000);
+      if(Number.isInteger(saved.retryCount)&&saved.retryCount>=0)
+        retryCount=saved.retryCount;
+      if(result.value.trim())versionHistory=[normalize(result.value)];
     }catch(_){}
   }
   const notify=(message,kind='info')=>{
@@ -71,6 +86,8 @@
     counter.textContent=count.toLocaleString()+' / 3,000 words';
     counter.classList.toggle('pp-over',count>3000);
     submit.disabled=busy;
+    retry.disabled=busy||!result.value.trim()||!originalForResult||
+      normalize(source.value)!==normalize(originalForResult);
     copy.disabled=!result.value.trim();
     save.disabled=!result.value.trim();
   }
@@ -82,18 +99,38 @@
   depth.addEventListener('change',()=>{updateDepth();rememberDraft()});
   $('publicParaphraseProtectedTerms').addEventListener('input',rememberDraft);
   window.addEventListener('pagehide',rememberDraft);
-  form.addEventListener('submit',async event=>{
-    event.preventDefault();
+  async function runHumanizer(again=false){
     if(busy)return;
+    if(again && (!result.value.trim()||!originalForResult)){
+      notify('Humanize the original text first, then choose Rehumanize text.','error');
+      return;
+    }
+    if(again && normalize(source.value)!==normalize(originalForResult)){
+      notify('The original text has changed. Humanize it again before rehumanizing the result.','error');
+      return;
+    }
     rememberDraft();
-    const text=source.value.trim();
+    const text=again?result.value.trim():source.value.trim();
     const count=wordCount(text);
-    if(!count){notify('Paste or type some text before selecting Humanize text.','error');return;}
-    if(count>3000){notify('Maximum 3,000 words; remove '+(count-3000)+' words.','error');return;}
+    if(!count){
+      notify('Paste or type some text before selecting Humanize text.','error');
+      return;
+    }
+    if(count>3000){
+      notify('Maximum 3,000 words; remove '+(count-3000)+' words.','error');
+      return;
+    }
+    const previous=result.value;
+    const attempt=again?(retryCount%20)+1:0;
+    const baseline=again?originalForResult:source.value.trim();
     busy=true;
-    result.value='';
-    result.placeholder='Improving wording and sentence clarity…';
-    notify('Prowell Humanizer is improving your writing…');
+    if(!again){
+      result.value='';
+      result.placeholder='Improving wording and sentence clarity…';
+    }
+    notify(again?
+      'Rehumanizing the current result. Your previous version is kept until a new one is ready…':
+      'Prowell Humanizer is improving your writing…');
     refresh();
     const controller=new AbortController();
     const timeout=setTimeout(()=>controller.abort(),30000);
@@ -105,46 +142,78 @@
         body:JSON.stringify({
           text,engine:'local',tone:$('publicParaphraseTone').value,
           level:Number(depth.value),
+          mode:again?'again':'first',
+          ...(again?{attempt,originalText:baseline}:{}),
           protectedTerms:$('publicParaphraseProtectedTerms').value.trim()
         })
       });
       let data;
       try{data=await response.json();}
-      catch(_){throw Error('Unexpected server response. Refresh and try again.');}
+      catch(_){throw Error('Unexpected server response. Try again in a moment.');}
       if(!response.ok)throw Error(data?.error||'Rewriting failed (HTTP '+response.status+').');
       if(!data||typeof data.paraphrased!=='string'||!data.paraphrased.trim()){
         throw Error('The editor returned no revised text.');
       }
-      result.value=data.paraphrased;
+      const next=data.paraphrased.trim();
+      if(again && versionHistory.includes(normalize(next))){
+        throw Error('This variation matches an earlier result. Your current version was kept. Try changing the writing style or depth.');
+      }
+      if(again && normalize(next)===normalize(previous)){
+        throw Error('No new wording was produced. Your current version was kept.');
+      }
+      result.value=next;
       result.placeholder='Your humanized result will appear here.';
+      if(again){
+        retryCount=attempt;
+        versionHistory.push(normalize(next));
+        versionHistory=versionHistory.slice(-12);
+      }else{
+        originalForResult=baseline;
+        retryCount=0;
+        versionHistory=[normalize(next)];
+      }
       const percent=Number(data.editableTextChangePercent);
       const description=(typeof data.editStrength==='string'&&Number.isFinite(percent))?
-        (' '+data.editStrength+' edit: '+percent+'% of editable wording changed (not a human-authorship score).'):'';
+        (' '+data.editStrength+' edit: '+percent+'% of editable wording changed.'): '';
       const warning=typeof data.qualityWarning==='string'?
         data.qualityWarning.trim():'';
-      if(warning){
-        notify('Level '+depth.value+' attempted. '+description.trim()+
-          ' '+warning,'warning');
-      }else{
-        notify('Completed — '+wordCount(result.value).toLocaleString()+
-          ' words.'+description+' Review the revised text for accuracy.','success');
-      }
+      const intro=again?'Rehumanized result updated.':'Humanized result ready.';
+      notify(warning?intro+description+' '+warning:
+        intro+' '+wordCount(next).toLocaleString()+' words.'+description+
+        ' Review the revised text for accuracy.',warning?'warning':'success');
     }catch(error){
       const message=error?.name==='AbortError'?
-        'The request timed out. Please try a shorter passage.':
+        'The request timed out. Try a shorter passage.':
         (error?.message||'Could not complete the rewrite.');
-      result.placeholder='No result generated.';
-      notify(message,'error');
+      if(again){
+        result.value=previous;
+        retryCount=attempt;
+        notify('Your previous result was preserved. '+message,'error');
+      }else{
+        result.placeholder='No result generated.';
+        notify(message,'error');
+      }
     }finally{
       clearTimeout(timeout);
       busy=false;
+      rememberDraft();
       refresh();
     }
+  }
+  form.addEventListener('submit',event=>{
+    event.preventDefault();
+    return runHumanizer(false);
+  });
+  retry.addEventListener('click',()=>{
+    return runHumanizer(true);
   });
   $('publicParaphraseClear').addEventListener('click',()=>{
     if(busy)return;
     source.value='';
     result.value='';
+    originalForResult='';
+    retryCount=0;
+    versionHistory=[];
     result.placeholder='Your humanized result will appear here.';
     $('publicParaphraseProtectedTerms').value='';
     try{sessionStorage.removeItem(draftKey)}catch(_){}
