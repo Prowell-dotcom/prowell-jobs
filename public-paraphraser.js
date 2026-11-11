@@ -10,6 +10,9 @@
   const source=$('publicParaphraseInput'), result=$('publicParaphraseOutput');
   const submit=$('publicParaphraseSubmit'), retry=$('publicParaphraseAgain');
   const status=$('publicParaphraseStatus');
+  const immediateStatus=$('publicParaphraseInlineFeedback');
+  const submitLabel=submit.innerHTML;
+  const retryLabel=retry.innerHTML;
   const copy=$('publicParaphraseCopy'), save=$('publicParaphraseDownload');
   const counter=$('publicParaphraseCount');
   const depth=$('publicParaphraseLevel');
@@ -80,6 +83,10 @@
   const notify=(message,kind='info')=>{
     status.textContent=message;
     status.dataset.state=kind;
+    // Show the most important result feedback beside the Rehumanize control;
+    // visitors should not have to scroll below both text areas to find it.
+    immediateStatus.textContent=message;
+    immediateStatus.dataset.state=kind;
   };
   function refresh(){
     const count=wordCount(source.value);
@@ -124,13 +131,16 @@
     const attempt=again?(retryCount%20)+1:0;
     const baseline=again?originalForResult:source.value.trim();
     busy=true;
+    submit.innerHTML=again?submitLabel:'Humanizing…';
+    retry.innerHTML=again?'Rehumanizing…':retryLabel;
     if(!again){
       result.value='';
       result.placeholder='Improving wording and sentence clarity…';
     }
     notify(again?
-      'Rehumanizing the current result. Your previous version is kept until a new one is ready…':
-      'Prowell Humanizer is improving your writing…');
+      'Generating another version of the current result. Your last version stays visible…':
+      'Checking your writing and applying the available rewriting patterns…',
+      'working');
     refresh();
     const controller=new AbortController();
     const timeout=setTimeout(()=>controller.abort(),30000);
@@ -177,7 +187,7 @@
         (' '+data.editStrength+' edit: '+percent+'% of editable wording changed.'): '';
       const warning=typeof data.qualityWarning==='string'?
         data.qualityWarning.trim():'';
-      const intro=again?'Rehumanized result updated.':'Humanized result ready.';
+      const intro=again?'Rehumanized result updated.':'Text revision complete.';
       notify(warning?intro+description+' '+warning:
         intro+' '+wordCount(next).toLocaleString()+' words.'+description+
         ' Review the revised text for accuracy.',warning?'warning':'success');
@@ -196,6 +206,8 @@
     }finally{
       clearTimeout(timeout);
       busy=false;
+      submit.innerHTML=submitLabel;
+      retry.innerHTML=retryLabel;
       rememberDraft();
       refresh();
     }
