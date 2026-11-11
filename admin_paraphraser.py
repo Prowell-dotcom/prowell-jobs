@@ -141,7 +141,7 @@ def _protected_details(text, protected_terms=()):
     custom = _terms_pattern(protected_terms)
     return {
         "numbers": Counter(_NUMBER.findall(text)),  # even comma format unchanged
-        "symbols": tuple(_SYMBOLS.findall(text)),  # preserve %, $, & and @
+        "symbols": Counter(_SYMBOLS.findall(text)),  # preserve %, $, & and @ even if clauses move
         "citations": Counter(_CITATION.findall(text)),
         "urls": Counter(_URL.findall(text)),
         "emails": Counter(_EMAIL.findall(text)),
