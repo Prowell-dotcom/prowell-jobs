@@ -226,6 +226,62 @@ class ParaphraserTests(unittest.TestCase):
         self.assertFalse(tool._safe_output(source, output.replace("20%", "20 percent")))
         self.assertFalse(tool._safe_output(source, output.replace("$90", "$91")))
 
+    def test_gemini_retries_503_then_returns_content(self):
+        import urllib.error
+        calls=[]
+        class FakeResponse:
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def read(self):
+                return json.dumps({"candidates":[{"content":{"parts":[
+                    {"text":"The revised wording is clear and readable."}
+                ]}}]}).encode("utf-8")
+        def overload():
+            return urllib.error.HTTPError(
+                "https://generativelanguage.googleapis.com/",
+                503, "Service unavailable", {}, io.BytesIO(b'{}'))
+        def fake_open(request, timeout):
+            calls.append((request, timeout))
+            if len(calls) < 3:
+                raise overload()
+            return FakeResponse()
+        with patch("urllib.request.urlopen", side_effect=fake_open):
+            with patch("time.sleep") as sleep:
+                output=tool._request_gemini("private-key", "gemini-3.8-flash",
+                                           "Rewrite clearly", "<source>\\nHello.\\n</source>")
+        self.assertEqual(output, "The revised wording is clear and readable.")
+        self.assertEqual(len(calls), 3)
+        self.assertEqual([x[1] for x in calls], [32, 32, 32])
+        self.assertEqual([x.args[0] for x in sleep.call_args_list], [1, 2])
+
+    def test_gemini_stops_after_three_503_failures(self):
+        import urllib.error
+        def overload(*args, **kwargs):
+            raise urllib.error.HTTPError(
+                "https://generativelanguage.googleapis.com/", 503,
+                "Service unavailable", {}, io.BytesIO(b'{}'))
+        with patch("urllib.request.urlopen", side_effect=overload) as send:
+            with patch("time.sleep") as sleep:
+                with self.assertRaisesRegex(RuntimeError, "Tried 3 times"):
+                    tool._request_gemini("private-key", "gemini-3.8-flash",
+                                         "Rewrite clearly", "Short text")
+        self.assertEqual(send.call_count, 3)
+        self.assertEqual(sleep.call_count, 2)
+
+    def test_gemini_quota_error_does_not_retry(self):
+        import urllib.error
+        def quota(*args, **kwargs):
+            raise urllib.error.HTTPError(
+                "https://generativelanguage.googleapis.com/", 429,
+                "Rate limit", {}, io.BytesIO(b'{}'))
+        with patch("urllib.request.urlopen", side_effect=quota) as send:
+            with patch("time.sleep") as sleep:
+                with self.assertRaisesRegex(RuntimeError, "quota reached"):
+                    tool._request_gemini("private-key", "gemini-3.8-flash",
+                                         "Rewrite clearly", "Short text")
+        self.assertEqual(send.call_count, 1)
+        sleep.assert_not_called()
+
     def test_no_key_fails_cleanly(self):
         with patch.dict('os.environ',{'OPENAI_API_KEY':''}):
             with self.assertRaisesRegex(RuntimeError,'not configured'):
