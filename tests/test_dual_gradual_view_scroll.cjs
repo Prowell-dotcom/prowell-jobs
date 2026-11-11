@@ -45,9 +45,10 @@ async function run(site,kind){
      for(const listener of listeners)listener(changes,'local');
    }};
  const chrome={runtime:{lastError:null,onMessage:{addListener(){}},
-   sendMessage(msg,cb){if(msg.type===(four?'PROWELL_TAB_ID':'GW_TAB_ID'))
-      cb?.({tabId:17});
-     else if(msg.type==='PROWELL_ORDER_SOUND')events.push('SOUND '+msg.kind);
+   sendMessage(msg,cb){if(msg.type===(four?'PROWELL_TAB_ID':'GW_TAB_ID')){
+       cb?.({tabId:17});return;
+     }
+     if(msg.type==='PROWELL_ORDER_SOUND')events.push('SOUND '+msg.kind);
      else events.push('OTHER MESSAGE '+msg.type);
      cb?.({ok:true});
    }},storage:{local:store,onChanged:{addListener(fn){listeners.push(fn);}}}};
