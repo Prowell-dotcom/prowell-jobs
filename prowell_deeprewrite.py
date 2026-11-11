@@ -415,7 +415,7 @@ def ollama_generate(url, model, source, tone, level, tokens, count, history,
         "Intensity setting "+str(level)+"/10. Sentence plans: "+
         "; ".join(plans)+
         ("\nAvoid repeating earlier versions:\n"+prior if prior else "")+
-        ("\nReturn ONLY JSON formatted as {\\"rewrite\\":\\"the fully rewritten paragraph\\"}. "
+        ("\nReturn ONLY JSON formatted as {\"rewrite\":\"the fully rewritten paragraph\"}. "
          "Do not include commentary or markdown fences." if count == 1 else
          "\nReturn a JSON object ONLY, with a single key 'candidates' "
          "containing an array of "+str(count)+" complete rewritten strings.")+
