@@ -50,6 +50,41 @@ class DeepRewriteTests(unittest.TestCase):
                 }):
                     self.assertIsNone(deep.model_config())
 
+    def test_second_live_model_semantic_drift_is_rejected(self):
+        original = (
+            "The clinic contacted patients before scheduled follow-up appointments. "
+            "Staff members used reminder calls to confirm appointments and identify "
+            "problems with transportation. Nurses recorded the outcomes in the patient records."
+        )
+        # Observed in the second live production smoke test after tense patch.
+        # Plural clinics and confirmation of issues change the original claims.
+        bad = (
+            "Clinics arrange consultations prior to scheduled follow-up sessions. "
+            "Staff members use reminder calls to confirm pertinent issues and "
+            "address transportation concerns. Nurses track treatment outcomes "
+            "within patients' medical records."
+        )
+        self.assertFalse(deep._claims_and_tense_preserved(original,bad))
+        self.assertIsNone(deep.validate_candidate(original,original,bad,()))
+
+    def test_role_scope_and_appointment_verification_remain_intact(self):
+        source = (
+            "The clinic contacted patients before scheduled visits. "
+            "Nurses used reminder calls to confirm appointments and asked "
+            "about transportation problems."
+        )
+        safe = (
+            "Before the scheduled visits, the clinic reached patients by "
+            "telephone. Nurses made reminder calls to verify appointments "
+            "and discussed transportation problems."
+        )
+        self.assertTrue(deep._claims_and_tense_preserved(source,safe))
+        self.assertIsNotNone(deep.validate_candidate(source,source,safe,()))
+        pluralized = safe.replace("the clinic","clinics")
+        self.assertFalse(deep._claims_and_tense_preserved(source,pluralized))
+        invented = safe.replace("verify appointments","confirm treatment results")
+        self.assertFalse(deep._claims_and_tense_preserved(source,invented))
+
     def test_live_model_hallucinated_results_are_rejected(self):
         original = (
             "The clinic contacted patients before scheduled follow-up appointments. "
