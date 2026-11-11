@@ -192,7 +192,8 @@
       <div class="pp-toolbar">
         <label for="publicParaphraseEngine">Rewriting engine</label>
         <select id="publicParaphraseEngine" name="engine" aria-describedby="publicDeepRewriteStatus">
-          <option value="local">Fast editing · basic algorithms</option>
+          <option value="" selected disabled>Checking advanced model availability…</option>
+          <option value="local">Fast editing · basic algorithms (manual fallback)</option>
           <option value="deep" disabled>DeepRewrite · model-generated alternatives</option>
           <option value="hybrid" disabled>Hybrid DeepRewrite · advanced editorial review</option>
         </select>
@@ -336,9 +337,10 @@
         depth.value=String(saved.level);
       }
       updateDepth();
-      if(saved.engine==='local'||saved.engine==='deep'||saved.engine==='hybrid'){
+      // Never restore a previous automatic Fast fallback as the default.
+      // A new page load always prefers Hybrid when the model is ready.
+      if(saved.engine==='deep'||saved.engine==='hybrid'){
         engine.dataset.savedChoice=saved.engine;
-        if(saved.engine==='local')engine.value='local';
       }
       if(Array.isArray(saved.history)){
         versionHistory=saved.history.filter(x=>typeof x==='string'&&x.length<=7000).slice(-3);
@@ -378,6 +380,7 @@
   source.addEventListener('change',()=>{rememberDraft();refresh()});
   $('publicParaphraseTone').addEventListener('change',rememberDraft);
   engine.addEventListener('change',()=>{
+    engine.dataset.userSelected='yes';
     rememberDraft();
     notify(engine.value!=='local'?
       'Advanced DeepRewrite selected. The private model will generate and compare multiple candidates; longer processing is normal.':
@@ -396,6 +399,10 @@
     }
     if(again && normalize(source.value)!==normalize(originalForResult)){
       notify('The original text has changed. Humanize it again before rehumanizing the result.','error');
+      return;
+    }
+    if(!engine.value){
+      notify('Hybrid DeepRewrite is unavailable. Fast editing is limited and must be selected explicitly from the rewriting-engine menu.','error');
       return;
     }
     rememberDraft();
@@ -582,16 +589,18 @@
         if(option.value==='deep'||option.value==='hybrid')option.disabled=!deepAvailable;
       }
       if(deepAvailable){
-        if(engine.dataset.savedChoice!=='local')engine.value=engine.dataset.savedChoice==='deep'?'deep':'hybrid';
+        if(engine.dataset.userSelected!=='yes'){
+          engine.value=engine.dataset.savedChoice==='deep'?'deep':'hybrid';
+        }
         deepStatus.textContent='Hybrid DeepRewrite is available. It generates alternatives, validates factual details, and can make an additional editorial pass for passages up to 170 words. Maximum input: 350 words.';
         deepStatus.dataset.state='ready';
       }else{
-        engine.value='local';
-        deepStatus.textContent='DeepRewrite is currently unavailable. Fast editing can only make limited rule-based improvements and may leave your wording unchanged. It is not a substitute for deep paraphrasing.';
+        if(engine.dataset.userSelected!=='yes')engine.value='';
+        deepStatus.textContent='Hybrid DeepRewrite is currently unavailable. The installed private model may be disabled, missing, or unready. Fast editing is optional and may not produce a substantive rewrite; choose it explicitly to try.';
         deepStatus.dataset.state='unavailable';
       }
     }catch(_){
-      engine.value='local';
+      if(engine.dataset.userSelected!=='yes')engine.value='';
       deepAvailable=false;
       deepStatus.textContent='DeepRewrite model status could not be checked. Fast editing remains available.';
       deepStatus.dataset.state='unavailable';
