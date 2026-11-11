@@ -50,6 +50,54 @@ class DeepRewriteTests(unittest.TestCase):
                 }):
                     self.assertIsNone(deep.model_config())
 
+    def test_live_model_hallucinated_results_are_rejected(self):
+        original = (
+            "The clinic contacted patients before scheduled follow-up appointments. "
+            "Staff members used reminder calls to confirm appointments and identify "
+            "problems with transportation. Nurses recorded the outcomes in the patient records."
+        )
+        # Observed from the first production Ollama smoke test, not invented
+        # as an artificial grammar error. It changes past tense and fabricates
+        # 'successful' outcomes that the original never established.
+        incorrect = (
+            "The clinic initiates consultations by informing patients of their "
+            "upcoming follow-up visits. Staff utilizes reminder notifications for "
+            "appointment confirmation and troubleshooting issues related to "
+            "transportation. Nurse's detailed records reflect successful outcomes."
+        )
+        self.assertFalse(deep._claims_and_tense_preserved(original,incorrect))
+        self.assertIsNone(deep.validate_candidate(
+            original,original,incorrect,()
+        ))
+
+    def test_strong_edit_can_keep_actual_claims(self):
+        original = (
+            "The clinic contacted patients before scheduled follow-up appointments. "
+            "Staff members used reminder calls to confirm appointments and identify "
+            "problems with transportation. Nurses recorded the outcomes in the patient records."
+        )
+        correct = (
+            "Before their scheduled follow-up visits, the clinic reached patients "
+            "using reminder calls. Staff verified appointments and asked about "
+            "transportation problems. Nurses documented the results in patient records."
+        )
+        self.assertTrue(deep._claims_and_tense_preserved(original,correct))
+        self.assertIsNotNone(deep.validate_candidate(
+            original,original,correct,()
+        ))
+
+    def test_time_sequence_and_tense_cannot_be_silently_changed(self):
+        base = "Nurses called patients before appointments and recorded their concerns."
+        self.assertFalse(deep._claims_and_tense_preserved(
+            base,"Nurses call patients and identify their concerns at appointments."
+        ))
+        self.assertFalse(deep._claims_and_tense_preserved(
+            base,"Nurses called patients and documented concerns afterwards."
+        ))
+        self.assertFalse(deep._claims_and_tense_preserved(
+            base,"Nurses reported that every patient was successful before appointments."
+        ))
+
     def test_protected_placeholders_round_trip(self):
         source=('Patients with hypertension took metformin for 25% of '
                 'appointments. Fees were $1,200 & staff worked @ clinic '
