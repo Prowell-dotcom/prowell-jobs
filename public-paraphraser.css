@@ -1,37 +1,53 @@
-/* Public Prowell Jobs paraphraser – self-contained homepage section */
-.pp-section{background:linear-gradient(160deg,#f3f9f8,#e8f2fd 70%,#f5f9fd);padding:72px 0 82px;scroll-margin-top:90px}
-.pp-intro{display:flex;justify-content:space-between;align-items:flex-end;gap:26px;margin-bottom:26px}
-.pp-intro h2{font-size:clamp(30px,4.2vw,51px);line-height:1.1;color:#0b1b33;margin:11px 0 14px}
-.pp-intro p{color:#526780;line-height:1.8;max-width:700px;margin:0;font-size:15px}
-.pp-access{flex:none;font-weight:750;font-size:12px;background:#e0f6e4;color:#226244;border:1px solid #b7e8c5;padding:10px 16px;border-radius:999px}
-.pp-panel{background:#fff;border:1px solid #dbe7ef;border-radius:22px;box-shadow:0 25px 80px rgba(13,30,52,.09);padding:28px}
-.pp-panel label{font-size:13px;color:#1c3556;font-weight:800;display:block}
-.pp-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
-.pp-toolbar label{margin-right:5px}
-.pp-toolbar select{background:#f8fbfd;border:1px solid #d9e4ef;border-radius:10px;min-height:44px;padding:10px 14px;color:#1b304b;font:inherit;font-size:14px}
-.pp-counter{font-size:12px;color:#51637c;font-weight:800;margin-left:auto}
-.pp-counter.pp-over{color:#ba2539}
-.pp-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:19px}
-.pp-field{min-width:0}
-.pp-field label{margin:0 0 10px}
-.pp-panel textarea{box-sizing:border-box;width:100%;border:1px solid #d5e3ef;border-radius:12px;background:#fbfdff;color:#1c3049;font:14px/1.8 'DM Sans',Arial,sans-serif;padding:15px 17px;resize:vertical;min-height:250px}
-.pp-panel textarea:focus,.pp-toolbar select:focus-visible{outline:3px solid #b0daf5;outline-offset:1px;border-color:#6cacc8}
-.pp-panel textarea[readonly]{background:#f6f9fe}
-.pp-advanced{margin-top:20px;border:1px solid #e0e9f2;border-radius:12px;padding:13px 16px;background:#fbfdff}
-.pp-advanced summary{font-size:13px;font-weight:800;color:#2c4c69;cursor:pointer}
-.pp-advanced label{margin:14px 0 8px}
-.pp-advanced textarea{min-height:88px}
-.pp-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:19px}
-.pp-actions button{min-height:45px;padding:11px 18px;border-radius:10px;border:1px solid #d3e0e9;font:800 13px 'DM Sans',Arial,sans-serif}
-.pp-submit{background:#0b1b33;color:#fff;border-color:#0b1b33!important;display:inline-flex;align-items:center;gap:18px}
-.pp-submit:hover:not(:disabled){background:#23456b}
-.pp-secondary{background:#fff;color:#24435a}
-.pp-secondary:hover:not(:disabled){background:#eef7ff}
-.pp-actions button:disabled{opacity:.48;cursor:not-allowed}
-.pp-status{font-size:13px;line-height:1.65;color:#356286;margin:15px 0 0;overflow-wrap:anywhere}
-.pp-status[data-state=error]{color:#b12b3c}
-.pp-status[data-state=success]{color:#147753}
-.pp-fineprint{color:#64758b;font-size:12px;line-height:1.75;margin:17px 0 0;border-top:1px solid #e9eef4;padding-top:16px}
-.pp-fineprint strong{color:#304964}
-@media(max-width:780px){.pp-section{padding:48px 0}.pp-intro{display:block}.pp-access{display:inline-flex;margin-top:14px}.pp-panel{padding:19px}.pp-columns{grid-template-columns:1fr}.pp-panel textarea{min-height:190px}.pp-actions button{flex:1 1 auto}.pp-toolbar .pp-counter{margin-left:0}}
-@media(max-width:440px){.pp-panel{padding:15px}.pp-panel textarea{font-size:14px}.pp-actions button{min-width:calc(50% - 6px);padding:10px}.pp-submit{flex-basis:100%!important;justify-content:center}}
+/* PROWELL HUMANIZER — deliberately mirrored inline in the homepage
+   so the editor keeps its spacious layout even if a static CSS asset fails. */
+.pp-section{position:relative;isolation:isolate;padding:88px 0 96px;background:linear-gradient(150deg,#eef5f9 0%,#f5f9ff 54%,#f1f8f1 100%);scroll-margin-top:90px;color:#14283f}
+.pp-section::before{content:"";position:absolute;inset:0 0 auto;height:7px;background:linear-gradient(90deg,#0d2442,#3c719e 60%,#b6da72);z-index:-1}
+.pp-section .pp-wrap{max-width:1196px;margin:0 auto;padding:0 30px}
+.pp-section .pp-intro{display:flex;align-items:flex-end;justify-content:space-between;gap:32px;margin:0 0 30px}
+.pp-section .pp-eyebrow{display:inline-flex;gap:9px;align-items:center;color:#2c715b;font-size:12px;font-weight:850;letter-spacing:.12em;text-transform:uppercase;margin:0 0 15px}
+.pp-section .pp-eyebrow::before{content:"";width:9px;height:9px;border-radius:100%;background:#85b84d;box-shadow:0 0 0 5px #d8ebc2}
+.pp-section .pp-intro h2{font-family:Manrope,"DM Sans",Arial,sans-serif;letter-spacing:-.048em;line-height:1.08;font-size:clamp(38px,4.5vw,61px);margin:0 0 16px;color:#0b1b33}
+.pp-section .pp-intro h2 span{color:#659b40}
+.pp-section .pp-intro p{font-size:15px;line-height:1.85;color:#52637c;max-width:670px;margin:0}
+.pp-section .pp-access{display:inline-flex;align-items:center;gap:9px;flex-shrink:0;color:#2f6942;font-size:12px;font-weight:800;padding:11px 16px;border-radius:999px;background:#e4f5de;border:1px solid #c4e7b8;white-space:nowrap}
+.pp-section .pp-access::before{content:"✓";font-weight:900}
+.pp-section .pp-panel{display:block;width:100%;background:#fff;border:1px solid #d9e5ef;border-radius:24px;overflow:hidden;box-shadow:0 24px 75px rgba(15,38,61,.085)}
+.pp-section .pp-panel *{box-sizing:border-box}
+.pp-section .pp-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:13px;padding:21px 27px;background:linear-gradient(90deg,#f8fafc,#fff);border-bottom:1px solid #e5edf5}
+.pp-section .pp-toolbar label{font-size:13px;font-weight:800;color:#2c4360}
+.pp-section .pp-toolbar select{appearance:auto;font:650 14px "DM Sans",Arial,sans-serif;color:#1b3654;min-width:205px;max-width:100%;border:1px solid #cdddea;border-radius:10px;padding:11px 16px;min-height:47px;background:#fff}
+.pp-section .pp-toolbar select:focus-visible,.pp-section textarea:focus-visible,.pp-section button:focus-visible{outline:3px solid #9bc9f2;outline-offset:2px}
+.pp-section .pp-counter{margin-left:auto;display:inline-flex;align-items:center;gap:6px;color:#536b84;background:#edf3f8;border-radius:999px;padding:9px 13px;font-size:12px;font-weight:800}
+.pp-section .pp-counter.pp-over{color:#b02d42;background:#fff0f1}
+.pp-section .pp-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0;min-width:0}
+.pp-section .pp-field{display:flex;flex-direction:column;gap:0;min-width:0;min-height:470px;background:#fff}
+.pp-section .pp-field+.pp-field{border-left:1px solid #e3ebf2;background:#fbfdff}
+.pp-section .pp-field-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 24px;border-bottom:1px solid #edf1f6;background:rgba(247,250,254,.7)}
+.pp-section .pp-field-head label{display:block;color:#1c3653;font-size:15px;font-weight:850}
+.pp-section .pp-field-hint{display:inline-block;color:#6a8299;font-size:12px;font-weight:650}
+.pp-section .pp-field textarea{display:block;width:100%;flex:1 1 auto;border:0;border-radius:0;outline:none;box-shadow:none;padding:25px 26px 28px;background:transparent;min-height:380px;height:400px;resize:vertical;color:#18324b;font:16px/1.86 "DM Sans",Arial,sans-serif;letter-spacing:.005em}
+.pp-section .pp-field textarea::placeholder{color:#8295a9;opacity:1}
+.pp-section .pp-field textarea[readonly]{background:#f9fbfe;color:#23405b}
+.pp-section .pp-field textarea:focus{outline:0;background:#fafdff}
+.pp-section .pp-field+.pp-field textarea:focus{background:#f9fbfe}
+.pp-section .pp-advanced{margin:0;padding:17px 27px;background:#fafcff;border-top:1px solid #e5edf4;border-bottom:1px solid #e5edf4}
+.pp-section .pp-advanced summary{cursor:pointer;color:#284c68;font-size:13px;font-weight:800;list-style-position:inside}
+.pp-section .pp-advanced label{display:block;margin:18px 0 10px;color:#2c4660;font-weight:800;font-size:13px}
+.pp-section .pp-advanced textarea{display:block;width:100%;min-height:94px;resize:vertical;font:14px/1.75 "DM Sans",Arial,sans-serif;padding:15px 16px;border:1px solid #d7e4ef;border-radius:11px;background:#fff;color:#18324b}
+.pp-section .pp-advanced textarea::placeholder{color:#8190a2}
+.pp-section .pp-actions{display:flex;align-items:center;flex-wrap:wrap;gap:11px;padding:22px 27px 11px}
+.pp-section .pp-actions button{display:inline-flex;justify-content:center;align-items:center;gap:8px;font:800 13px "DM Sans",Arial,sans-serif;min-height:49px;padding:12px 20px;border-radius:11px;white-space:nowrap;cursor:pointer;transition:transform .15s ease,background .15s ease,border-color .15s ease}
+.pp-section .pp-actions button:not(:disabled):hover{transform:translateY(-1px)}
+.pp-section .pp-submit{border:1px solid #0b1b33;background:#0b1b33;color:#fff;box-shadow:0 7px 18px rgba(11,27,51,.15);min-width:192px}
+.pp-section .pp-submit:not(:disabled):hover{background:#24496d}
+.pp-section .pp-secondary{border:1px solid #d8e4ee;background:#fff;color:#36516b}
+.pp-section .pp-secondary:not(:disabled):hover{background:#f0f6fa;border-color:#bbd2e2}
+.pp-section .pp-actions button:disabled{opacity:.45;cursor:not-allowed}
+.pp-section .pp-status{margin:0;padding:3px 28px 19px;color:#356287;font-size:13px;line-height:1.7;overflow-wrap:anywhere}
+.pp-section .pp-status[data-state=error]{color:#ae2940}
+.pp-section .pp-status[data-state=success]{color:#206f4d}
+.pp-section .pp-fineprint{margin:0;padding:19px 27px 23px;border-top:1px solid #e5edf4;background:#f8fafc;font-size:12px;line-height:1.8;color:#5b6d80}
+.pp-section .pp-fineprint strong{color:#2e4860}
+@media(max-width:850px){.pp-section{padding:62px 0}.pp-section .pp-intro{align-items:flex-start}.pp-section .pp-panel{border-radius:18px}.pp-section .pp-field{min-height:395px}.pp-section .pp-field textarea{height:325px;min-height:320px;padding:19px 20px;font-size:15px}.pp-section .pp-field-head{padding:15px 19px}.pp-section .pp-intro h2{font-size:clamp(34px,5vw,49px)}}
+@media(max-width:680px){.pp-section{padding:48px 0 64px}.pp-section .pp-wrap{padding:0 17px}.pp-section .pp-intro{display:block;margin-bottom:23px}.pp-section .pp-access{margin-top:17px}.pp-section .pp-toolbar{padding:18px 17px;gap:10px}.pp-section .pp-toolbar select{flex:1 1 160px;min-width:0}.pp-section .pp-counter{margin-left:0}.pp-section .pp-columns{grid-template-columns:minmax(0,1fr)}.pp-section .pp-field{min-height:350px}.pp-section .pp-field textarea{height:280px;min-height:275px}.pp-section .pp-field+.pp-field{border-left:0;border-top:1px solid #e3ebf2}.pp-section .pp-advanced{padding:17px}.pp-section .pp-actions{padding:20px 17px 12px}.pp-section .pp-status{padding:1px 17px 17px}.pp-section .pp-fineprint{padding:17px}.pp-section .pp-actions button{flex:1 1 calc(50% - 12px)}.pp-section .pp-actions .pp-submit{flex:1 1 100%}}
+@media(max-width:380px){.pp-section .pp-access{font-size:11px;white-space:normal}.pp-section .pp-intro h2{font-size:34px}.pp-section .pp-field-head{flex-wrap:wrap}.pp-section .pp-toolbar label{width:100%}.pp-section .pp-actions button{padding:11px 13px}}
