@@ -657,11 +657,8 @@ _LOCAL_RULES = (
     (r"\bfurthermore\b", "also"),
     (r"\bmoreover\b", "also"),
     (r"\bnevertheless\b", "still"),
-    (r"\bin terms of\b", "regarding"),
-    (r"\bat the same time\b", "meanwhile"),
     (r"\ba key factor in\b", "important for"),
     (r"\ba key component of\b", "an important part of"),
-    (r"\bwith the aim of\b", "to"),
     (r"\bto a large extent\b", "largely"),
     (r"\bthe purpose of this (study|paper|report) is to\b", r"this \1 aims to"),
     (r"\bthe purpose of the (study|paper|report) was to\b", r"the \1 aimed to"),
@@ -687,7 +684,6 @@ _LOCAL_RULES = (
     (r"\bprovide an explanation of\b", "explain"),
     (r"\bprovided assistance to\b", "helped"),
     (r"\bprovide assistance to\b", "help"),
-    (r"\bthe implementation of\b", "using"),
 )
 # These choices change the register and are never used for technical,
 # academic, or professional tone.
