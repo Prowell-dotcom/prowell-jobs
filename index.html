@@ -324,12 +324,10 @@
   }
   // Defeat browser form restoration on normal reload and back/forward restore.
   resetWriting();
-  window.addEventListener('pageshow',event=>{
-    if(event.persisted){
-      resetWriting();
-      notify('Ready to improve your writing. No previous text was restored.');
-      refresh();
-    }
+  window.addEventListener('pageshow',()=>{
+    // Also clear browser-restored textarea values on a normal hard refresh.
+    resetWriting();
+    refresh();
   });
   const notify=(message,kind='info')=>{
     status.textContent=message;
