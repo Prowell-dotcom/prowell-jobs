@@ -1,6 +1,6 @@
 'use strict';
 // The dual popup must match the user's supplied screenshots: exactly one
-// site name and one START AUTO-TAKE / STOP pair for each platform, without
+// site name and one START WATCH / STOP pair for each platform, without
 // the old walls of status text. All workflow scripts stay in the manifest.
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const base=path.join(__dirname,'../extension/dual-writers');
@@ -15,7 +15,7 @@ assert.equal((visible.match(/<h2>/g)||[]).length,2);
 assert.match(visible,/<h2>4writers\.net<\/h2>/);
 assert.match(visible,/<h2>good-writers\.com<\/h2>/);
 assert.equal((visible.match(/<button\b/g)||[]).length,4);
-assert.equal((visible.match(/>START AUTO-TAKE<\/button>/g)||[]).length,2);
+assert.equal((visible.match(/>START WATCH<\/button>/g)||[]).length,2);
 assert.equal((visible.match(/>STOP<\/button>/g)||[]).length,2);
 for(const site of ['four','good']){
   assert.match(visible,new RegExp('data-start="'+site+'"'));
@@ -32,7 +32,7 @@ assert.match(html,/height:27px/,'Buttons should be half their earlier height');
 assert.match(html,/font:700 10px/,'Small button text must fit compact controls');
 assert.match(html,/gap:6px/,'Compact buttons should remain separate');
 assert.doesNotMatch(html,/width:490px|height:54px/,'Old oversized controls must be gone');
-assert.match(js,/autoAcceptEnabled:true,armed:true/,'START must enable full auto-taking');
+assert.match(js,/autoAcceptEnabled:false,armed:true/,'START watches orders but forbids automatic acceptance');
 assert.match(js,/autoAcceptEnabled:false/,'STOP must disable automation');
 assert.match(js,/PROWELL_PREPARE_ORDER_SOUND/,'Starting must still prepare audio');
 assert.match(js,/claimConsentVersion:SITES\[site\]\.legacyVersion/);
@@ -45,4 +45,4 @@ assert(manifest.content_scripts.some(x=>x.js.includes('legacy/four/runtime-conte
 assert(manifest.content_scripts.some(x=>x.js.includes('legacy/good/runtime-content.js')));
 assert(manifest.content_scripts.some(x=>x.js.includes('four-section-refresh.js')));
 assert(manifest.content_scripts.some(x=>x.js.includes('legacy/good/runtime-refresh.js')));
-console.log('Dual minimal popup: exactly four visible controls, original automation scripts and sound preserved PASS');
+console.log('Dual minimal popup: START WATCH/STOP controls, sound, and manual acceptance PASS');
