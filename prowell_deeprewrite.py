@@ -348,12 +348,25 @@ def _parse_candidates(raw):
     return out[:8]
 
 
-def ollama_generate(url, model, source, tone, level, tokens, count, history, attempt):
+def ollama_generate(url, model, source, tone, level, tokens, count, history,
+                    attempt, fidelity_retry=False):
     """Single bounded request returning several diversity-controlled candidates."""
     plans = [_PLANS[(attempt+i) % len(_PLANS)] for i in range(count)]
     prior = "\n".join("- "+h[:380] for h in history[-MAX_PROMPT_HISTORY:])
+    fidelity_instructions = (
+        "RETRY: Earlier alternatives failed factual validation. "
+        "Keep every original actor (including singular/plural), verb tense, "
+        "event ordering, and each verb's object. Do not replace an activity "
+        "with a different activity. Do not imply an improvement, treatment, "
+        "success, failure or clinical outcome not stated in the source. "
+        "Reorder clauses and vary normal wording, but preserve all of the "
+        "original claims. Prefer modest grammatical restructuring over "
+        "speculation. "
+    ) if fidelity_retry else ""
     prompt = (
-        "You are a professional paraphrase editor. Rebuild the wording and "
+        "You are a professional paraphrase editor. "+
+        fidelity_instructions+
+        "Rebuild the wording and "
         "sentence structures substantially while preserving every original "
         "claim, caveat, logical relation and the author's intended certainty. "
         "Preserve the same time frame and past/present tense. NEVER claim "
@@ -383,7 +396,7 @@ def ollama_generate(url, model, source, tone, level, tokens, count, history, att
     max_tokens = min(3700, max(950,core.count_words(source)*6*count//3))
     threads = int(os.getenv("PROWELL_OLLAMA_THREADS","4") or "4")
     threads = min(16,max(1,threads))
-    temperature = min(.92,max(.45,.60+(level-5)*.028))
+    temperature = .48 if fidelity_retry else min(.92,max(.45,.60+(level-5)*.028))
     payload = {
         "model": model,"stream":False,"format":"json",
         "prompt":prompt,
@@ -431,18 +444,31 @@ def rewrite(text, original, tone, level, terms=(), history=(), attempt=0):
     if not _MODEL_SLOT.acquire(blocking=False):
         raise DeepRewriteUnavailable(
             "DeepRewrite is processing another request. Please try again shortly.")
+    total_candidates = 0
+    ranked = []
     try:
-        raw = ollama_generate(config[0],config[1],masked,tone,level,tokens,
-                              n,safe_history,attempt)
+        # On a resource-limited small model, the first generation may
+        # change tense or invent results. One explicitly guided attempt
+        # improves reliability without ever relaxing factual safeguards.
+        for round_index in (0, 1):
+            raw = ollama_generate(
+                config[0], config[1], masked, tone, level, tokens,
+                n if round_index == 0 else 2, safe_history,
+                attempt + round_index * 101,
+                fidelity_retry=bool(round_index),
+            )
+            total_candidates += len(raw)
+            for draft in raw:
+                candidate = unmask_candidate(draft, tokens)
+                if candidate:
+                    entry = validate_candidate(
+                        original, text, candidate, terms, safe_history)
+                    if entry:
+                        ranked.append(entry)
+            if ranked:
+                break
     finally:
         _MODEL_SLOT.release()
-    ranked = []
-    for draft in raw:
-        candidate = unmask_candidate(draft,tokens)
-        if candidate:
-            entry = validate_candidate(original,text,candidate,terms,safe_history)
-            if entry:
-                ranked.append(entry)
     if not ranked:
         raise DeepRewriteError(
             "No generated version passed the factual, grammar and variation "
@@ -452,7 +478,7 @@ def rewrite(text, original, tone, level, terms=(), history=(), attempt=0):
     best = ranked[0]
     return {
         "paraphrased":best["text"],
-        "candidateCount":len(raw),
+        "candidateCount":total_candidates,
         "validCandidateCount":len(ranked),
         "editableTextChangePercent":best["editableTextChangePercent"],
         "consistency": "automatic safeguards passed; human review still required",
