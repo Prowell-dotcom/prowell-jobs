@@ -33,7 +33,7 @@
   const POST_VIEW_TARGET_MS=2000; // legacy reporting threshold only
   let scrolling=false;
   // Instant single-movement scroll. No five-position animation, pauses,
-  // setTimeout calls, or requestAnimationFrame waits. Only verified order
+  // timer callbacks, or animation-frame waits. Only verified order
   // details (and 4writers' final popup) move, never the background list.
   function rapidScroll(el,bottom){
     if(!el||!Number.isFinite(Number(bottom)))return false;
