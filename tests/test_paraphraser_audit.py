@@ -195,6 +195,73 @@ class ParaphraserAudit(unittest.TestCase):
         self.assertIn("paraphrased", response)
         self.assertTrue(editor._safe_output(source, response["paraphrased"]))
 
+    def test_ten_levels_produce_progressively_stronger_safe_edits(self):
+        original = (
+            "It is important to note that this paper considers public "
+            "policy using materials provided in the course textbook."
+        )
+        light = editor.rewrite_via_local(
+            original, "student", editor.count_words(original), level=1)
+        deep = editor.rewrite_via_local(
+            original, "student", editor.count_words(original), level=10)
+        self.assertTrue(editor._safe_output(original, light))
+        self.assertTrue(editor._safe_output(original, deep))
+        self.assertIn("this paper considers", light.lower())
+        self.assertIn("this paper examines", deep.lower())
+        self.assertIn("drawing on the course textbook", deep.lower())
+        self.assertGreater(
+            editor._rewrite_edit_metrics(original, deep)[
+                "editableTextChangePercent"],
+            editor._rewrite_edit_metrics(original, light)[
+                "editableTextChangePercent"],
+        )
+
+    def test_all_ten_levels_preserve_medical_names_and_figures(self):
+        original = (
+            "It is important to note that 25% of patients with "
+            "hypertension took metformin before their appointments. "
+            "The remaining participants paid $1,200 & attended @ clinic."
+        )
+        for level in range(1, 11):
+            with self.subTest(level=level):
+                result = editor.rewrite_via_local(
+                    original, "student", editor.count_words(original), level=level)
+                self.assertTrue(editor._safe_output(original, result))
+                for fragment in ("25%", "hypertension", "metformin",
+                                 "$1,200", "&", "@"):
+                    self.assertIn(fragment, result)
+
+    def test_public_api_rejects_invalid_levels(self):
+        for level in (0, 11, -5, 2.5, "10", True, None):
+            with self.subTest(level=level):
+                request = Handler({
+                    "text": "It is important to note that the clinic is open.",
+                    "tone": "student", "engine": "local", "level": level
+                })
+                status, payload = editor.handle_public_rewrite(
+                    request, lambda *args, **kwargs: True)
+                self.assertEqual(status, 400)
+                self.assertIn("level", payload["error"].lower())
+
+    def test_requested_level_and_light_edit_warning_are_reported(self):
+        original = (
+            "The agency outlined major risks and possible responses. "
+            "The team discussed national coordination, communication, "
+            "preparedness, partnerships, and legal responsibilities. "
+            "The report includes several examples of ongoing issues "
+            "without making definitive claims about their future outcomes. "
+            "Nevertheless, the team believes that additional planning "
+            "and review remain important for the coming years."
+        )
+        code, data = editor.handle_public_rewrite(
+            Handler({"text": original, "tone": "student",
+                     "engine": "local", "level": 10}),
+            lambda *args, **kwargs: True)
+        self.assertEqual(code, 200)
+        self.assertEqual(data["levelRequested"], 10)
+        self.assertIn("not a full paraphrase", data["qualityWarning"])
+        self.assertTrue(editor._safe_output(original, data["paraphrased"]))
+
     def test_local_api_response_reports_engine_and_edit_strength(self):
         text=("It is important to note that staff regularly contacted "
               "patients before their follow-up appointments.")
