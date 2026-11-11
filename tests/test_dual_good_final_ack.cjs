@@ -1,7 +1,6 @@
 'use strict';
-// Simulate the screenshot's post-OK ORDER INFORMATION popup with an
-// offscreen footer. The final button is "I understand, take the order".
-// Check inner popup scroll AND real acknowledge click; background must stay.
+// Good-Writers screenshot: after OK, I understand is already available.
+// The bot must click it immediately, with NO popup or background scrolling.
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const assert=require('node:assert/strict');
 const src=fs.readFileSync(path.join(__dirname,
@@ -99,21 +98,19 @@ async function check(label,range){
    'Fast simulated View-to-final click must meet two-second soft target');
  assert(Number(state.lastPostViewDurationMs)<2000,
    'Timing report should be derived from actual View-to-final click');
- assert.equal(panelY,expected.height-380,
-   'Popup must reach its vertical bottom before final click');
+ assert.equal(panelY,0,
+   'Good-Writers must NOT scroll the post-OK acknowledgement popup');
  assert.equal(waits.length,0,'Instant acknowledgement must not schedule scroll waits');
  assert.equal(pageY,0,
    'Background document must never be scrolled by post-OK step');
- assert.equal(state.lastAcknowledgementScroll,'scrolled-popup',
-   'Show evidence of actual popup movement');
- assert.equal(popupEvents.filter(e=>e.startsWith('popup-scroll ')).length,1,
-   'Acknowledgement should jump to its bottom once');
- assert.equal(popupEvents.at(-1),'acknowledgement-click',
-   'Final acceptance must occur after the direct bottom jump');
- assert.equal(popupEvents[0].startsWith('popup-scroll '),true);
- assert.equal(popupEvents.at(-2),'popup-scroll '+(expected.height-380));
+ assert.equal(popupEvents.filter(e=>e.startsWith('popup-scroll ')).length,0,
+   'No popup scrolling, even when the popup content is long');
+ assert.deepEqual(popupEvents,['acknowledgement-click'],
+   'Good-Writers must click final acknowledgement directly');
+ assert.equal(state.lastAcknowledgementScroll,undefined,
+   'No acknowledgement scroll status should be recorded');
  console.log('Good-Writers post-OK '+label+' '+range+
-   ': immediate popup jump, then click PASS');
+   ': no second scrolling, direct acknowledgement click PASS');
 }
 
 (async()=>{
