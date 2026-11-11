@@ -58,7 +58,7 @@ class ParaphraserTests(unittest.TestCase):
         code, result=tool.handle_rewrite(handle,lambda *a,**k:True,rewrite)
         self.assertEqual(code,200)
         self.assertEqual(result['outputWords'],2)
-        self.assertEqual(result['editingApproach'], 'Natural rewrite with a second editorial review')
+        self.assertEqual(result['editingApproach'], 'Natural editorial rewrite with factual safeguards')
         self.assertEqual(calls,['Private draft'])
 
     def test_api_secret_is_server_side_and_store_disabled(self):
