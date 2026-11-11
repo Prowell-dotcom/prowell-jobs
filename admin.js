@@ -11,8 +11,10 @@ async function api(path,options={}){
  const headers={...options.headers};
  if(['POST','PATCH','DELETE','PUT'].includes(method)&&csrfToken)headers['X-Admin-CSRF']=csrfToken;
  const res=await fetch(path,{...options,credentials:'same-origin',cache:'no-store',headers});
- const data=await res.json();
- if(!res.ok){if(res.status===401&&signedIn)showSignedOut('Your session expired. Please sign in again.');throw Error(data.error||'Request failed.');}
+ let data;
+ try{data=await res.json();}
+ catch(_){throw Error('The website returned an unreadable response (HTTP '+res.status+'). Check the Railway service logs.');}
+ if(!res.ok){if(res.status===401&&signedIn)showSignedOut('Your session expired. Please sign in again.');throw Error(data?.error||'Request failed (HTTP '+res.status+').');}
  return data;
 }
 function renderUnreadBadges(){
@@ -440,19 +442,36 @@ window.prowellAdminSignedIn = () => signedIn;
    if(n>3000){status('Maximum 3,000 words; please remove '+(n-3000)+' words.');return;}
    busy=true;
    submit.disabled=true;
-   status('Paraphrasing and checking grammar and sentence flow…');
+   output.value='';
+   output.placeholder='Your rewrite is being generated. Processing with Gemini…';
+   const started=Date.now();
+   status('Request sent. Generating your rewritten text…');
+   const progress=setInterval(()=>{
+     const seconds=Math.floor((Date.now()-started)/1000);
+     status('Generating rewritten text… '+seconds+' seconds elapsed. Keep this page open.');
+   },1000);
+   const controller=new AbortController();
+   const timeout=setTimeout(()=>controller.abort(),125000);
    try{
      const data=await api('/api/admin/paraphrase',{
        method:'POST',
+       signal:controller.signal,
        headers:{'Content-Type':'application/json'},
        body:JSON.stringify({text:source,tone:byId('paraphraseTone').value})
      });
-     if(typeof data.paraphrased!=='string'||!data.paraphrased.trim())throw Error('The server returned an empty rewrite.');
+     if(typeof data.paraphrased!=='string'||!data.paraphrased.trim())throw Error('The server returned no rewritten text.');
      output.value=data.paraphrased;
+     output.placeholder='Your rewritten text will appear here.';
      status('Paraphrasing complete — '+words(output.value).toLocaleString()+' words. Review the result before using it.');
    }catch(err){
-     status('Could not paraphrase: '+(err?.message||'Unknown request error')+'.');
+     const message=err?.name==='AbortError'
+       ?'The request exceeded two minutes. Check the Gemini connection and Railway logs.'
+       :(err?.message||'Unknown request error');
+     output.placeholder='No result generated. '+message;
+     status('Paraphrasing failed: '+message);
    }finally{
+     clearTimeout(timeout);
+     clearInterval(progress);
      busy=false;
      refresh();
    }
