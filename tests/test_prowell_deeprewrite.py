@@ -359,6 +359,42 @@ class DeepRewriteTests(unittest.TestCase):
         self.assertEqual(result["pipeline"], "hybrid")
         self.assertIn("editorialPass", result)
 
+    def test_small_model_first_pass_uses_original_words_not_fragile_tokens(self):
+        source = (
+            "Nurses contacted patients before appointments in 2025. "
+            "They confirmed appointments and documented barriers."
+        )
+        valid = (
+            "Before appointments in 2025, nurses reached patients. "
+            "They verified appointments and recorded barriers."
+        )
+        calls = []
+        def generator(*args, **kwargs):
+            calls.append(args)
+            return [valid]
+        with self.settings(), patch.object(
+                deep, "ollama_generate", side_effect=generator):
+            answer = deep.rewrite(source, source, "student", 9)
+        self.assertEqual(answer["paraphrased"], valid)
+        self.assertEqual(calls[0][2], source)
+        self.assertEqual(calls[0][5], {})
+        self.assertEqual(len(calls), 1)
+
+    def test_first_pass_still_rejects_changed_numbers(self):
+        source = (
+            "Nurses contacted patients before appointments in 2025. "
+            "They confirmed appointments and documented barriers."
+        )
+        false = (
+            "Before appointments in 2024, nurses reached patients. "
+            "They verified appointments and recorded barriers."
+        )
+        with self.settings(), patch.object(
+                deep, "ollama_generate", return_value=[false]):
+            with self.assertRaisesRegex(deep.DeepRewriteError,
+                                        "No generated version"):
+                deep.rewrite(source, source, "student", 9)
+
     def test_fast_edit_zero_change_is_not_reported_as_success(self):
         # Even very short passages must not show a completed 0% rewrite.
         source = "The clinic contacted patients."
