@@ -1,6 +1,7 @@
 'use strict';
 // Full-flow simulation for BOTH dual engines: instant bottom jump and
 // immediate Take it / OK / I understand on short, medium and long orders.
+// Only 4writers scrolls its final acknowledgement popup; Good-Writers does not.
 // The test clock detects any accidental timed delay.
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const assert=require('node:assert/strict');
@@ -110,7 +111,9 @@ async function run(site,size,stopEarly=false){
   assert.equal(state.lastCompletionTargetMs,null);
   assert.equal(state.lastCompletionDurationMs,0);
   assert.equal(scroll,h-400,'Order-details popup should scroll to bottom');
-  assert.equal(ackScroll,h-380,'Acknowledgement popup should scroll to bottom');
+  assert.equal(ackScroll,four?h-380:0,
+    four?'4writers acknowledgement must jump to bottom':
+      'Good-Writers acknowledgement must NOT scroll after OK');
   console.log(site+' '+size+': View → direct bottom → Take it → OK → I understand: instant PASS');
 }
 (async()=>{
