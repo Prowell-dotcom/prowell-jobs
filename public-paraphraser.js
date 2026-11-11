@@ -31,13 +31,13 @@
     'More sentence restructuring where supported',
     'Stronger structural edits and targeted wording',
     'Extensive safe sentence and phrase changes',
-    'Maximum supported rule-based rewriting'
+    'Maximum safe structural editing; may not change every passage'
   ];
   function updateDepth(){
     const level=Number(depth.value)||9;
     depthValue.textContent='Level '+level+' / 10';
     depthDescription.textContent=depthDescriptions[level-1]+
-      '. The actual amount changed depends on the text; no AI-detector result is guaranteed.';
+      '. Deep editing requires material changes and may return an error instead of a near-copy. No AI-detector outcome can be guaranteed.';
   }
   const wordCount=value=>(String(value||'').trim().match(/\S+/gu)||[]).length;
   let busy=false;
@@ -160,8 +160,9 @@
     submit.innerHTML=again?submitLabel:'Humanizing…';
     retry.innerHTML=again?'Rehumanizing…':retryLabel;
     if(!again){
-      result.value='';
-      result.placeholder='Improving wording and sentence clarity…';
+      // Keep the previous version on screen until a new valid rewrite exists.
+      // A failing new pass must never erase an already useful result.
+      result.placeholder='A revised version will appear here if meaningful changes are possible…';
     }
     notify(engine.value==='deep'?
       (again?
@@ -236,8 +237,11 @@
         retryCount=attempt;
         notify('Your previous result was preserved. '+message,'error');
       }else{
-        result.placeholder='No result generated.';
-        notify(message,'error');
+        result.value=previous;
+        result.placeholder=previous?
+          'Previous version preserved after unsuccessful rewrite.':
+          'No substantial rewrite was generated.';
+        notify((previous?'Your previous result was preserved. ':'')+message,'error');
       }
     }finally{
       clearTimeout(timeout);
