@@ -1,6 +1,6 @@
 'use strict';
-/* Minimal dual popup. The only visible controls are START AUTO-TAKE and STOP
- * for each website. This file never changes either order-taking workflow.
+/* Minimal VIEW-ONLY dual popup: START WATCH and STOP per website.
+ * The bot alerts, opens View and stops; all acceptance is manual.
  */
 const SITES={
   four:{name:'4writers.net',prefix:'dual_four_',legacyVersion:'0.5.4',
@@ -32,8 +32,8 @@ async function render(site){
   startButton(site).disabled=!tab||running;
   stopButton(site).disabled=!running;
   startButton(site).title=!tab?'Open '+cfg.name+' in a browser tab':
-    running?'Already watching '+cfg.name:'Start automatic order handling for '+cfg.name;
-  stopButton(site).title=running?'Stop automatic order handling for '+cfg.name:
+    running?'Already watching '+cfg.name:'Watch orders, alert and open View on '+cfg.name;
+  stopButton(site).title=running?'Stop watching orders on '+cfg.name:
     'Monitoring is already stopped';
 }
 async function start(site){
@@ -41,15 +41,15 @@ async function start(site){
   if(!tab){announce('Open '+SITES[site].name+' in a browser tab first.');return;}
   // Preserve the precise accepted START configuration from v2.1.6.
   await put(site,{
-    autoFlow:null,seenOrderIds:[],autoAcceptEnabled:true,armed:true,
+    autoFlow:null,seenOrderIds:[],autoAcceptEnabled:false,armed:true,
     claimConsentVersion:SITES[site].legacyVersion,targetTabId:tab.id,
     claim:null,soundRunId:crypto.randomUUID(),
     lastPostViewDurationMs:null,lastPostViewWithin2s:null,
     ...(site==='four'?{fourLastCheckedSection:'',fourLastCheckedAt:null,
       fourCycleCount:0,refreshCount:0,lastRefreshAt:null}:{}),
     lastResult:site==='four'
-      ? 'Monitoring Overview + Writings + Rewritings (2-second idle checks) with audio alerts.'
-      : 'Running the supplied original Good-Writers engine with audio alerts.'
+      ? 'Watching Overview + Writings + Rewritings; alert and View only, then stop.'
+      : 'Watching Good-Writers; alert and View only, then stop.'
   });
   // Sound is prepared separately; it does not delay scanning or clicking.
   void chrome.runtime.sendMessage({type:'PROWELL_PREPARE_ORDER_SOUND'}).catch(()=>{});
