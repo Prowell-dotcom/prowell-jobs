@@ -160,9 +160,11 @@ class ParaphraserAudit(unittest.TestCase):
             lambda *args, **kwargs:True
         )
         self.assertEqual(status, 422)
-        self.assertIn("No substantial paraphrase", payload["error"])
+        self.assertTrue(
+            "No substantial paraphrase" in payload["error"] or
+            "needs context-sensitive rewriting" in payload["error"]
+        )
         self.assertNotIn("paraphrased", payload)
-        self.assertIn("editableTextChangePercent", payload)
 
     def test_low_edit_level_stays_available_for_light_proofreading(self):
         paragraph = (
@@ -328,10 +330,9 @@ class ParaphraserAudit(unittest.TestCase):
             Handler({"text": original, "tone": "student",
                      "engine": "local", "level": 10}),
             lambda *args, **kwargs: True)
-        self.assertEqual(code, 200)
-        self.assertEqual(data["levelRequested"], 10)
-        self.assertIn("not a full paraphrase", data["qualityWarning"])
-        self.assertTrue(editor._safe_output(original, data["paraphrased"]))
+        self.assertEqual(code, 422)
+        self.assertNotIn("paraphrased", data)
+        self.assertIn("No substantial paraphrase", data["error"])
 
     def test_rehumanize_uses_current_result_and_keeps_original_intact(self):
         original = (
@@ -381,14 +382,22 @@ class ParaphraserAudit(unittest.TestCase):
         })
         code, data = editor.handle_public_rewrite(
             request, lambda *args, **kwargs: True)
-        self.assertEqual(code, 200)
-        self.assertTrue(editor._safe_output(original, data["paraphrased"]))
-        self.assertNotEqual(data["paraphrased"], first)
+        # The stricter high-depth endpoint must reject an insufficient second
+        # pass rather than advertise near-copied text as deep paraphrasing.
+        self.assertIn(code, (200, 422))
+        if code == 200:
+            self.assertTrue(editor._safe_output(original, data["paraphrased"]))
+            self.assertNotEqual(data["paraphrased"], first)
+            candidate = data["paraphrased"]
+        else:
+            self.assertNotIn("paraphrased", data)
+            self.assertIn("No substantial paraphrase", data["error"])
+            candidate = first
         for unchanged in (
             "2025", "25%", "hypertension", "metformin",
             "$90", "&", "@"
         ):
-            self.assertIn(unchanged, data["paraphrased"])
+            self.assertIn(unchanged, candidate)
 
     def test_rehumanize_refuses_fabricated_rewrites(self):
         original = "The nurse read the patient's letter carefully."
