@@ -109,6 +109,92 @@ class ParaphraserAudit(unittest.TestCase):
         score=editor._rewrite_edit_metrics(original,result)
         self.assertEqual(score["editStrength"],"Light")
 
+    def test_quoted_homeland_security_example_remains_grammatical(self):
+        original = (
+            "The department of homeland security's 2025 Homeland Threat "
+            "Assessment outlines threats that are shared in the realm of "
+            "critical infrastructure, hostile state activity, drug "
+            "trafficking, and terrorism. "
+            "This paper considers the requirements of home security in "
+            "the United States and attempts to answer the question of "
+            "whether the United States homeland security system can "
+            "maintain those risks using materials provided in the chapters "
+            "covered in the course textbook material. "
+            "Antiterrorism, national response strategy, chemical and "
+            "biological threats, the homeland security cycle, incident "
+            "command, political and legal constraints, cybersecurity, "
+            "and domain security are considered. "
+            "Existing arrangements, as outlined by government guidance "
+            "and oversight, are strong due to the presence of common "
+            "terminology, the coordinated system of responses, and "
+            "counterterrorism partnerships. "
+            "Nevertheless, gaps in critical infrastructure protection, "
+            "interoperable working with private sector operators, and "
+            "resilience against multiple disruptions have not yet been "
+            "addressed. "
+            "The paper finds the system is moderately ready to sustain "
+            "familiar emergencies, but is poorly prepared if cascading "
+            "failures occur. "
+            "It suggests that there is one priority: a nationwide "
+            "program to assess the readiness of all sectors and confirm "
+            "corrective measures taken prior to disasters or attacks."
+        )
+        rewritten = self.edit(original)
+        self.assertTrue(editor._safe_output(original, rewritten))
+        self.assertIn("2025", rewritten)
+        self.assertIn("but is poorly prepared if cascading failures occur",
+                      rewritten)
+        self.assertNotIn("Although the paper finds", rewritten)
+        self.assertNotIn(", is poorly prepared", rewritten)
+        self.assertIn("examines whether", rewritten)
+        self.assertIn("before disasters or attacks", rewritten)
+
+    def test_contrast_rewrite_requires_explicit_second_subject(self):
+        unsafe = (
+            "The system can respond to small emergencies, "
+            "but is poorly prepared for cascading failures."
+        )
+        self.assertEqual(editor._reframe_contrast(unsafe), unsafe)
+        self.assertFalse(editor._local_grammar_ok(
+            unsafe, "Although the system can respond to small emergencies, "
+                    "is poorly prepared for cascading failures."
+        ))
+        with_subject = (
+            "Nurses contacted patients, but several did not respond."
+        )
+        self.assertEqual(
+            editor._reframe_contrast(with_subject),
+            "Although nurses contacted patients, several did not respond."
+        )
+        nested_assertion = (
+            "The study finds the clinic can respond quickly, "
+            "but patients may still miss appointments."
+        )
+        self.assertEqual(
+            editor._reframe_contrast(nested_assertion), nested_assertion
+        )
+
+    def test_very_light_edit_is_not_claimed_to_be_full_humanization(self):
+        source = (
+            "The agency outlined major risks and possible responses. "
+            "The team discussed national coordination, communication, "
+            "preparedness, partnerships, and legal responsibilities. "
+            "The report includes several examples of ongoing issues "
+            "without making definitive claims about their future outcomes. "
+            "Nevertheless, the team believes that additional planning "
+            "and review remain important for the coming years."
+        )
+        handler = Handler({"text": source, "tone":"student", "engine":"local"})
+        code, response = editor.handle_public_rewrite(
+            handler, lambda *args, **kwargs: True)
+        self.assertEqual(code, 200)
+        self.assertEqual(response["engine"], "local")
+        self.assertIsInstance(response["qualityWarning"], str)
+        self.assertIn("not a full paraphrase", response["qualityWarning"])
+        self.assertLess(response["editableTextChangePercent"], 20)
+        self.assertIn("paraphrased", response)
+        self.assertTrue(editor._safe_output(source, response["paraphrased"]))
+
     def test_local_api_response_reports_engine_and_edit_strength(self):
         text=("It is important to note that staff regularly contacted "
               "patients before their follow-up appointments.")
