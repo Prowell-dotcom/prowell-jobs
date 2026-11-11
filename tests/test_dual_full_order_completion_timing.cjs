@@ -1,8 +1,7 @@
 'use strict';
-// Full-flow simulation for BOTH dual engines: instant bottom jump and
-// immediate Take it / OK / I understand on short, medium and long orders.
-// Only 4writers scrolls its final acknowledgement popup; Good-Writers does not.
-// The test clock detects any accidental timed delay.
+// Full-flow simulation for BOTH dual engines: approximately 64ms rapid
+// gradual movement on order details; no staged 3/4/5-second waiting.
+// 4writers also scrolls its final popup; Good-Writers has no post-OK scroll.
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const assert=require('node:assert/strict');
 const root=path.join(__dirname,'../extension/dual-writers');
@@ -13,7 +12,8 @@ async function run(site,size,stopEarly=false){
   const h={short:600,medium:1200,long:2200}[size];
   // Description length must not impose a minimum acceptance duration.
   const src=fs.readFileSync(path.join(root,'legacy/'+site+'/runtime-content.js'),'utf8');
-  assert.match(src,/function jumpToBottom\(el,bottom\)/);
+  assert.match(src,/function rapidScroll\(el,bottom\)/);
+  assert.match(src,/FAST_SCROLL_POSITIONS=5, FAST_SCROLL_FRAME_MS=16/);
   assert.doesNotMatch(src,/STAGE_FRACTIONS|COMPLETION_TARGETS|SCROLL_STEPS/,
     'No 3/4/5-second pacing or gradual scrolling may remain');
   let time=1700000000000,activeButton='take',scroll=0,ackScroll=0;
@@ -106,15 +106,16 @@ async function run(site,size,stopEarly=false){
   assert.equal(events.length,3,site+' '+size+': all three buttons must click');
   assert.deepEqual(events.map(e=>e.action),
     ['Take it','OK',four?'I understand, take the order':'I understand']);
-  assert.deepEqual(events.map(e=>e.elapsed),[0,0,0],
-    site+' '+size+': no staged delays may occur after View');
+  assert.deepEqual(events.map(e=>e.elapsed),[64,64,four?128:64],
+    site+' '+size+': only the rapid 64ms scroll(s) may delay acceptance');
   assert.equal(state.lastCompletionTargetMs,null);
-  assert.equal(state.lastCompletionDurationMs,0);
+  assert.equal(state.lastCompletionDurationMs,four?128:64);
   assert.equal(scroll,h-400,'Order-details popup should scroll to bottom');
   assert.equal(ackScroll,four?h-380:0,
     four?'4writers acknowledgement must jump to bottom':
       'Good-Writers acknowledgement must NOT scroll after OK');
-  console.log(site+' '+size+': View → direct bottom → Take it → OK → I understand: instant PASS');
+  console.log(site+' '+size+': rapid order scroll → Take it → OK → '+
+    (four?'rapid final scroll → ':'')+'I understand PASS');
 }
 (async()=>{
   for(const site of ['four','good']){
