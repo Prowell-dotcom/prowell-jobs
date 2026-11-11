@@ -109,6 +109,77 @@ class ParaphraserAudit(unittest.TestCase):
         score=editor._rewrite_edit_metrics(original,result)
         self.assertEqual(score["editStrength"],"Light")
 
+    def test_level_ten_can_rebuild_structures_without_changed_facts(self):
+        original = (
+            "The clinic contacted patients before scheduled follow-up appointments. "
+            "Staff used reminder calls to confirm appointments. "
+            "The results were documented by nurses."
+        )
+        revised = editor.rewrite_via_local(
+            original, "student", editor.count_words(original), level=10)
+        self.assertIn(
+            "Before scheduled follow-up appointments, the clinic contacted patients.",
+            revised
+        )
+        self.assertIn(
+            "Using reminder calls, staff confirmed appointments.", revised
+        )
+        self.assertIn(
+            "Nurses documented the results.", revised
+        )
+        self.assertTrue(editor._safe_output(original, revised))
+        self.assertTrue(editor._local_grammar_ok(original, revised))
+        change = editor._rewrite_edit_metrics(original, revised)
+        self.assertGreaterEqual(change["editableTextChangePercent"], 23)
+
+    def test_structural_changes_do_not_touch_medical_terms_or_numbers(self):
+        original = (
+            "The clinic contacted patients before scheduled visits in 2025. "
+            "Staff used reminder calls to contact patients. "
+            "The outcomes were documented by nurses. "
+            "The patients had hypertension and received metformin at $45. "
+            "A total of 25% of visits involved follow-up & documentation @ clinic."
+        )
+        revised = editor.rewrite_via_local(
+            original, "student", editor.count_words(original), level=10)
+        self.assertTrue(editor._safe_output(original, revised))
+        for part in ("2025", "hypertension", "metformin", "$45", "25%", "&", "@"):
+            self.assertIn(part, revised)
+
+    def test_level_nine_near_copy_is_not_reported_success(self):
+        paragraph = (
+            "The regional team examined administrative records across several "
+            "departments and presented its observations to local leaders. "
+            "Participants described the circumstances surrounding their daily "
+            "responsibilities and reported their experiences with routine tasks. "
+            "The final report summarized these observations for an internal audience."
+        )
+        status, payload = editor.handle_public_rewrite(
+            Handler({"text":paragraph, "tone":"student",
+                     "level":9, "engine":"local"}),
+            lambda *args, **kwargs:True
+        )
+        self.assertEqual(status, 422)
+        self.assertIn("No substantial paraphrase", payload["error"])
+        self.assertNotIn("paraphrased", payload)
+        self.assertIn("editableTextChangePercent", payload)
+
+    def test_low_edit_level_stays_available_for_light_proofreading(self):
+        paragraph = (
+            "It is important to note that the regional team examined "
+            "administrative records across several departments. "
+            "The group presented its observations to local leaders "
+            "before the end of the reporting period."
+        )
+        status, payload = editor.handle_public_rewrite(
+            Handler({"text":paragraph, "tone":"student",
+                     "level":2, "engine":"local"}),
+            lambda *args, **kwargs:True
+        )
+        self.assertEqual(status, 200)
+        self.assertIn("paraphrased", payload)
+        self.assertTrue(editor._safe_output(paragraph, payload["paraphrased"]))
+
     def test_quoted_homeland_security_example_remains_grammatical(self):
         original = (
             "The department of homeland security's 2025 Homeland Threat "
