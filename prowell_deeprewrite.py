@@ -255,41 +255,37 @@ def _grammatical_number_unchanged(source, candidate):
 
 
 
-def _claims_and_tense_preserved(original, candidate):
-    # Reject added claims of effectiveness, success, failure, certainty, etc.
-    # when those were not actually stated in the input.
+def _fidelity_issue(original, candidate):
+    """Return a non-sensitive reason label when the candidate changes claims."""
     for pattern in _NEW_UNSUPPORTED_CLAIMS:
         if len(pattern.findall(candidate)) > len(pattern.findall(original)):
-            return False
-    # Hold the essential ordering of events, even if "before" becomes
-    # "in advance of" or "ahead of".
+            return "new unsupported outcome or certainty"
     for original_pattern, candidate_pattern in _TIME_RELATIONS.values():
         if original_pattern.search(original) and not candidate_pattern.search(candidate):
-            return False
-    # A paragraph about completed actions must not become present-tense
-    # reporting about what a clinic generally does.
+            return "missing time relationship"
     p_original = len(_PAST_WORD.findall(original))
     p_candidate = len(_PAST_WORD.findall(candidate))
     if p_original >= 2 and p_candidate < max(1, (p_original+1)//2):
-        return False
+        return "past-tense event changed"
     if p_original == 0 and p_candidate >= 2 and _PRESENT_FINITE.search(original):
-        return False
-    # Where the source explicitly names plural professional/patient roles,
-    # do not turn a group into one person's possessive (Nurses -> Nurse's).
+        return "present-tense event changed"
     old_roles = {m.group(0).lower() for m in _ROLE_PLURALS.finditer(original)}
     new_roles = {m.group(0).lower() for m in _ROLE_PLURALS.finditer(candidate)}
     if old_roles - new_roles:
-        return False
+        return "profession or patient role missing"
     if not _grammatical_number_unchanged(original,candidate):
-        return False
+        return "singular/plural institution changed"
     if (_UNSUPPORTED_CLINICAL_DETAILS.search(candidate) and
             not _UNSUPPORTED_CLINICAL_DETAILS.search(original)):
-        return False
+        return "unsupported clinical detail"
     if (_CONFIRM_APPOINTMENT_SOURCE.search(original) and
             not _CONFIRM_APPOINTMENT_OUTPUT.search(candidate)):
-        return False
-    return True
+        return "appointment confirmation changed"
+    return None
 
+
+def _claims_and_tense_preserved(original, candidate):
+    return _fidelity_issue(original, candidate) is None
 
 def validate_candidate(original, current, candidate, terms, history=(), failures=None):
     def reject(reason):
@@ -302,8 +298,9 @@ def validate_candidate(original, current, candidate, terms, history=(), failures
         return reject('current details')
     if not _same_named_content(original,candidate):
         return reject('proper names')
-    if not _claims_and_tense_preserved(original,candidate):
-        return reject('factual claims or tense')
+    fidelity_issue = _fidelity_issue(original,candidate)
+    if fidelity_issue:
+        return reject(fidelity_issue)
     original_count = core.count_words(original)
     n = core.count_words(candidate)
     if not .72*original_count <= n <= 1.36*original_count:
