@@ -311,6 +311,54 @@ class DeepRewriteTests(unittest.TestCase):
                 with self.assertRaisesRegex(deep.DeepRewriteError,"No generated version"):
                     deep.rewrite(original,original,"student",10)
 
+    def test_hybrid_preserves_verified_first_draft_on_bad_polish(self):
+        original = (
+            "The clinic contacted patients before their visits. "
+            "Nurses confirmed appointments and documented barriers."
+        )
+        valid = (
+            "Before their visits, the clinic reached patients. "
+            "Nurses verified appointments and recorded barriers."
+        )
+        invalid = (
+            "Clinics report successful treatment results during visits. "
+            "Nurses record concerns."
+        )
+        calls = []
+        def generator(*args, **kwargs):
+            calls.append(args)
+            return [valid] if len(calls) == 1 else [invalid]
+        with self.settings(), patch.object(
+                deep, "ollama_generate", side_effect=generator):
+            result = deep.hybrid_rewrite(
+                original, original, "student", 9
+            )
+        self.assertEqual(result["paraphrased"], valid)
+        self.assertEqual(result["enginePipeline"], "hybrid")
+        self.assertEqual(result["editorialPass"], "retained_verified_draft")
+        self.assertEqual(len(calls), 2)
+
+    def test_hybrid_public_endpoint_returns_pipeline_metadata(self):
+        source = (
+            "The clinic contacted patients before their visits. "
+            "Nurses confirmed appointments and documented barriers."
+        )
+        valid = (
+            "Before their visits, the clinic reached patients. "
+            "Nurses verified appointments and recorded barriers."
+        )
+        with self.settings(), patch.object(
+                deep, "ollama_generate", return_value=[valid]):
+            code, result = editor.handle_public_rewrite(
+                FakeHandler({"text":source, "tone":"student",
+                             "engine":"hybrid", "level":9}),
+                lambda *args, **kwargs:True,
+            )
+        self.assertEqual(code, 200)
+        self.assertEqual(result["engine"], "hybrid")
+        self.assertEqual(result["pipeline"], "hybrid")
+        self.assertIn("editorialPass", result)
+
     def test_fast_edit_zero_change_is_not_reported_as_success(self):
         # Even very short passages must not show a completed 0% rewrite.
         source = "The clinic contacted patients."
