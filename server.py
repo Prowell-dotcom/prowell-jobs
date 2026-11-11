@@ -1231,7 +1231,10 @@ class Handler(SimpleHTTPRequestHandler):
         path = urlsplit(self.path).path
         if path == '/api/paraphrase/capabilities':
             import prowell_deeprewrite
-            return self.send_json(200, prowell_deeprewrite.capabilities(probe=True))
+            import prowell_openai_rewrite
+            status = prowell_deeprewrite.capabilities(probe=True)
+            status.update(prowell_openai_rewrite.capabilities())
+            return self.send_json(200, status)
         if path.startswith('/api/writing/') or path.startswith('/api/admin/writing/'):
             return Marketplace(self, db_connection, deliver_notification_event, notification_wake, check_rate, WRITING_UPLOAD_ROOT).handle('GET')
         if path == '/api/member/me':
