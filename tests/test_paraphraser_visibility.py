@@ -10,7 +10,7 @@ class AdminParaphraserVisibilityTests(unittest.TestCase):
         self.assertIn('id="privateParaphraserPanel"', markup)
         self.assertIn('id="paraphraserShortcut"', markup)
         self.assertIn('href="#privateParaphraserTitle"', markup)
-        self.assertIn('admin.js?v=local-rewrite-v10', markup)
+        self.assertIn('admin.js?v=verified-editor-v11', markup)
         self.assertNotIn('<script src="admin-paraphraser.js', markup)
         self.assertIn('id="paraphraseSubmit">', markup)
         self.assertIn('<option value="local" selected>', markup)
