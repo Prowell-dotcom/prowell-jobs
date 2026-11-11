@@ -157,49 +157,9 @@
     }
     return false;
   }
-  async function scrollAcknowledgment(button){
-    if(!active()||!state.claim||!visible(button))return false;
-    // After OK the site shows a SECOND, often very long, ORDER INFORMATION
-    // dialog. Its scrollbar belongs to the popup, NOT document/body.
-    // The acknowledgement button is inside the popup footer.
-    const selectors='[role="dialog"],dialog,.modal,.modal-dialog,.modal-content,'+
-      '.ui-dialog,.popup,[class*="modal"],[class*="dialog"],[class*="popup"],'+
-      '[class*="order-info"],[id*="modal"]';
-    let root=button.closest?.(selectors)||null;
-    if(!root){
-      // Some Good-Writers themes use an unnamed fixed window.
-      for(let p=button.parentElement,depth=0;
-          p&&p!==document.body&&depth<14;p=p.parentElement,depth++){
-        const style=getComputedStyle(p);
-        if(/fixed|absolute/i.test(String(style.position||'')) &&
-           Number(p.clientHeight)>140){root=p;break;}
-      }
-    }
-    if(!root)return false;
-    const nodes=new Set([root]);
-    for(const el of root.querySelectorAll?.('*')||[])nodes.add(el);
-    for(let parent=root.parentElement,depth=0;
-        parent&&parent!==document.body&&depth<5;
-        parent=parent.parentElement,depth++){
-      if(Number(parent.scrollHeight)-Number(parent.clientHeight)>10)nodes.add(parent);
-    }
-    // Jump the popup to its bottom without scrolling the background page.
-    // The I understand action starts as soon as its real button exists.
-    const scrollables=[...nodes].filter(el=>el!==document.body &&
-      el!==document.documentElement && el!==document.scrollingElement &&
-      Number(el.clientHeight)>40 &&
-      Number(el.scrollHeight)-Number(el.clientHeight)>10);
-    const alreadyAtBottom=scrollables.some(el=>
-      Number(el.scrollTop)>=Number(el.scrollHeight)-Number(el.clientHeight)-3);
-    const moved=jumpTargets(scrollables);
-    // When the footer is visible without scrolling, it can be clicked now.
-    void chrome.storage.local.set({
-      lastAcknowledgementScroll:moved?'scrolled-popup':
-        alreadyAtBottom?'already-bottom':'popup-did-not-scroll',
-      lastAcknowledgementScrollAt:Date.now()
-    });
-    return moved||alreadyAtBottom;
-  }
+  // Good-Writers post-OK acknowledgement has no scrolling step. The
+  // confirmation button is already accessible in the popup shown by the
+  // website. Do not move the popup or the background document.
   function stopRefresh(){if(nextRefresh){clearTimeout(nextRefresh);nextRefresh=null;}}
   // Refresh scheduling is controlled exclusively by refresh.js.
   function scheduleRefresh(){}
@@ -286,12 +246,8 @@
       if(current.stage==='ok-clicked'||current.stage==='take-clicked'){
         const acknowledge=find(ACCEPT);
         if(acknowledge){
-          // Good-Writers also shows a long acknowledgement popup after OK.
-          // Its scrollable body must move before the footer button is clicked.
-          scrolling=true;
-          try{await scrollAcknowledgment(acknowledge);}
-          finally{scrolling=false;}
-          if(!active()||!state.claim||!sameOrder(state.claim.id,current.id))return;
+          // Unlike 4writers, Good-Writers needs NO second popup scroll.
+          // Click the already-visible acknowledgement immediately after OK.
           return clickStage(acknowledge,'acknowledged','Acknowledged order #'+current.id);
         }
       }
