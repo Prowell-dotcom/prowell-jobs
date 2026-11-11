@@ -102,8 +102,8 @@ def _too_similar(source, rewritten):
     """Flag exact copies and near-copies; not an AI-detection metric."""
     if not isinstance(rewritten, str) or not rewritten.strip():
         return True
-    if re.sub(r"\\s+", " ", source).strip().casefold() == re.sub(
-        r"\\s+", " ", rewritten
+    if re.sub(r"\s+", " ", source).strip().casefold() == re.sub(
+        r"\s+", " ", rewritten
     ).strip().casefold():
         return True
     before, after = _rewritable_words(source), _rewritable_words(rewritten)
@@ -424,8 +424,8 @@ def _editorial_rewrite(text, tone, request_function, api_key, model, second_pass
         # Never advertise identical source text as a successful rewrite.
         draft = request_function(
             api_key, model, _STRONGER_REWRITE_GUIDANCE + style,
-            source + "\\n\\nPRIOR DRAFT (too similar):\\n<draft>\\n" +
-            draft + "\\n</draft>"
+            source + "\n\nPRIOR DRAFT (too similar):\n<draft>\n" +
+            draft + "\n</draft>"
         )
         if not _safe_output(text, draft):
             raise RuntimeError(
