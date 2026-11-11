@@ -68,8 +68,8 @@ _NUMBER = re.compile(r"(?<![\w])[-−+]?[$€£]?\d+(?:,\d{3})*(?:\.\d+)?%?(?![\
 _CITATION = re.compile(r"\([^)\n]{0,160}\b(?:19|20)\d{2}[a-z]?\b[^)\n]{0,100}\)")
 _URL = re.compile(r"https?://[^\s)>\]]+")
 _DOI = re.compile(r"\b10\.\d{4,9}/[^\s)>\]]+", re.IGNORECASE)
-_QUOTATION = re.compile(r"“[^”\\n]{15,}”|\\\"[^\\\"\\n]{15,}\\\"")
-_SYMBOLS = re.compile(r"[%_QUOTATION = re.compile(r"“[^”\n]{15,}”|\"[^\"\n]{15,}\"")@]")
+_QUOTATION = re.compile(r'“[^”\n]{15,}”|"[^"\n]{15,}"')
+_SYMBOLS = re.compile(r"[%$&@]")
 # High-confidence common clinical names. Unknown terms can be entered in the
 # optional exact-term field; a fixed dictionary cannot cover all drug names.
 _MEDICAL_NAMES = (
@@ -103,8 +103,8 @@ def _terms_pattern(terms):
         return None
     # Longest first: do not split "type 2 diabetes" into "diabetes".
     parts = sorted(set(terms), key=len, reverse=True)
-    return re.compile(r"(?<!\\w)(?:" + "|".join(re.escape(x) for x in parts) +
-                      r")(?!\\w)", re.IGNORECASE)
+    return re.compile(r"(?<!\w)(?:" + "|".join(re.escape(x) for x in parts) +
+                      r")(?!\w)", re.IGNORECASE)
 
 
 _MEDICAL_PATTERN = _terms_pattern(_MEDICAL_NAMES)
@@ -119,14 +119,14 @@ def _validate_protected_terms(value, source):
         return ()
     if not isinstance(value, str) or len(value) > 3000:
         raise ValueError("Protected terms must be a short comma- or line-separated list.")
-    terms = [part.strip() for part in re.split(r"[,\\n]+", value) if part.strip()]
+    terms = [part.strip() for part in re.split(r"[,\n]+", value) if part.strip()]
     if len(terms) > MAX_PROTECTED_TERMS:
         raise ValueError("Use no more than 40 protected terms.")
     for term in terms:
         if (len(term) > MAX_PROTECTED_TERM_CHARS or
-            not re.fullmatch(r"[\\w .+/-]+", term, flags=re.UNICODE)):
+            not re.fullmatch(r"[\w .+/-]+", term, flags=re.UNICODE)):
             raise ValueError("Protected terms may contain letters, digits, spaces, dots, +, / or hyphens.")
-        if not re.search(r"(?<!\\w)" + re.escape(term) + r"(?!\\w)", source):
+        if not re.search(r"(?<!\w)" + re.escape(term) + r"(?!\\w)", source):
             raise ValueError("Protected term not found exactly in the source: " + term[:50])
     return tuple(dict.fromkeys(terms))
 
