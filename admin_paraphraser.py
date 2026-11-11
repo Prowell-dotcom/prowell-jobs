@@ -67,6 +67,7 @@ def extract_text(response):
 _NUMBER = re.compile(r"(?<![\w])[-−+]?[$€£]?\d+(?:,\d{3})*(?:\.\d+)?%?(?![\w])")
 _CITATION = re.compile(r"\([^)\n]{0,160}\b(?:19|20)\d{2}[a-z]?\b[^)\n]{0,100}\)")
 _URL = re.compile(r"https?://[^\s)>\]]+")
+_EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}")
 _DOI = re.compile(r"\b10\.\d{4,9}/[^\s)>\]]+", re.IGNORECASE)
 _QUOTATION = re.compile(r'“[^”\n]{15,}”|"[^"\n]{15,}"')
 _SYMBOLS = re.compile(r"[%$&@]")
@@ -126,7 +127,7 @@ def _validate_protected_terms(value, source):
         if (len(term) > MAX_PROTECTED_TERM_CHARS or
             not re.fullmatch(r"[\w .+/-]+", term, flags=re.UNICODE)):
             raise ValueError("Protected terms may contain letters, digits, spaces, dots, +, / or hyphens.")
-        if not re.search(r"(?<!\w)" + re.escape(term) + r"(?!\\w)", source):
+        if not re.search(r"(?<!\w)" + re.escape(term) + r"(?!\w)", source):
             raise ValueError("Protected term not found exactly in the source: " + term[:50])
     return tuple(dict.fromkeys(terms))
 
@@ -139,6 +140,7 @@ def _protected_details(text, protected_terms=()):
         "symbols": tuple(_SYMBOLS.findall(text)),  # preserve %, $, & and @
         "citations": Counter(_CITATION.findall(text)),
         "urls": Counter(_URL.findall(text)),
+        "emails": Counter(_EMAIL.findall(text)),
         "dois": Counter(_DOI.findall(text)),
         "quoted": Counter(_QUOTATION.findall(text)),
         "medical": _term_matches(text, _MEDICAL_PATTERN),
@@ -162,7 +164,7 @@ def _rewritable_words(text):
     Citations, quotations, figures, URLs, and DOIs are protected from editing.
     Their overlap should not make a genuinely revised paragraph look copied.
     """
-    for pattern in (_QUOTATION, _CITATION, _URL, _DOI, _NUMBER, _MEDICAL_PATTERN):
+    for pattern in (_QUOTATION, _CITATION, _URL, _EMAIL, _DOI, _NUMBER, _MEDICAL_PATTERN):
         text = pattern.sub(" ", text)
     return re.findall(r"[A-Za-z]+(?:'[A-Za-z]+)?", text.lower())
 
