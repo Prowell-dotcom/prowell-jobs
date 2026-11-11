@@ -44,7 +44,7 @@ class PublicParaphraserVisibilityTests(unittest.TestCase):
         self.assertIn('retry.addEventListener', markup)
         self.assertIn("mode:again?'again':'first'", markup)
         self.assertIn('originalText:baseline', markup)
-        self.assertIn('Your original passage remains unchanged', markup)
+        self.assertIn('The original passage stays unchanged', markup)
         self.assertIn('level:Number(depth.value)', markup)
         self.assertIn('Paraphrasing depth', markup)
         self.assertIn('Maximum safe rewrite', markup)
