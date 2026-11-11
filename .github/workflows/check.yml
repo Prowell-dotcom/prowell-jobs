@@ -21,6 +21,9 @@ jobs:
       - name: Check Python syntax
         run: python -m compileall -q server.py admin_paraphraser.py
 
+      - name: Validate Ollama startup shell
+        run: sh -n services/ollama/bootstrap.sh
+
       - name: Validate Chrome extension JavaScript
         run: |
           node --check admin.js
