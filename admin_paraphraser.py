@@ -797,6 +797,34 @@ def _reframe_contrast(sentence):
             ending)
 
 
+def _split_independent_clauses(sentence):
+    """Shorten a long compound sentence only when both clauses have subjects.
+
+    A coordinated clause is split only if its second half begins with a
+    separate common subject, and the original has a clear final full stop.
+    """
+    if len(sentence.split()) < 18 or '"' in sentence or "“" in sentence:
+        return sentence
+    found = re.fullmatch(
+        r"([A-Z][^;.!?]{20,180}?),\s+and\s+"
+        r"((?:the|a|an|we|they|staff|patients|nurses|clinicians|"
+        r"students|researchers|participants|teachers)\s+[^;.!?]{18,180})\.",
+        sentence.strip(), flags=re.IGNORECASE
+    )
+    if not found:
+        return sentence
+    first, second = found.groups()
+    if not re.search(
+        r"\b(?:is|are|was|were|have|has|had|did|do|"
+        r"asked|reported|explained|contacted|described|"
+        r"completed|reviewed|used|received|helped|"
+        r"documented|provided|discussed|decided|"
+        r"completed|called|responded)\b", second, re.IGNORECASE
+    ):
+        return sentence
+    return first + ". " + second[:1].upper() + second[1:] + "."
+
+
 def _local_grammar_ok(before, after):
     """Reject clearly broken output; this is not a full grammar checker."""
     if not after.strip() or len(after) > max(220000, len(before) * 4):
@@ -845,8 +873,11 @@ def rewrite_via_local(text, tone, count, protected_terms=()):
         if not segments[i]:
             continue
         before_sentence = segments[i]
-        for strategy in (_reorder_leading_clause, _reorder_trailing_clause,
-                         _reframe_contrast):
+        strategies = (_reorder_leading_clause, _reorder_trailing_clause,
+                      _reframe_contrast)
+        if tone in ("student", "simple"):
+            strategies = (_split_independent_clauses,) + strategies
+        for strategy in strategies:
             revised_sentence = strategy(before_sentence)
             if revised_sentence == before_sentence:
                 continue
