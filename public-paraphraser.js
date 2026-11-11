@@ -2,15 +2,40 @@
 // Prowell Humanizer: public writing editor, no login required.
 // Only local editing is available. Do not send credentials or private API keys.
 (() => {
+  if(window.__prowellHumanizerInitialized)return;
   const $ = id => document.getElementById(id);
   const form=$('publicParaphraseForm');
   if(!form)return;
+  window.__prowellHumanizerInitialized=true;
   const source=$('publicParaphraseInput'), result=$('publicParaphraseOutput');
   const submit=$('publicParaphraseSubmit'), status=$('publicParaphraseStatus');
   const copy=$('publicParaphraseCopy'), save=$('publicParaphraseDownload');
   const counter=$('publicParaphraseCount');
   const wordCount=value=>(String(value||'').trim().match(/\S+/gu)||[]).length;
   let busy=false;
+  const draftKey='prowell-humanizer-draft-v1';
+  // Drafts stay in this browser tab; no text is sent to storage services.
+  // Continue operating when storage is blocked by a privacy setting.
+  function rememberDraft(){
+    try {
+      sessionStorage.setItem(draftKey, JSON.stringify({
+        text:source.value,
+        tone:$('publicParaphraseTone').value,
+        protectedTerms:$('publicParaphraseProtectedTerms').value
+      }));
+    } catch(_){}
+  }
+  function restoreDraft(){
+    try {
+      const saved=JSON.parse(sessionStorage.getItem(draftKey)||'null');
+      if(!saved||typeof saved!=='object')return;
+      if(!source.value&&typeof saved.text==='string')source.value=saved.text.slice(0,85000);
+      const style=$('publicParaphraseTone');
+      if(typeof saved.tone==='string'&&Array.from(style.options).some(option=>option.value===saved.tone))style.value=saved.tone;
+      const terms=$('publicParaphraseProtectedTerms');
+      if(!terms.value&&typeof saved.protectedTerms==='string')terms.value=saved.protectedTerms.slice(0,3000);
+    }catch(_){}
+  }
   const notify=(message,kind='info')=>{
     status.textContent=message;
     status.dataset.state=kind;
@@ -23,12 +48,16 @@
     copy.disabled=!result.value.trim();
     save.disabled=!result.value.trim();
   }
-  source.addEventListener('input',refresh);
-  source.addEventListener('paste',()=>setTimeout(refresh,0));
-  source.addEventListener('change',refresh);
+  source.addEventListener('input',()=>{rememberDraft();refresh()});
+  source.addEventListener('paste',()=>setTimeout(()=>{rememberDraft();refresh()},0));
+  source.addEventListener('change',()=>{rememberDraft();refresh()});
+  $('publicParaphraseTone').addEventListener('change',rememberDraft);
+  $('publicParaphraseProtectedTerms').addEventListener('input',rememberDraft);
+  window.addEventListener('pagehide',rememberDraft);
   form.addEventListener('submit',async event=>{
     event.preventDefault();
     if(busy)return;
+    rememberDraft();
     const text=source.value.trim();
     const count=wordCount(text);
     if(!count){notify('Paste or type some text before selecting Humanize text.','error');return;}
@@ -82,6 +111,7 @@
     result.value='';
     result.placeholder='Your humanized result will appear here.';
     $('publicParaphraseProtectedTerms').value='';
+    try{sessionStorage.removeItem(draftKey)}catch(_){}
     notify('Ready to improve your writing. No login required.');
     refresh();
   });
@@ -109,5 +139,7 @@
     setTimeout(()=>URL.revokeObjectURL(url),2500);
     notify('Humanized text saved.','success');
   });
+  restoreDraft();
   refresh();
+  if(source.value.trim())notify('Your unsent writing was restored in this tab. Select Humanize text when ready.');
 })();
