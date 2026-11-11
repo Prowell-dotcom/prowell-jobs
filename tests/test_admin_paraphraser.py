@@ -413,6 +413,39 @@ class ParaphraserTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "cannot safely"):
             tool.rewrite_via_local(source, "student", tool.count_words(source))
 
+    def test_local_student_splits_long_independent_clauses(self):
+        original = (
+            "The nurse explained the appointment procedure carefully to "
+            "the group with hypertension, and the patients asked several "
+            "questions before leaving the clinic."
+        )
+        expected = (
+            "The nurse explained the appointment procedure carefully to "
+            "the group with hypertension. The patients asked several "
+            "questions before leaving the clinic."
+        )
+        revised = tool.rewrite_via_local(
+            original, "student", tool.count_words(original))
+        self.assertEqual(revised, expected)
+        self.assertTrue(tool._safe_output(original, revised))
+
+    def test_local_does_not_split_list_or_change_independent_meaning(self):
+        original = ("The nurse gave patients information about metformin, "
+                    "and explained how to use the medication.")
+        with self.assertRaisesRegex(RuntimeError, "cannot safely"):
+            tool.rewrite_via_local(
+                original, "student", tool.count_words(original))
+
+    def test_local_can_preserve_modality_on_sentence_reorder(self):
+        original = (
+            "The clinic may contact patients because they miss scheduled "
+            "appointments."
+        )
+        revised = tool.rewrite_via_local(
+            original, "student", tool.count_words(original))
+        self.assertIn("may contact patients", revised)
+        self.assertTrue(tool._local_grammar_ok(original, revised))
+
     def test_no_key_fails_cleanly(self):
         with patch.dict('os.environ',{'OPENAI_API_KEY':''}):
             with self.assertRaisesRegex(RuntimeError,'not configured'):
