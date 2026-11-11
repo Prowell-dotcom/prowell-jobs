@@ -1421,12 +1421,13 @@ def handle_rewrite(handler, rate_checker, rewrite=rewrite_via_provider):
 
 
 def handle_public_rewrite(handler, rate_checker):
-    """Anonymous homepage rewrite. Only local rules; never call external APIs.
+    """Public editor with explicit, rate-limited, owner-enabled paid provider.
 
-    This endpoint deliberately does not reuse the admin Gemini provider
-    selector, preventing untrusted visitors from spending private API quota.
+    OpenAI credentials never reach the browser; paid requests have per-IP and
+    per-process budgets, and protected-claim validation still applies.
     """
     import prowell_deeprewrite as deep
+    import prowell_openai_rewrite as paid
     ip = handler.client_address[0]
     if not rate_checker(ip, "public-paraphrase-local", limit=24):
         return handler.send_json(429, {
@@ -1443,8 +1444,8 @@ def handle_public_rewrite(handler, rate_checker):
         if not isinstance(data, dict):
             raise ValueError("The request must contain text.")
         engine = data.get("engine", "local")
-        if engine not in ("local", "deep", "hybrid"):
-            raise ValueError("Choose Fast editing, DeepRewrite, or Hybrid DeepRewrite.")
+        if engine not in ("local", "deep", "hybrid", "openai"):
+            raise ValueError("Choose Fast editing, DeepRewrite, Hybrid DeepRewrite, or OpenAI editing.")
         source, tone, count = validate_request(data)
         terms = _validate_protected_terms(data.get("protectedTerms"), source)
         level = validate_rewrite_level(data["level"]) if "level" in data else None
@@ -1472,6 +1473,40 @@ def handle_public_rewrite(handler, rate_checker):
             raise ValueError("Rewrite history is invalid.")
     except (ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError) as error:
         return handler.send_json(400, {"error": str(error) or "Invalid text."})
+    # Explicitly selected paid editor. Strict per-IP quota plus an overall
+    # per-process budget stop public requests from running unlimited charges.
+    if engine == "openai":
+        if not rate_checker(ip, "public-paraphrase-openai", limit=3):
+            return handler.send_json(429, {
+                "error": "OpenAI writing limit reached for this connection."
+            })
+        try:
+            generated = paid.rewrite(
+                source, original_text, tone, level or 9, terms,
+                history=history, attempt=attempt,
+            )
+            result = generated["paraphrased"]
+            metrics = _rewrite_edit_metrics(source, result, terms)
+        except (paid.ProviderUnavailable, ValueError) as error:
+            return handler.send_json(
+                503 if isinstance(error, paid.ProviderUnavailable) else 400,
+                {"error": str(error)},
+            )
+        return handler.send_json(200, {
+            "paraphrased": result, "engine": "openai",
+            "pipeline": generated["enginePipeline"],
+            "editorialPass": generated["editorialPass"],
+            "mode": mode, "revisionNumber": attempt,
+            "levelRequested": level, "inputWords": count,
+            "outputWords": count_words(result),
+            "editStrength": metrics["editStrength"],
+            "editableTextChangePercent": metrics["editableTextChangePercent"],
+            "candidateCount": generated["candidateCount"],
+            "validCandidateCount": generated["validCandidateCount"],
+            "verificationMethods": generated["verificationMethods"],
+            "qualityWarning": None,
+            "reviewReminder": "Review meaning and attribution before using.",
+        })
     # The private model is intentionally a separate, owner-configured
     # service. Visitors never gain access to it or its network address.
     if engine in ("deep", "hybrid"):
