@@ -14,13 +14,15 @@ class PublicParaphraserVisibilityTests(unittest.TestCase):
             'id="publicParaphraseInput"',
             'id="publicParaphraseOutput"',
             'id="publicParaphraseSubmit"',
+            'id="publicParaphraseAgain"',
+            'Rehumanize text',
             'id="publicParaphraseTone"',
             'id="publicParaphraseProtectedTerms"',
             'id="publicParaphraseStatus"',
             'href="#paraphraser"',
             'id="prowell-humanizer-inline"',
             'novalidate onsubmit="return false;"',
-            'public-paraphraser.css?v=humanizer-depth-v4',
+            'public-paraphraser.css?v=humanizer-retry-v5',
             'No login required',
             'id="publicParaphraseLevel"',
             'id="publicParaphraseLevelValue"',
@@ -31,6 +33,10 @@ class PublicParaphraserVisibilityTests(unittest.TestCase):
                 self.assertIn(name, markup)
         self.assertIn('Natural student voice', markup)
         self.assertIn('sessionStorage.setItem', markup)
+        self.assertIn('retry.addEventListener', markup)
+        self.assertIn("mode:again?'again':'first'", markup)
+        self.assertIn('originalText:baseline', markup)
+        self.assertIn('Your original passage remains unchanged', markup)
         self.assertIn('level:Number(depth.value)', markup)
         self.assertIn('Paraphrasing depth', markup)
         self.assertIn('Maximum safe rewrite', markup)
