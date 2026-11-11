@@ -141,5 +141,7 @@
   });
   restoreDraft();
   refresh();
-  if(source.value.trim())notify('Your unsent writing was restored in this tab. Select Humanize text when ready.');
+  notify(source.value.trim()?
+    'Your unsent writing is available in this tab. Select Humanize text when ready.':
+    'Ready to improve your writing. No login required.');
 })();
