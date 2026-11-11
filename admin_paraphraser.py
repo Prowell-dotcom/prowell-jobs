@@ -74,7 +74,7 @@ _CITATION = re.compile(r"\([^)\n]{0,160}\b(?:19|20)\d{2}[a-z]?\b[^)\n]{0,100}\)"
 _URL = re.compile(r"https?://[^\s)>\]]+")
 _EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 _DOI = re.compile(r"\b10\.\d{4,9}/[^\s)>\]]+", re.IGNORECASE)
-_QUOTATION = re.compile(r'“[^”\n]{15,}”|"[^"\n]{15,}"')
+_QUOTATION = re.compile(r'“[^”\n]*”|"[^"\n]*"')
 _SYMBOLS = re.compile(r"[%$&@]")
 # High-confidence common clinical names. Unknown terms can be entered in the
 # optional exact-term field; a fixed dictionary cannot cover all drug names.
@@ -445,6 +445,22 @@ _STYLE_CLICHES = (
 )
 
 
+def _rewrite_edit_metrics(source, output, protected_terms=()):
+    """Report amount of editable wording changed, not an authorship or quality score."""
+    original = _rewritable_words(source, protected_terms)
+    revised = _rewritable_words(output, protected_terms)
+    if not original or not revised:
+        return {"editStrength": "Limited", "editableTextChangePercent": 0}
+    similarity = SequenceMatcher(None, original, revised, autojunk=True).ratio()
+    fraction = max(0.0, min(1.0, 1.0 - similarity))
+    strength = ("Light" if fraction < 0.15 else
+                "Moderate" if fraction < 0.35 else "Substantial")
+    return {
+        "editStrength": strength,
+        "editableTextChangePercent": round(100 * fraction),
+    }
+
+
 def _stilted_prose(text):
     """Flag narrow formulaic filler phrases, not AI authorship.
 
@@ -697,7 +713,6 @@ _STUDENT_RULES = (
     (r"\bcommences\b", "begins"),
     (r"\bapproximately\b", "about"),
     (r"\bsubsequently\b", "later"),
-    (r"\bregarding\b", "about"),
     (r"\bnumerous\b", "many"),
     (r"\bdemonstrates\b", "shows"),
     (r"\bdemonstrated\b", "showed"),
@@ -732,9 +747,21 @@ def _lower_clause_start(clause):
 
 
 def _capitalize_sentence_starts(value):
-    """Capitalize safe sentence starts after removing introductory filler."""
+    """Capitalize sentence starts without altering abbreviations or quotations."""
+    abbreviations = frozenset({
+        "e.g", "i.e", "vs", "etc", "fig", "dr", "mr", "mrs",
+        "ms", "prof", "st", "approx", "no",
+    })
+    protected_quotes = [m.span() for m in _QUOTATION.finditer(value)]
     def first_letter(match):
         prefix, letter = match.groups()
+        at = match.start(2)
+        if any(start <= at < end for start, end in protected_quotes):
+            return match.group(0)
+        left = value[:match.start(1)].rstrip()
+        previous = re.search(r"([A-Za-z.]+)\.$", left)
+        if previous and previous.group(1).lower().rstrip(".") in abbreviations:
+            return match.group(0)
         return prefix + letter.upper()
     return re.sub(r'(^|(?<=[.!?])\s+|(?<=[.!?]["”])\s+)([a-z])',
                   first_letter, value, flags=re.MULTILINE)
@@ -1037,10 +1064,13 @@ def handle_rewrite(handler, rate_checker, rewrite=rewrite_via_provider):
     except RuntimeError as exc:
         # No text from the prompt or API keys are included in errors.
         return handler.send_json(503, {"error": str(exc)})
+    metrics = _rewrite_edit_metrics(source, output, protected_terms)
     return handler.send_json(200, {
         "paraphrased": output,
         "inputWords": n,
         "outputWords": count_words(output),
+        "editStrength": metrics["editStrength"],
+        "editableTextChangePercent": metrics["editableTextChangePercent"],
         "engine": engine,
         "editingApproach": (
             "Local rule-based editing; review the results for meaning and style"
