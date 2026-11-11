@@ -8,45 +8,9 @@
 .owner-extension-panel .owner-extension-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:18px 0}.owner-extension-actions .button{cursor:pointer}.owner-extension-actions button:disabled{opacity:.55;cursor:default}.owner-extension-install{border-top:1px solid #e7edf6;margin-top:14px;padding-top:13px}.owner-extension-install>summary{cursor:pointer;color:#364ab7;font-size:13px;font-weight:800}.owner-extension-install li{font-size:13px;line-height:1.7;margin:6px 0}.owner-extension-install code{font-size:12px}@media(max-width:680px){.owner-extension-actions{flex-direction:column}.owner-extension-actions .button{width:100%;text-align:center}}
  .paraphrase-tool{display:grid;gap:11px;margin-top:16px}.paraphrase-tool textarea{box-sizing:border-box;width:100%;font:15px/1.65 system-ui,sans-serif;padding:14px;border-radius:10px;border:1px solid #dbe3f1;min-height:160px;resize:vertical;color:#20314c}.paraphrase-tool textarea:focus{outline:2px solid #4d54d9;outline-offset:1px}.paraphrase-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.paraphrase-toolbar select{padding:9px 12px;border-radius:8px;border:1px solid #dbe3f1;background:#fff}.paraphrase-count{font-size:12px;color:#526781;font-weight:750;margin-left:auto}.paraphrase-label{font-size:13px;font-weight:800;color:#293e68}.paraphrase-toolbar .admin-status{margin:0}.paraphrase-toolbar button:disabled{opacity:.5;cursor:not-allowed}</style></head><body>
 <header class="site-header"><div class="container header-inner"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">P<span class="brand-star">✦</span></span><span class="brand-type">prowell<span class="brand-accent">.</span><span class="brand-sub">JOBS</span></span></a><span style="margin-left:auto;color:#617390;font-weight:800;font-size:12px">Moderation center</span></div></header>
-<main class="admin-main"><div class="container admin-wrap"><div class="admin-intro"><div><h1>Community moderation<span class="green-period">.</span></h1><p>Manage vacancies, private job applications, candidate profiles, feedback, scam reports and alert interest.</p></div><div><a id="paraphraserShortcut" href="#privateParaphraserTitle" class="button button-outline" hidden>✍ AI Paraphrasing Studio</a> <a href="/admin-documents.html" class="button button-green">✉ Send document to client</a> <a href="/writing-admin.html" class="button button-outline">Assign writers / Writing orders →</a> <a href="index.html" class="button button-outline">← Back to website</a></div></div>
+<main class="admin-main"><div class="container admin-wrap"><div class="admin-intro"><div><h1>Community moderation<span class="green-period">.</span></h1><p>Manage vacancies, private job applications, candidate profiles, feedback, scam reports and alert interest.</p></div><div><a href="/admin-documents.html" class="button button-green">✉ Send document to client</a> <a href="/writing-admin.html" class="button button-outline">Assign writers / Writing orders →</a> <a href="index.html" class="button button-outline">← Back to website</a></div></div>
 <section class="admin-panel"><form id="keyForm" class="admin-auth"><input type="hidden" id="adminKey"><p>Sign in with your private owner account to manage Prowell Jobs.</p><a class="button button-green" href="/account.html?mode=admin">Administrator sign in →</a></form><div id="sessionPanel" class="admin-session" hidden><div><strong>● Administrator signed in</strong><p class="admin-status">Your private session remains available when you refresh. Sign out when finished.</p></div><button type="button" id="logoutButton" class="button button-outline">Log out</button></div><p id="adminStatus" class="admin-status" role="status">Your administrator login is separate from ordinary member accounts.</p></section>
-<section class="admin-panel" id="privateParaphraserPanel" hidden aria-labelledby="privateParaphraserTitle">
- <div class="admin-title"><h2 id="privateParaphraserTitle">My private AI Paraphrasing Studio</h2><span class="external-writer-private">ADMINISTRATOR ONLY</span></div>
- <p class="admin-status">Rewrite your text clearly while preserving its meaning, technical terms, names and citations. Accepts any nonempty text up to 3,000 words. Only your signed-in administrator account can use this tool.</p>
- <p class="admin-status"><strong>Default: local algorithms, no API key needed.</strong> This improved offline engine combines targeted language patterns, clause restructuring, and careful splitting of long sentences. It protects facts and terminology, but it is not a substitute for a context-aware language model; unsafe or unrewritable passages receive a clear explanation. Gemini is available only if you select it and have configured an API key.</p>
- <form id="paraphraseForm" class="paraphrase-tool">
-  <div class="paraphrase-toolbar">
-    <label for="paraphraseEngine">Rewriting engine</label>
-    <select id="paraphraseEngine" name="engine">
-      <option value="local" selected>Advanced local algorithms — no AI API</option>
-      <option value="gemini">Gemini AI — optional</option>
-    </select>
-  </div>
-  <div class="paraphrase-toolbar"><label for="paraphraseTone">Writing style</label>
-   <select id="paraphraseTone" name="tone">
-    <option value="natural">Natural and fluent</option><option value="student">Natural student voice</option><option value="simple">Simple English</option>
-    <option value="academic">Academic</option><option value="professional">Professional</option>
-   </select><span class="paraphrase-count" id="paraphraseInputCount" aria-live="polite">0 / 3,000 words</span></div>
-  <label for="paraphraseInput" class="paraphrase-label">Original text</label>
-  <textarea id="paraphraseInput" rows="10" placeholder="Paste or type any text to rewrite..." spellcheck="true" maxlength="85000"></textarea>
-  <label for="paraphraseProtectedTerms" class="paraphrase-label">Exact terms to preserve (optional)</label>
-  <textarea id="paraphraseProtectedTerms" rows="2" maxlength="3000"
-    placeholder="Additional medication names, diseases or other technical terms — separate by commas or new lines"></textarea>
-  <p class="admin-status">All figures and the symbols %, $, &amp;, @ remain unchanged. Common medical terms and your exact terms are protected. Add unfamiliar drug or disease names here for exact matching.</p>
-  <div class="paraphrase-toolbar"><button type="submit" class="button button-green" id="paraphraseSubmit">Paraphrase text</button>
-    <button type="button" class="button button-outline" id="testParaphraserConnection">Test Gemini connection (optional)</button>
-    <button type="button" class="button button-outline" id="paraphraseClear">Clear</button>
-    <span id="paraphraseStatus" role="status" aria-live="polite" aria-atomic="true" class="admin-status">Ready to paraphrase.</span></div>
-  <label for="paraphraseOutput" class="paraphrase-label">Paraphrased result</label>
-  <textarea id="paraphraseOutput" rows="10" readonly placeholder="Your rewritten text will appear here."></textarea>
-  <div class="paraphrase-toolbar"><span class="paraphrase-count" id="paraphraseOutputCount">0 words</span>
-    <button type="button" class="button button-outline" id="paraphraseCopy" disabled>Copy result</button>
-    <button type="button" class="button button-outline" id="paraphraseDownload" disabled>Save as TXT</button></div>
- </form>
- <p class="admin-status"><strong>Modes:</strong> Advanced local algorithms can simplify academic wording and restructure selected sentences without an external AI service. Select Gemini only for contextual rewriting. The local mode cannot guarantee substantially different wording for every passage. Protected details are checked, but all writing should be reviewed before use.</p>
- <p class="admin-status"><strong>Quality-focused editing:</strong> The studio rewrites and reviews grammar, clarity, and natural sentence flow while protecting citations and numerical details. Review the final meaning and references before use; automated proofreading cannot guarantee perfection.</p>
- <p class="admin-status">Local mode processes text on this website's server without sending it to an external AI provider. Only optional Gemini mode sends your text to Google. Submitted text is not stored in the website database.</p>
-</section>
+
 <section class="admin-panel"><div class="admin-title"><h2>Writing orders &amp; writer assignments</h2><a class="button button-green" href="/writing-admin.html">Assign a Writer →</a></div><p class="admin-status">Select verified writers directly from your member directory, even when an order has no bids. You can also review proposals and approve completed work.</p></section>
 <section class="admin-panel external-writer-panel" id="externalWriterPanel" hidden aria-labelledby="externalWriterTitle">
   <div class="admin-title"><h2 id="externalWriterTitle">My external writer account</h2><span class="external-writer-private">ADMINISTRATOR ONLY</span></div>
