@@ -216,6 +216,43 @@ _TIME_RELATIONS = {
 _ROLE_PLURALS = re.compile(
     r"\b(?:nurses|patients|students|doctors|researchers|participants|"
     r"clinicians|providers)\b",re.I)
+_ENTITY_SINGULAR_PLURAL = (
+    ("clinic","clinics"),("hospital","hospitals"),("agency","agencies"),
+    ("department","departments"),("practice","practices"),("team","teams"),
+)
+_UNSUPPORTED_CLINICAL_DETAILS = re.compile(
+    r"\b(?:treatments?|therapies?|medications?|diagnoses|diagnosis|"
+    r"surgeries|vaccines?|prescriptions?|clinical trials?)\b",re.I)
+_CONFIRM_APPOINTMENT_SOURCE = re.compile(
+    r"\b(?:confirm|verify|check)(?:ed|ing|s)?\s+(?:the\s+)?appointments?\b",
+    re.I)
+_CONFIRM_APPOINTMENT_OUTPUT = re.compile(
+    r"\b(?:confirm(?:ed|ing|s)?|check(?:ed|ing|s)?|"
+    r"verif(?:y|ied|ying|ies))"
+    r"(?:\s+\w+){0,4}\s+(?:appointments?|visits?|sessions?)\b",
+    re.I)
+
+
+def _grammatical_number_unchanged(source, candidate):
+    source_lower = source.lower()
+    result_lower = candidate.lower()
+    for singular, plural in _ENTITY_SINGULAR_PLURAL:
+        old_singular = len(re.findall(
+            r"\b"+re.escape(singular)+r"\b",source_lower))
+        old_plural = len(re.findall(
+            r"\b"+re.escape(plural)+r"\b",source_lower))
+        new_singular = len(re.findall(
+            r"\b"+re.escape(singular)+r"\b",result_lower))
+        new_plural = len(re.findall(
+            r"\b"+re.escape(plural)+r"\b",result_lower))
+        if old_singular and not old_plural and new_plural and not new_singular:
+            return False
+        if old_plural and not old_singular and new_singular and not new_plural:
+            return False
+    return True
+
+
+
 
 
 def _claims_and_tense_preserved(original, candidate):
@@ -233,7 +270,7 @@ def _claims_and_tense_preserved(original, candidate):
     # reporting about what a clinic generally does.
     p_original = len(_PAST_WORD.findall(original))
     p_candidate = len(_PAST_WORD.findall(candidate))
-    if p_original >= 2 and p_candidate == 0:
+    if p_original >= 2 and p_candidate < max(1, (p_original+1)//2):
         return False
     if p_original == 0 and p_candidate >= 2 and _PRESENT_FINITE.search(original):
         return False
@@ -242,6 +279,14 @@ def _claims_and_tense_preserved(original, candidate):
     old_roles = {m.group(0).lower() for m in _ROLE_PLURALS.finditer(original)}
     new_roles = {m.group(0).lower() for m in _ROLE_PLURALS.finditer(candidate)}
     if old_roles - new_roles:
+        return False
+    if not _grammatical_number_unchanged(original,candidate):
+        return False
+    if (_UNSUPPORTED_CLINICAL_DETAILS.search(candidate) and
+            not _UNSUPPORTED_CLINICAL_DETAILS.search(original)):
+        return False
+    if (_CONFIRM_APPOINTMENT_SOURCE.search(original) and
+            not _CONFIRM_APPOINTMENT_OUTPUT.search(candidate)):
         return False
     return True
 
@@ -315,6 +360,9 @@ def ollama_generate(url, model, source, tone, level, tokens, count, history, att
         "that a process succeeded, failed, improved outcomes or was effective "
         "unless the source says so. Do not infer new results from the fact "
         "that something was recorded or assessed. "
+        "Preserve singular/plural actors and objects of verbs. Confirming an "
+        "appointment must not become confirming unrelated issues. Do not "
+        "introduce treatment outcomes or clinical details absent from the source. "
         "Do not write for AI detectors, invent facts, add citations, omit "
         "content, or create unnatural synonyms. Maintain existing paragraph "
         "breaks and an approximately equal length. Write in this style: "+
