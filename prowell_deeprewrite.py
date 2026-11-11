@@ -349,6 +349,8 @@ def _parse_candidates(raw):
         # Compact models sometimes return a complete rewrite as prose.
         # This is only a candidate; the strict validator still decides.
         if (cleaned and len(cleaned) <= 7000 and
+                len(cleaned.split()) >= 5 and
+                cleaned.rstrip().endswith((".", "!", "?")) and
                 not cleaned.startswith(("{", "[", "<")) and
                 not re.search(r"\\b(?:here is|here's|as an ai|rewrite:|paraphrase:)\\b",
                               cleaned[:90], re.I)):
