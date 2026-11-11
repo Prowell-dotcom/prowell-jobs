@@ -1,18 +1,20 @@
 'use strict';
 // Exercise the active dual engine for both View paths. The 4writers and
-// Good-Writers order-details popup should jump instantly to its bottom, with
-// Take it AFTER scrolling for available orders, and no Take it for processing.
+// Order-details popup uses a fast 64ms gradual scroll in the foreground
+// and jumps instantly when hidden. Take it waits for scrolling to finish.
+// Processing orders preview only, never Take it.
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const assert=require('node:assert/strict');
 const dir=path.join(__dirname,'../extension/dual-writers');
 const tick=async()=>{for(let i=0;i<24;i++)await Promise.resolve();await new Promise(r=>setImmediate(r));};
-async function run(site,kind,range){
+async function run(site,kind,range,visibility='visible'){
  const four=site==='four',host=four?'4writers.net':'good-writers.com';
  const source=fs.readFileSync(path.join(dir,'legacy/'+site+'/runtime-content.js'),'utf8');
- assert.match(source,/function jumpToBottom\(el,bottom\)/);
- assert.match(source,/function jumpTargets\(nodes\)/);
- assert.doesNotMatch(source,/STAGE_FRACTIONS|SCROLL_STEPS|gradualScroll/,
-   'There must be no gradual or timed acceptance code');
+ assert.match(source,/function rapidScroll\(el,bottom\)/);
+ assert.match(source,/function rapidTargets\(nodes\)/);
+ assert.match(source,/FAST_SCROLL_POSITIONS=5, FAST_SCROLL_FRAME_MS=16/);
+ assert.doesNotMatch(source,/STAGE_FRACTIONS|COMPLETION_TARGETS/,
+   'No 3/4/5-second full-order pacing');
  const options={near:{height:600,ms:300},medium:{height:1200,ms:500},
    long:{height:2200,ms:700}};
  const expected=options[range];assert(expected);
@@ -44,7 +46,7 @@ async function run(site,kind,range){
    set scrollTop(v){backgroundPos=v;events.push('BACKGROUND '+v)},
    appendChild(){}
  };
- const document={documentElement:root,scrollingElement:root,
+ const document={visibilityState:visibility,documentElement:root,scrollingElement:root,
    body:{innerText:'Order #'+id,scrollHeight:2500},
    querySelectorAll(selector){
      if(selector.startsWith('dialog[open]'))return[panel];
@@ -72,24 +74,30 @@ async function run(site,kind,range){
  const context={window:win,document,location:{origin:'https://'+host,
    href:'https://'+host+'/available_orders'},chrome,
    MutationObserver:class{observe(){}},URL,Event:class{},Date,Promise,Set,Error,
-   queueMicrotask,setTimeout(fn,ms){if([60,100,140].includes(ms)){waits.push(ms);queueMicrotask(fn);}return 1;},
+   queueMicrotask,setTimeout(fn,ms){if(ms===16){waits.push(ms);queueMicrotask(fn);}return 1;},
    clearTimeout(){},setInterval(){return 1}};
  vm.runInNewContext(source,context);
  await tick();
  const scrolled=events.filter(x=>x.startsWith('SCROLL '));
- assert.equal(scrolled.length,1,site+' '+kind+': jump to bottom exactly once');
+ assert.equal(scrolled.length,visibility==='hidden'?1:5,
+   site+' '+kind+': correct scroll positions');
  assert.equal(pos,expected.height-400);
  assert.equal(backgroundPos,0,'Background page must not scroll');
- assert.equal(waits.length,0,'No gradual-scroll timers are permitted');
+ assert.equal(waits.length,visibility==='hidden'?0:4,
+   '64ms gradual scroll in foreground; zero timers when hidden');
+ assert.equal(waits.reduce((a,b)=>a+b,0),visibility==='hidden'?0:64);
+ if(kind==='available')
+   assert.equal(events.at(-2),'SCROLL '+Math.round(expected.height-400),
+     'Take it only after reaching bottom');
  if(kind==='available'){
-   assert.equal(events.at(-1),'TAKE IT','Take it only after gradual scroll');
+   assert.equal(events.at(-1),'TAKE IT','Take it only after rapid scroll');
    assert.equal(state.claim?.stage,'take-clicked');
  }else{
    assert(!events.includes('TAKE IT'),'Processing previews must not claim orders');
    assert.equal(state.armed,false,'Processing preview stops after scroll');
    assert.equal(state.claim,null);
  }
- console.log(site+' '+kind+' '+range+': immediate bottom jump and correct action PASS');
+ console.log(site+' '+kind+' '+range+' '+visibility+': rapid scroll and correct action PASS');
 }
 (async()=>{
  for(const site of ['four','good']){
@@ -97,5 +105,7 @@ async function run(site,kind,range){
      await run(site,'available',range);
      await run(site,'processing',range);
    }
+   await run(site,'available','long','hidden');
+   await run(site,'processing','long','hidden');
  }
 })().catch(e=>{console.error(e);process.exitCode=1});
