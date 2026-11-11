@@ -634,6 +634,10 @@ class Handler(SimpleHTTPRequestHandler):
         super().__init__(*args,directory=str(ROOT),**kwargs)
 
     def end_headers(self):
+        # The Humanizer UI is embedded in index.html. Do not let browsers
+        # reuse outdated homepage markup after a Railway deployment.
+        if urlsplit(self.path).path in ('/', '/index.html'):
+            self.send_header('Cache-Control','no-store, max-age=0, must-revalidate')
         self.send_header('X-Content-Type-Options','nosniff')
         self.send_header('Referrer-Policy','strict-origin-when-cross-origin')
         self.send_header('Content-Security-Policy', "frame-ancestors 'none'; object-src 'none'; base-uri 'self'")
@@ -1334,7 +1338,7 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path.startswith('/api/'):
             return self.send_json(404,{'error':'Unknown endpoint.'})
-        allowed = {'/','/index.html','/jobs.html','/account.html','/dashboard.html','/writing.html','/writing-admin.html','/writing.css','/writing.js','/writing-admin.js','/membership.css','/member.js','/admin-account.js','/styles.css','/app.js','/admin.html','/admin.js','/admin-documents.html','/admin-documents.js','/favicon.svg','/robots.txt','/sitemap.xml'}
+        allowed = {'/','/index.html','/jobs.html','/account.html','/dashboard.html','/writing.html','/writing-admin.html','/writing.css','/writing.js','/writing-admin.js','/membership.css','/member.js','/admin-account.js','/styles.css','/app.js','/admin.html','/admin.js','/admin-documents.html','/admin-documents.js','/public-paraphraser.css','/public-paraphraser.js','/favicon.svg','/robots.txt','/sitemap.xml'}
         if path not in allowed and not (path.startswith('/assets/') and path.endswith(('.svg','.png','.jpg','.webp')) and '..' not in path):
             return self.send_json(404,{'error':'File not found.'})
         # This static page is allowed; its send/history APIs require an admin session.
