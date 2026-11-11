@@ -379,15 +379,14 @@ class ParaphraserAudit(unittest.TestCase):
         original = (
             "The report emphasizes the findings in conjunction with a "
             "discussion of community needs. In the realm of local care, "
-            "a large number of patients have not yet been addressed by "
-            "a follow-up program. The nurse provided a description of "
-            "the existing process."
+            "a large number of issues have not yet been addressed. "
+            "The nurse provided a description of the existing process."
         )
         revised = editor.rewrite_via_local(
             original, "student", editor.count_words(original), level=10)
         self.assertIn("report highlights", revised)
         self.assertIn("alongside", revised)
-        self.assertIn("many patients remain unresolved", revised)
+        self.assertIn("many issues remain unresolved", revised)
         self.assertIn("nurse described", revised)
         self.assertTrue(editor._safe_output(original, revised))
         self.assertTrue(editor._local_grammar_ok(original, revised))
