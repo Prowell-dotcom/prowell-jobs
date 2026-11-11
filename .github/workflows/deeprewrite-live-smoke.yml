@@ -1,0 +1,48 @@
+name: Verify live DeepRewrite model
+on:
+  push:
+    branches: [deeprewrite-live-smoke-20261111]
+jobs:
+  deeprewrite-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - name: Probe live model readiness and an actual short rewrite
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, urllib.request, urllib.error, time, sys
+          base = "https://prowelljobs.com"
+          def call(path, obj=None, timeout=140):
+              data = json.dumps(obj).encode() if obj is not None else None
+              req = urllib.request.Request(base+path, data=data,
+                   headers={"Content-Type": "application/json", "User-Agent": "Prowell-DeepRewrite-Smoke/1"},
+                   method="POST" if obj is not None else "GET")
+              start=time.monotonic()
+              try:
+                  with urllib.request.urlopen(req,timeout=timeout) as response:
+                      result=json.load(response)
+                      print("HTTP",response.status,"elapsed",round(time.monotonic()-start,2),"sec")
+                      return response.status,result
+              except urllib.error.HTTPError as e:
+                  body=e.read().decode(errors="replace")[:1200]
+                  print("HTTP error",e.code,"elapsed",round(time.monotonic()-start,2),"sec","body",body)
+                  sys.exit(2)
+          status,info=call("/api/paraphrase/capabilities",timeout=18)
+          print("Capabilities",json.dumps(info))
+          if not info.get("deepAvailable"):
+              print("ERROR: deep model not ready")
+              sys.exit(1)
+          source=("The clinic contacted patients before scheduled follow-up appointments. "
+                  "Staff members used reminder calls to confirm appointments and identify "
+                  "problems with transportation. Nurses recorded the outcomes in the patient records.")
+          status,rewritten=call("/api/paraphrase",{
+              "text":source, "tone":"student","engine":"deep","level":9,"mode":"first"
+          },timeout=140)
+          print("Generation:",json.dumps(rewritten,ensure_ascii=False)[:3000])
+          if not rewritten.get("paraphrased"):
+              sys.exit("No rewritten output returned")
+          if rewritten["paraphrased"].strip()==source.strip():
+              sys.exit("Output identical to input")
+          print("PASS: Model created a nonidentical candidate through public API")
+          PY
