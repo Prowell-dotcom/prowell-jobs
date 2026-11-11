@@ -673,6 +673,10 @@ _LOCAL_RULES = (
     (r"\bfurthermore\b", "also"),
     (r"\bmoreover\b", "also"),
     (r"\bnevertheless\b", "still"),
+    (r"\bin the realm of\b", "in"),
+    (r"\bdue to the presence of\b", "because of"),
+    (r"\battempts to answer the question of whether\b", "examines whether"),
+    (r"\bthis paper considers\b", "this paper examines"),
     (r"\ba key factor in\b", "important for"),
     (r"\ba key component of\b", "an important part of"),
     (r"\bto a large extent\b", "largely"),
@@ -820,6 +824,23 @@ def _reframe_contrast(sentence):
     if not found or sentence.count(",") != 1 or '"' in sentence:
         return sentence
     first, second, ending = found.groups()
+    # "The system is ready, but is not resilient" has an omitted subject
+    # in its second coordinated clause. Moving it to "Although ...,
+    # is not resilient" creates the exact grammatical error users reported.
+    # Reframe contrast ONLY if the second clause has an explicit subject.
+    explicit_subject = re.match(
+        r"(?:the|a|an|this|that|these|those|we|they|he|she|it|i|you|"
+        r"nurses|patients|staff|students|researchers|clinicians|people|"
+        r"parents|doctors|participants|several|many|some|most|few|others)\b\s+",
+        second, flags=re.IGNORECASE
+    )
+    if not explicit_subject:
+        return sentence
+    # Avoid restructuring a clause that embeds another assertion:
+    # "The paper finds that ..." may not have the same contrast scope.
+    if re.search(r"\b(?:finds?|suggests?|argues?|reports?|concludes?)\b",
+                 first, flags=re.IGNORECASE):
+        return sentence
     return ("Although " + _lower_clause_start(first) + ", " + second +
             ending)
 
@@ -860,6 +881,15 @@ def _local_grammar_ok(before, after):
                  r"although although|, ,)\b", after, flags=re.IGNORECASE):
         return False
     if re.search(r"[,;]\s*[.!?]", after):
+        return False
+    # Prevent orphaned predicates following a dependent introductory clause.
+    # E.g. "Although the system is prepared, is unable to respond."
+    bad_subordinate = (
+        r"\b(?:although|because|if|when)\s+[^.!?\n]{6,220},\s+"
+        r"(?:is|are|was|were|has|have|had|can|could|will|would|"
+        r"may|might|should|must|did|does|do)\b"
+    )
+    if re.search(bad_subordinate, after, re.IGNORECASE):
         return False
     if len(re.findall(r"[.!?]", after)) < len(re.findall(r"[.!?]", before)):
         return False
@@ -1144,12 +1174,21 @@ def handle_public_rewrite(handler, rate_checker):
         # The local editor reports inability to safely change wording, not a
         # provider outage. Let the user try another passage without copying.
         return handler.send_json(422, {"error": str(error)})
+    change_percent = metrics["editableTextChangePercent"]
+    quality_warning = (
+        "Only a light edit was possible using local algorithms. Most of "
+        "your original wording remains unchanged; this is not a full "
+        "paraphrase. A context-aware writing model or manual revision is "
+        "needed for a substantially different version."
+        if count >= 40 and change_percent < 20 else None
+    )
     return handler.send_json(200, {
         "paraphrased": result,
         "engine": "local",
         "inputWords": count,
         "outputWords": count_words(result),
         "editStrength": metrics["editStrength"],
-        "editableTextChangePercent": metrics["editableTextChangePercent"],
+        "editableTextChangePercent": change_percent,
+        "qualityWarning": quality_warning,
         "reviewReminder": "Review meaning, grammar, quotations, and references before use.",
     })
