@@ -101,21 +101,19 @@ async function check(label,range){
    'Timing report should be derived from actual View-to-final click');
  assert.equal(panelY,expected.height-380,
    'Popup must reach its vertical bottom before final click');
- assert.equal(waits.length,5,'Six scroll positions require five waits');
- assert.equal(waits.reduce((a,b)=>a+b,0),expected.ms,
-   'Final acknowledgement '+range+' should scroll for '+expected.ms+'ms');
+ assert.equal(waits.length,0,'Instant acknowledgement must not schedule scroll waits');
  assert.equal(pageY,0,
    'Background document must never be scrolled by post-OK step');
  assert.equal(state.lastAcknowledgementScroll,'scrolled-popup',
    'Show evidence of actual popup movement');
- assert.equal(popupEvents.filter(e=>e.startsWith('popup-scroll ')).length,6,
-   'Scrolling must be gradual, not an instant jump');
+ assert.equal(popupEvents.filter(e=>e.startsWith('popup-scroll ')).length,1,
+   'Acknowledgement should jump to its bottom once');
  assert.equal(popupEvents.at(-1),'acknowledgement-click',
-   'Final acceptance must occur only after all scrolling steps');
+   'Final acceptance must occur after the direct bottom jump');
  assert.equal(popupEvents[0].startsWith('popup-scroll '),true);
  assert.equal(popupEvents.at(-2),'popup-scroll '+(expected.height-380));
  console.log('4writers post-OK '+label+' '+range+
-   ': '+expected.ms+'ms popup scroll, then click PASS');
+   ': immediate popup jump, then click PASS');
 }
 
 (async()=>{
