@@ -227,7 +227,8 @@ _CONFIRM_APPOINTMENT_SOURCE = re.compile(
     r"\b(?:confirm|verify|check)(?:ed|ing|s)?\s+(?:the\s+)?appointments?\b",
     re.I)
 _CONFIRM_APPOINTMENT_OUTPUT = re.compile(
-    r"\b(?:confirm|verify|check)(?:ed|ing|s)?"
+    r"\b(?:confirm(?:ed|ing|s)?|check(?:ed|ing|s)?|"
+    r"verif(?:y|ied|ying|ies))"
     r"(?:\s+\w+){0,4}\s+(?:appointments?|visits?|sessions?)\b",
     re.I)
 
