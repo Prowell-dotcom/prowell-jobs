@@ -14,12 +14,15 @@ that results will evade any AI detector.
 
 ## Configure on Railway
 
-1. In the same Railway project, add a separate service called ollama using
-   the official ollama/ollama Docker image.
-2. Give that service a persistent volume mounted at /root/.ollama.
-   A 3B parameter model may need about 6–8 GB of RAM to run comfortably.
-   Railway's CPU-only runtime can be slow; provision CPU as appropriate.
-3. Add these Ollama service variables:
+1. Create a new Railway service named ollama in this project. Connect it to
+   the same GitHub repository Prowell-dotcom/prowell-jobs and branch main.
+   Configure its Dockerfile path as services/ollama/Dockerfile (leave root
+   directory empty so COPY resolves services/ollama/bootstrap.sh).
+2. Attach a 5 GB persistent volume at /root/.ollama. This stores model
+   weights between deployments.
+3. Allocate suitable CPU/RAM resources; llama3.2:3b usually benefits from
+   approximately 6 GB RAM headroom and at least 2 vCPUs on CPU hosts.
+4. Set these variables on the Ollama service:
 
     OLLAMA_HOST=[::]:11434
     OLLAMA_NO_CLOUD=1
@@ -27,14 +30,13 @@ that results will evade any AI detector.
     OLLAMA_NUM_PARALLEL=1
     OLLAMA_MAX_LOADED_MODELS=1
     OLLAMA_KEEP_ALIVE=10m
+    PROWELL_MODEL_TO_PULL=llama3.2:3b
 
-4. Do not give Ollama a public domain. It has no built-in authentication.
-5. In the Ollama service shell, run:
-
-    ollama pull llama3.2:3b
-
-   Verify the model appears with ollama list. A 1B alternative needs less
-   RAM but may generate substantially lower-quality rewrites.
+5. Do NOT add a public domain or TCP proxy to the model service. The
+   bundled bootstrap.sh starts the Ollama server and downloads the model
+   automatically on the first startup, keeping it on the mounted volume.
+   Monitor service deploy logs until the line "Private model ... is ready."
+   appears.
 
 6. Set these variables on the existing Prowell Jobs WEB service:
 
