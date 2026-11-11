@@ -111,3 +111,13 @@
  .pp-section .pp-status{padding:5px 17px 15px}
  .pp-section .pp-fineprint{padding:15px 17px 19px}
 }
+
+/* Ten-step paraphrasing depth — keeps original administrator studio styling. */
+.pp-section .pp-depth-control{padding:15px 27px 19px;background:#fafbff;border-top:1px solid #edf0f9;border-bottom:1px solid #e7ecf5}
+.pp-section .pp-depth-head{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:13px;font-weight:800;color:#293e68;margin-bottom:10px}
+.pp-section .pp-depth-head output{display:inline-flex;padding:7px 12px;border:1px solid #dfe1fa;border-radius:9px;color:#464bc5;background:#f0f1ff;font-size:12px;white-space:nowrap}
+.pp-section .pp-depth-control input[type=range]{display:block;appearance:auto;accent-color:#5355e5;width:100%;min-width:0;height:28px;margin:0;cursor:pointer}
+.pp-section .pp-depth-scale{display:flex;justify-content:space-between;gap:14px;font-size:11px;color:#6b7b93;font-weight:700;margin:3px 0 9px}
+.pp-section .pp-depth-control p{font-size:12px;color:#5e728a;line-height:1.6;margin:0}
+.pp-section .pp-status[data-state=warning]{color:#925a0d;background:#fffbf1;border-top:1px solid #f4dfbc;padding-top:14px}
+@media(max-width:680px){.pp-section .pp-depth-control{padding:15px 17px 17px}.pp-section .pp-depth-head{flex-wrap:wrap}}
