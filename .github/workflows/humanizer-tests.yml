@@ -18,7 +18,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Compile Python source
-        run: python -m compileall -q server.py admin_paraphraser.py prowell_deeprewrite.py tests
+        run: python -m compileall -q server.py admin_paraphraser.py prowell_deeprewrite.py prowell_openai_rewrite.py tests
       - name: Run all unit tests
         env:
           PYTHONDONTWRITEBYTECODE: '1'
@@ -30,8 +30,10 @@ jobs:
           page=Path("index.html").read_text(encoding="utf-8")
           server=Path("admin_paraphraser.py").read_text(encoding="utf-8")
           assert 'value="hybrid"' in page
-          assert "engine.value=engine.dataset.savedChoice==='deep'?'deep':'hybrid'" in page
+          assert "engine.value=openaiAvailable?'openai':deepAvailable?'hybrid':''" in page
           assert "hybrid_rewrite if engine == \"hybrid\" else deep.rewrite" in server
           assert "No meaningful wording change" in server
+          assert 'value="openai"' in page
+          assert '"public-paraphrase-openai", limit=3' in server
           print("Hybrid integration checks passed")
           PY
