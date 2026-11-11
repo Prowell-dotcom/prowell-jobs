@@ -26,6 +26,14 @@ async function run(){
  assert(html.includes('background:#5355e5'));
  assert(html.includes('Humanize text'));
  assert(html.includes('id="publicParaphraseAgain"'));
+ const resultHeader=html.indexOf('label for="publicParaphraseOutput"');
+ const retryButton=html.indexOf('id="publicParaphraseAgain"');
+ const resultTextArea=html.indexOf('id="publicParaphraseOutput"');
+ assert(resultHeader>=0&&retryButton>resultHeader&&resultTextArea>retryButton,
+   'Rehumanize button must be conspicuous, above the result text box');
+ assert.equal((html.match(/id="publicParaphraseAgain"/g)||[]).length,1);
+ assert(html.includes('id="publicParaphraseInlineFeedback"'));
+ assert(html.includes('pp-inline-retry'));
  assert(html.includes('Rehumanize text'));
  assert(html.includes('Your original passage remains unchanged.'));
  assert(html.includes('id="publicParaphraseLevel"'));
@@ -60,10 +68,13 @@ async function run(){
    return n;
   };
   for(const id of ['publicParaphraseForm','publicParaphraseInput','publicParaphraseOutput',
-    'publicParaphraseSubmit','publicParaphraseAgain','publicParaphraseStatus','publicParaphraseCount',
+    'publicParaphraseSubmit','publicParaphraseAgain','publicParaphraseStatus',
+    'publicParaphraseInlineFeedback','publicParaphraseCount',
     'publicParaphraseTone','publicParaphraseProtectedTerms','publicParaphraseClear',
     'publicParaphraseLevel','publicParaphraseLevelValue','publicParaphraseLevelDescription',
     'publicParaphraseCopy','publicParaphraseDownload'])create(id);
+  create('publicParaphraseSubmit').innerHTML='Humanize text';
+  create('publicParaphraseAgain').innerHTML='Rehumanize text';
   create('publicParaphraseTone').value='student';
   create('publicParaphraseLevel').value='9';
   create('publicParaphraseTone').options=['natural','student','simple','academic','professional'].map(value=>({value}));
@@ -120,6 +131,8 @@ async function run(){
  assert.equal(payload.protectedTerms,'metformin');
  assert.equal(ui.node('publicParaphraseOutput').value,'Nurses contacted patients regularly.');
  assert.match(ui.node('publicParaphraseStatus').textContent,/Moderate edit/);
+ assert.match(ui.node('publicParaphraseInlineFeedback').textContent,/Moderate edit/);
+ assert.equal(ui.node('publicParaphraseInlineFeedback').dataset.state,'success');
  await ui.node('publicParaphraseCopy').dispatch('click').pending;
  assert.equal(copyText,ui.node('publicParaphraseOutput').value);
  assert.equal(ui.node('publicParaphraseSubmit').disabled,false);
@@ -152,6 +165,7 @@ async function run(){
  assert.equal(JSON.parse(requests[2].options.body).attempt,2);
  assert.equal(ui.node('publicParaphraseOutput').value,replyText);
  assert.match(ui.node('publicParaphraseStatus').textContent,/previous result was preserved/);
+ assert.match(ui.node('publicParaphraseInlineFeedback').textContent,/previous result was preserved/);
  assert.equal(ui.node('publicParaphraseAgain').disabled,false);
  responseError=null;
 
