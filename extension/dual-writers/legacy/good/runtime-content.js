@@ -240,6 +240,9 @@
       try{found.view.click();}
       catch(error){await stopHandoff(state.claim,'view',
         'Order View failed: '+error.message);return;}
+      // Trigger a scan immediately when View has filled the popup, then
+      // retry on the next event loop turn if the site renders later.
+      scheduleScan();
       setTimeout(scheduleScan,0);
       return;
     }
