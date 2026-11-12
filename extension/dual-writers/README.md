@@ -1,4 +1,4 @@
-# Prowell Dual-Platform Bot v2.1.18
+# Prowell Dual-Platform Bot v2.1.19
 
 ## Source engines and changes
 
@@ -105,7 +105,7 @@ report other errors unrelated to these fixes; inspect the extension's
 ## Installation
 
 After ProwellJobs is deployed from the new repository commit, download
-**Dual Bot v2.1.18** from the Prowell administrator dashboard. Remove/disable
+**Dual Bot v2.1.19** from the Prowell administrator dashboard. Remove/disable
 the previous dual and separate bots, extract the new ZIP, and load the folder
 containing `manifest.json` through `chrome://extensions` with Developer Mode
 enabled. Reload the 4writers and Good-Writers site tabs. Press START separately
@@ -161,20 +161,24 @@ The Good-Writers sequence is **View → instant bottom jump through order detail
 
 Both dual-bot engines retain the full order-taking sequence without 3/4/5-second acceptance pacing. The first order-information screen now scrolls in **five visual positions over four 16ms intervals** (approximately **64ms total** in a normally responsive foreground browser tab) before clicking Take it. On **4writers**, the final post-OK acknowledgement popup uses the same fast five-position scrolling; on **Good-Writers**, I understand remains a **direct post-OK click with no second scroll**, as shown in the account screenshot. A hidden browser tab immediately jumps to the bottom to avoid timer throttling. The bot still waits for real website controls, checks its active order before actions, and preserves duplicate View protection, audio notifications, processing previews and the small START/STOP popup. Background scheduler throttling and website latency can still affect end-to-end completion; no speed or competitive outcome is guaranteed.
 
-### Single-movement, zero-pause scroll (v2.1.18)
+### Single-movement, zero-pause scroll (v2.1.19)
 
 The previous five-position ~64 ms animation has been removed from both active engines. After an order's matching details are rendered, the bot changes the verified popup's `scrollTop` **once**, directly to the bottom, with **no animation frames, setTimeout pauses or deliberate waiting**. It then clicks **Take it → OK → I understand** as soon as each real control is available. **4writers** also uses one bottom movement for its final acknowledgement popup, while **Good-Writers** does not scroll after OK. Processing orders remain **View → single bottom movement → stop** without taking an order. All other duplicate-order, audio, refreshing, START/STOP, and security protections remain unchanged. Previous-version gradual-scroll descriptions above are historical, not active behavior.
 
-### Alert and VIEW-only handoff — NO scrolling or automatic acceptance (v2.1.18)
+### Alert and VIEW-only handoff — NO scrolling or automatic acceptance (v2.1.19)
 
 This is the **current active mode** on both websites. Press **START WATCH** for a site. The extension watches its supported available/processing order listings and continues 2-second refreshing only while idle. As soon as it detects a supported order, it **cancels refreshing, requests the order sound, disables further monitoring, and clicks View exactly once**. The sound is sent before monitoring is disarmed, and the existing background audio cooldown prevents duplicate near-simultaneous alerts. The selected order screen remains open for the human.
 
 **There is NO scrolling whatsoever**, and the bot has no active code to click **Take it, OK or I understand**. The user manually completes every acceptance and confirmation step. Processing orders get the same sound/stop/View handoff, with no acceptance. Monitoring must be restarted explicitly for another order; repeated IDs remain eligible on a new START. Claims left unfinished by older extension versions are disarmed and cleared instead of being resumed. The compact popup keeps the same quarter-sized four-button layout, with the two green actions correctly labeled **START WATCH**. Archived original source engines remain unchanged. Earlier-version auto-taking and scrolling documentation above is historical, not active behavior.
 
-### Different handoff steps for each website (v2.1.18 — current)
+### Different handoff steps for each website (v2.1.19 — current)
 
 **4writers.net — available orders:** Click **START TO TAKE**. The bot monitors the supported Overview/Writings/Rewritings lists (2-second idle refresh), requests an audible alert when an order appears, then clicks **View**. It waits until the order ID is verified in the opened Order Information popup (or navigated details page), jumps directly to the bottom **once without animation**, clicks **Take it** when the real button is available, and **stops monitoring BEFORE that click**. The user must personally handle **any native “Are you sure?” confirmation**, then **OK** and **I understand, take the order**. The extension does NOT arm the earlier native-confirmation automation. If details/Take it do not appear within twelve seconds, it stops without taking the order and leaves the user to finish manually. 4writers processing orders still alert, View, then stop; they are never taken automatically.
 
 **Good-Writers.com — all detected orders:** Click **START WATCH**. The bot alerts, stops refreshing, clicks **View**, and immediately ends its actions. **No scrolling and no Take it, OK or I understand clicks** occur on Good-Writers. The user scrolls and completes every following step manually.
 
 Both sites disarm after their handoff; press the site’s START button again when you want to monitor for another order. Sounds, repeated-order handling, separate monitoring, and compact controls remain. Real-site behavior can vary with rendering and account state; automated tests simulate the expected website buttons.
+
+### 4writers View opened but Take it did not run — popup recognition fix (v2.1.19)
+
+The live 4writers order popup may use **Order ID**, **ID**, **Order number** or **Order #**, or contain **ORDER INFORMATION without repeating the order ID**. Older detection insisted on one specific ID label and therefore could leave the bot waiting after clicking View. The active 4writers engine now (1) recognizes these common order-ID labels; (2) captures visible order-information dialogs *before* View and recognizes a new/changed ORDER INFORMATION popup even if it has no ID; (3) refuses the fallback when the popup explicitly identifies a different order; and (4) jumps every scrollable descendant of the verified popup directly to its bottom, including custom-scroll containers. It then clicks **Take it** and permanently disarms before human browser confirmation, **OK**, and **I understand**. The bot does **not** automatically approve any confirmation. If the popup cannot be verified, it leaves the controls to the user rather than risk accepting the wrong order. Processing orders remain View-only, and Good-Writers is **unchanged**: notify → View → stop, without any scrolling or automatic acceptance. Dedicated simulation tests cover several order-number formats, absent order ID, wrong order ID, short/medium/long details, and delayed rendering. Live behavior still requires verification on the account.
