@@ -51,10 +51,10 @@ async function clicks(site,kind){
  vm.runInNewContext(source('legacy/'+site+'/runtime-content.js'),context);
  await settle();
  assert.equal(history.length,1,site+' '+kind+' first View despite historical ID');
- if(four && kind==='available'){
-   // 4writers must keep a pending claim ONLY until its matching details
-   // appear and Take it can be clicked. STOP cancels that handoff.
-   assert.equal(state.claim?.stage,'four-view-await-take');
+ if((four && kind==='available')||!four){
+   // Both 4writers Take it and Good-Writers scroll handoffs keep a pending
+   // claim until opened details render. STOP must cancel either path.
+   assert.equal(state.claim?.stage,four?'four-view-await-take':'good-view-await-scroll');
    assert.equal(state.armed,true);
    await store.set({armed:false,claim:null,targetTabId:null});
    await settle();
@@ -67,8 +67,8 @@ async function clicks(site,kind){
  assert.equal(history.length,1,'New card must NOT click while stopped');
  await store.set({armed:true,targetTabId:7,claim:null});await settle();
  assert.equal(history.length,2,'Explicit START permits the same ID again');
- if(four&&kind==='available'){
-   assert.equal(state.claim?.stage,'four-view-await-take');
+ if((four&&kind==='available')||!four){
+   assert.equal(state.claim?.stage,four?'four-view-await-take':'good-view-await-scroll');
    await store.set({armed:false,claim:null,targetTabId:null});await settle();
  }else assert.equal(state.armed,false,'Second handoff stops again');
  cards=[];mutation([{target:document.body}]);await settle();
@@ -76,7 +76,7 @@ async function clicks(site,kind){
  assert.equal(history.length,2,'No further View without explicit restart');
  await store.set({armed:true,targetTabId:7});await settle();
  assert.equal(history.length,3,'New appearance is eligible on another START');
- if(four&&kind==='available')
+ if((four&&kind==='available')||!four)
    await store.set({armed:false,claim:null,targetTabId:null});
  await store.set({armed:true,targetTabId:7});await settle();
  assert.equal(history.length,4,'Manual restart re-arms same visible ID');
