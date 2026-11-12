@@ -6,7 +6,7 @@ const vm=require('node:vm'),path=require('node:path');
 const base=path.join(__dirname,'../extension/dual-writers');
 const read=p=>fs.readFileSync(path.join(base,p),'utf8');
 const manifest=JSON.parse(read('manifest.json'));
-assert.equal(manifest.version,'2.1.20');
+assert.equal(manifest.version,'2.1.21');
 const scripts=manifest.content_scripts;
 assert.equal(scripts.length,4);
 for(const site of ['four','good']){
