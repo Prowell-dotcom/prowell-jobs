@@ -154,7 +154,30 @@
       // Scroll only inside the verified ORDER INFORMATION popup.
       const descendants=typeof panel.querySelectorAll==='function'
         ?[...panel.querySelectorAll('*')]:[];
-      jumpTargets([panel,...descendants]);
+      // A verified popup's actual scrollbar may live on an OUTER dialog
+      // container, not on the element that contains ORDER INFORMATION.
+      const ancestors=[];
+      for(let p=panel.parentElement,depth=0;
+          p && depth<8 && p!==document.body &&
+          p!==document.documentElement && p!==document.scrollingElement;
+          p=p.parentElement,depth++){
+        if(!p.isConnected || !p.getClientRects?.().length)continue;
+        const hint=String(p.className||'')+' '+String(p.id||'')+' '+
+          String(p.getAttribute?.('role')||'');
+        const overflow=typeof getComputedStyle==='function'
+          ?String(getComputedStyle(p)?.overflowY||''):'';
+        if(/modal|dialog|popup|overlay|order|detail|scroll|window|pane|content/i.test(hint) ||
+           /auto|scroll/i.test(overflow))ancestors.push(p);
+      }
+      const targets=[...new Set([panel,...descendants,...ancestors])]
+        .filter(el=>el && el!==document.body &&
+          el!==document.documentElement && el!==document.scrollingElement &&
+          Number(el.clientHeight)>40 &&
+          Number(el.scrollHeight)-Number(el.clientHeight)>10);
+      jumpTargets(targets);
+      // Do not say 'scrolled' (or click Take it) when the popup never moved.
+      if(targets.some(el=>Number(el.scrollTop)<
+        Number(el.scrollHeight)-Number(el.clientHeight)-3))return false;
       return active() && state.claim && sameOrder(state.claim.id,claim.id);
     }
     // For real full-page View navigation, scroll that details page instead.

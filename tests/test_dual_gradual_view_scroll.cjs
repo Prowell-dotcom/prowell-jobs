@@ -9,7 +9,7 @@ const assert=require('node:assert/strict');
 const dir=path.join(__dirname,'../extension/dual-writers');
 const settle=async()=>{for(let i=0;i<45;i++)await Promise.resolve();
  await new Promise(resolve=>setImmediate(resolve));};
-async function run(site,kind,range,delayed=false,variant='orderId'){
+async function run(site,kind,range,delayed=false,variant='orderId',scrollHost='panel'){
  const four=site==='four',host=four?'4writers.net':'good-writers.com';
  const source=fs.readFileSync(path.join(dir,'legacy/'+site+'/runtime-content.js'),'utf8');
  const height={short:600,medium:1200,long:2200}[range];
@@ -24,7 +24,7 @@ async function run(site,kind,range,delayed=false,variant='orderId'){
  const popupText=descriptions[variant];assert(popupText);
  const state={armed:true,claimConsentVersion:four?'0.5.4':'1.0.4',
    targetTabId:17,claim:null,soundRunId:'11111111-2222-3333-4444-555555555555'};
- let opened=false,scrollY=0,pageY=0,mutation;
+ let opened=false,scrollY=0,outerY=0,pageY=0,mutation;
  let takeReady=!delayed;
  const view={isConnected:true,click(){events.push('VIEW');
    if(!delayed)opened=true;}};
@@ -42,12 +42,18 @@ async function run(site,kind,range,delayed=false,variant='orderId'){
  const accept={isConnected:true,disabled:false,innerText:'I understand',
    textContent:'I understand',getClientRects(){return[{}]},
    getAttribute(){return null},click(){events.push('I understand');}};
- const panel={isConnected:true,clientHeight:400,scrollHeight:height,
+ const panel={isConnected:true,clientHeight:400,scrollHeight:scrollHost==='ancestor'?400:height,
    innerText:popupText,
    textContent:popupText,
    get scrollTop(){return scrollY;},
-   set scrollTop(v){scrollY=v;events.push('SCROLL '+Math.round(v));},
+   set scrollTop(v){if(scrollHost!=='blocked'){
+     scrollY=v;events.push('SCROLL '+Math.round(v));}},
    getClientRects(){return[{}]},querySelectorAll(){return[]}};
+ const outer={isConnected:true,className:'modal outer-scroll',clientHeight:400,
+   scrollHeight:height,getClientRects(){return[{}]},
+   get scrollTop(){return outerY;},
+   set scrollTop(v){outerY=v;events.push('OUTER SCROLL '+Math.round(v));}};
+ panel.parentElement=scrollHost==='ancestor'?outer:null;
  const pageRoot={clientHeight:800,scrollHeight:2300,
    get scrollTop(){return pageY;},
    set scrollTop(v){pageY=v;events.push('PAGE SCROLL');},
@@ -95,6 +101,15 @@ async function run(site,kind,range,delayed=false,variant='orderId'){
  await settle();
  assert.deepEqual(events.slice(0,2),['SOUND '+kind,'VIEW'],
    'Sound must be requested before View on '+site);
+ if(scrollHost==='blocked'){
+   assert.deepEqual(events,['SOUND '+kind,'VIEW'],
+     'Unmovable scroll pane must NOT trigger Take it or claim success');
+   assert.equal(state.armed,true,'Keep monitoring the pending popup');
+   assert.equal(state.claim?.stage,four?'four-view-await-take':'good-view-await-scroll');
+   console.log(site+' unavailable scrollbar: no false scrolling or Take it PASS');
+   return;
+ }
+ const expectedScroll=(scrollHost==='ancestor'?'OUTER SCROLL ':'SCROLL ')+(height-400);
  if(four&&kind==='available'){
    if(variant==='wrongId'){
      assert.equal(state.claim?.stage,'four-view-await-take');
@@ -114,9 +129,8 @@ async function run(site,kind,range,delayed=false,variant='orderId'){
      assert(!events.includes('TAKE IT'),'No click while Take it is absent');
      takeReady=true;mutation([{target:document.body}]);await settle();
    }
-   assert.deepEqual(events,['SOUND available','VIEW',
-     'SCROLL '+(height-400),'TAKE IT']);
-   assert.equal(scrollY,height-400);
+   assert.deepEqual(events,['SOUND available','VIEW',expectedScroll,'TAKE IT']);
+   assert.equal(scrollHost==='ancestor'?outerY:scrollY,height-400);
    assert.equal(state.lastHandoffStage,'take-it');
  }else if(!four){
    if(variant==='wrongId'){
@@ -133,9 +147,9 @@ async function run(site,kind,range,delayed=false,variant='orderId'){
        'Good-Writers cannot scroll before View popup opens');
      opened=true;mutation([{target:document.body}]);await settle();
    }
-   assert.deepEqual(events,['SOUND '+kind,'VIEW','SCROLL '+(height-400)],
+   assert.deepEqual(events,['SOUND '+kind,'VIEW',expectedScroll],
      'Good-Writers must scroll exactly once, but never click Take it');
-   assert.equal(scrollY,height-400);
+   assert.equal(scrollHost==='ancestor'?outerY:scrollY,height-400);
    assert.equal(state.lastHandoffStage,'scroll');
  }else{
    assert.deepEqual(events,['SOUND '+kind,'VIEW'],
@@ -172,4 +186,8 @@ async function run(site,kind,range,delayed=false,variant='orderId'){
  await run('good','available','long',false,'wrongId');
  await run('good','available','long',true);
  await run('good','processing','long',true);
+ await run('four','available','long',false,'orderId','ancestor');
+ await run('good','available','long',false,'orderId','ancestor');
+ await run('four','available','long',false,'orderId','blocked');
+ await run('good','available','long',false,'orderId','blocked');
 })().catch(error=>{console.error(error);process.exitCode=1;});
