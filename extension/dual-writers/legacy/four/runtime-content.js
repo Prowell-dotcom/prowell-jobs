@@ -117,7 +117,14 @@
       const previous=beforeViewDialogs.get(el);
       const now=dialogText(el);
       return previous===undefined || previous!==now;
-    }).filter(el=>/\border\s+information\b/i.test(dialogText(el)));
+    }).filter(el=>{
+      const text=dialogText(el);
+      // If a different order number IS shown, never use the ID-less
+      // fallback to click Take it for the wrong order.
+      ID_IN_DETAILS.lastIndex=0;
+      const ids=[...text.matchAll(ID_IN_DETAILS)].map(hit=>hit[1]);
+      return !ids.length && /\border\s+information\b/i.test(text);
+    });
     // Nested .modal-content and .modal-body often represent the same popup.
     // Prefer the first suitable parent; don't require every nested panel to
     // repeat the order number.
