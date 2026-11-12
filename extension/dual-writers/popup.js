@@ -1,7 +1,7 @@
 'use strict';
 /* Compact dual popup with distinct handoffs:
  * 4writers goes through Take it, then the owner confirms.
- * Good-Writers stops at View; all other steps are manual.
+ * Good-Writers instantly scrolls after View; Take it and confirmations are manual.
  */
 const SITES={
   four:{name:'4writers.net',prefix:'dual_four_',legacyVersion:'0.5.4',
@@ -35,7 +35,7 @@ async function render(site){
   startButton(site).title=!tab?'Open '+cfg.name+' in a browser tab':
     running?'Already watching '+cfg.name:site==='four'
       ? 'Alert, View, scroll and click Take it; you confirm manually'
-      : 'Alert, open View and stop; you scroll and accept manually';
+      : 'Alert, open View, instantly scroll its details and stop; accept manually';
   stopButton(site).title=running?'Stop watching orders on '+cfg.name:
     'Monitoring is already stopped';
 }
@@ -52,7 +52,7 @@ async function start(site){
       fourCycleCount:0,refreshCount:0,lastRefreshAt:null}:{}),
     lastResult:site==='four'
       ? 'Watching 4writers; alert, View, scroll, Take it, then stop before OK.'
-      : 'Watching Good-Writers; alert and View only, then stop.'
+      : 'Watching Good-Writers; alert, View and instant details scroll, then stop.'
   });
   // Sound is prepared separately; it does not delay scanning or clicking.
   void chrome.runtime.sendMessage({type:'PROWELL_PREPARE_ORDER_SOUND'}).catch(()=>{});
