@@ -9,11 +9,19 @@ const assert=require('node:assert/strict');
 const dir=path.join(__dirname,'../extension/dual-writers');
 const settle=async()=>{for(let i=0;i<45;i++)await Promise.resolve();
  await new Promise(resolve=>setImmediate(resolve));};
-async function run(site,kind,range,delayed=false){
+async function run(site,kind,range,delayed=false,variant='orderId'){
  const four=site==='four',host=four?'4writers.net':'good-writers.com';
  const source=fs.readFileSync(path.join(dir,'legacy/'+site+'/runtime-content.js'),'utf8');
  const height={short:600,medium:1200,long:2200}[range];
  const events=[],listeners=[],id='0192065941';
+ const descriptions={
+   orderId:'ORDER INFORMATION Order ID: '+id,
+   plainId:'ORDER INFORMATION ID: '+id,
+   number:'ORDER INFORMATION Order number: '+id,
+   noId:'ORDER INFORMATION Subject, Description, Instructions',
+   wrongId:'ORDER INFORMATION ID: 55555123456'
+ };
+ const popupText=descriptions[variant];assert(popupText);
  const state={armed:true,claimConsentVersion:four?'0.5.4':'1.0.4',
    targetTabId:17,claim:null,soundRunId:'11111111-2222-3333-4444-555555555555'};
  let opened=false,scrollY=0,pageY=0,mutation;
@@ -35,8 +43,8 @@ async function run(site,kind,range,delayed=false){
    textContent:'I understand',getClientRects(){return[{}]},
    getAttribute(){return null},click(){events.push('I understand');}};
  const panel={isConnected:true,clientHeight:400,scrollHeight:height,
-   innerText:'ORDER INFORMATION Order ID: '+id,
-   textContent:'ORDER INFORMATION Order ID: '+id,
+   innerText:popupText,
+   textContent:popupText,
    get scrollTop(){return scrollY;},
    set scrollTop(v){scrollY=v;events.push('SCROLL '+Math.round(v));},
    getClientRects(){return[{}]},querySelectorAll(){return[]}};
@@ -88,6 +96,14 @@ async function run(site,kind,range,delayed=false){
  assert.deepEqual(events.slice(0,2),['SOUND '+kind,'VIEW'],
    'Sound must be requested before View on '+site);
  if(four&&kind==='available'){
+   if(variant==='wrongId'){
+     assert.equal(state.claim?.stage,'four-view-await-take');
+     assert.equal(state.armed,true,'Wrong-ID popup must not complete acceptance');
+     assert.deepEqual(events,['SOUND available','VIEW'],
+       'Different order ID: no scroll, no Take it');
+     console.log('four available wrong ID: refused to scroll or take PASS');
+     return;
+   }
    assert.equal(state.claim?.stage,delayed?'four-view-await-take':undefined,
      'Only a still-waiting order can keep the pending View stage');
    if(delayed){
@@ -120,7 +136,7 @@ async function run(site,kind,range,delayed=false){
  mutation([{target:document.body}]);await settle();
  assert(!events.some(e=>['OK','I understand'].includes(e)||e.startsWith('DISPATCH')),
    'OK, I understand and native confirmation must remain manual');
- console.log(site+' '+kind+' '+range+(delayed?' delayed':'')+
+ console.log(site+' '+kind+' '+range+' '+variant+(delayed?' delayed':'')+
    ': correct handoff, no automated confirmation PASS');
 }
 (async()=>{
@@ -131,4 +147,7 @@ async function run(site,kind,range,delayed=false){
    }
  }
  await run('four','available','long',true);
+ for(const variant of ['plainId','number','noId'])
+   await run('four','available','long',false,variant);
+ await run('four','available','long',false,'wrongId');
 })().catch(error=>{console.error(error);process.exitCode=1;});
