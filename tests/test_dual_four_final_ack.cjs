@@ -5,11 +5,11 @@ const fs=require('node:fs'),path=require('node:path');
 const assert=require('node:assert/strict');
 const source=fs.readFileSync(path.join(__dirname,
   '../extension/dual-writers/legacy/four/runtime-content.js'),'utf8');
-assert.match(source,/const TAKE = \/\^take\\s\+it/);
-assert.match(source,/function matchingDetails\(claim\)/);
-assert.match(source,/function openedOrderAndScroll\(claim\)/);
-assert.match(source,/async function stopAfterTake\(claim,button\)/);
-assert.match(source,/button\.click\(\)/);
+assert.match(source,/const TAKE = \/\^take\\s\*it/);
+assert.match(source,/function matchedDetailsPanel\(claim\)/);
+assert.match(source,/async function scrollOpenedOrder\(claim\)/);
+assert.match(source,/async function stopHandoff\(claim,stage,message\)/);
+assert.match(source,/take\.click\(\)/);
 assert.match(source,/state\.armed=false;\s*state\.claim=null;/);
 assert.doesNotMatch(source,/find\(OK\)|find\(ACCEPT\)/);
 assert.doesNotMatch(source,/clickStage\(|scrollAcknowledgment\(/);
