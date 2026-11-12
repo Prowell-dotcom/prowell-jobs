@@ -1,17 +1,20 @@
 'use strict';
-// 4writers final acknowledgements are HUMAN-ONLY in handoff mode.
-// Even if the website shows a Take it, OK or I understand button, this
-// active engine must never scroll or click any acceptance control.
+// 4writers now auto-clicks ONLY Take it on a verified available order.
+// Native Are you sure?, OK and I understand must remain manual.
 const fs=require('node:fs'),path=require('node:path');
 const assert=require('node:assert/strict');
-const src=fs.readFileSync(path.join(__dirname,
+const source=fs.readFileSync(path.join(__dirname,
   '../extension/dual-writers/legacy/four/runtime-content.js'),'utf8');
-assert.match(src,/async function handoffToOwner\(card\)/);
-assert.match(src,/view\.click\(\)/,'Only View is clicked automatically');
-for(const blocked of [
- /scrollOpenedOrder\(/, /scrollAcknowledgment\(/,
- /rapidScroll\(/, /rapidTargets\(/, /scrollTop\s*=/,
- /clickStage\(/, /find\(TAKE\)/, /find\(OK\)/, /find\(ACCEPT\)/,
- /lastAcknowledgementScroll/
-])assert.doesNotMatch(src,blocked,'No post-View automated scrolling or acceptance');
-console.log('4writers final acknowledgement: human only, no bot scroll/click PASS');
+assert.match(source,/const TAKE = \/\^take\\s\+it/);
+assert.match(source,/function matchingDetails\(claim\)/);
+assert.match(source,/function openedOrderAndScroll\(claim\)/);
+assert.match(source,/async function stopAfterTake\(claim,button\)/);
+assert.match(source,/button\.click\(\)/);
+assert.match(source,/state\.armed=false;\s*state\.claim=null;/);
+assert.doesNotMatch(source,/find\(OK\)|find\(ACCEPT\)/);
+assert.doesNotMatch(source,/clickStage\(|scrollAcknowledgment\(/);
+assert.doesNotMatch(source,/dispatchEvent\(new Event\(['"]prowell-order-confirm-arm/,
+  'Browser Are you sure? confirmation cannot be auto-approved');
+assert.doesNotMatch(source,/lastAcknowledgementScroll/,
+  'No automated final acknowledgement');
+console.log('4writers: View → verified scroll → Take it; OK, native confirm and I understand manual PASS');
