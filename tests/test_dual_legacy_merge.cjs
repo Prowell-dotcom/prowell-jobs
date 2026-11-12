@@ -45,8 +45,11 @@ for(const site of ['four','good']){
        assert.match(runner,/const TAKE =/);
        assert.doesNotMatch(runner,/dispatchEvent\(new Event\(['"]prowell-order-confirm-arm/);
      }else{
+       assert.match(runner,/function scrollOpenedDetails\(claim\)/);
+       assert.match(runner,/function instantScroll\(el\)/);
+       assert.match(runner,/const SCROLL_STAGE='good-view-await-scroll'/);
        assert.doesNotMatch(runner,/openedOrderAndScroll\(|const TAKE =|button\.click\(\)/);
-       assert.doesNotMatch(runner,/rapidScroll\(|rapidTargets\(|scrollTop\s*=/);
+       assert.doesNotMatch(runner,/rapidScroll\(|rapidTargets\(|find\(TAKE\)/);
      }
      assert.doesNotMatch(original,/async function handoffToOwner\(card\)/,
        'Archived original is not replaced by the new handoff');
