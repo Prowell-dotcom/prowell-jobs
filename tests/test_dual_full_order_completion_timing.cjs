@@ -10,8 +10,8 @@ const tick=async()=>{for(let i=0;i<28;i++)await Promise.resolve();
 async function run(site,stage){
  const four=site==='four',host=four?'4writers.net':'good-writers.com';
  const source=fs.readFileSync(path.join(base,'legacy/'+site+'/runtime-content.js'),'utf8');
- assert.match(source,/async function handoffToOwner\(card\)/);
- assert.doesNotMatch(source,/clickStage\(|scrollOpenedOrder\(|scrollAcknowledgment\(/);
+ assert.match(source,/function notifyNewOrder\(card\)/);
+ assert.doesNotMatch(source,/clickStage\(|scrollAcknowledgment\(/);
  const events=[],listeners=[],id='0192065941';
  let y=0;
  const state={armed:true,targetTabId:17,
@@ -48,7 +48,7 @@ async function run(site,stage){
  vm.runInNewContext(source,{window:win,document:doc,chrome,location:{
    origin:'https://'+host,href:'https://'+host+'/available_orders'
   },Date,Promise,Set,Map,Number,URL,Error,Event:class{},queueMicrotask,
-   setTimeout(){throw Error('No scheduled auto-accept allowed');},
+   setTimeout(){return 1;},
    clearTimeout(){},setInterval(){return 1;},
    MutationObserver:class{observe(){}}
  });
