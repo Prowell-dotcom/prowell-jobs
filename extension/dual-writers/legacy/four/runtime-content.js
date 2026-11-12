@@ -19,7 +19,7 @@
   const ID = /\b(?:order\s*)?ID\s*[:#]\s*(\d{5,})\b/i;
   const VIEW = /^view(?:\s+(?:order|details))?$/i;
   // Only Take it is automated for available orders; all confirmations are manual.
-  const TAKE = /^take\s+it(?:\s+now)?[.!]?$/i;
+  const TAKE = /^take\s*it(?:\s+now)?[.!]?$/i;
   const ACTIONS = 'a,button,input[type="button"],input[type="submit"],[role="button"]';
   let state={...DEFAULTS}, tabId=null, busy=false, pendingScan=false;
   let nextRefresh=null, statusNode=null, lastAction=0;
@@ -88,49 +88,76 @@
   // Never scroll the available-orders list: only scroll after matching the
   // opened details to the order whose View was clicked.
   const DETAILS_SELECTORS='dialog[open],[role="dialog"],.modal.show,.modal.in,.modal-content,.modal-dialog,.modal-body,[class*="order-info"],[class*="orderInfo"],[id*="modal"],[data-order-details]';
-  const ID_IN_DETAILS=/\border\s*(?:#|id\s*[:#]?)\s*(\d{5,16})\b/ig;
-  // Scroll ONLY a visible order-details popup containing the selected ID,
-  // or the verified details page after View navigates to another URL.
+  // Actual 4writers popups may show "ID: ...", "Order #..." or
+  // "Order number: ...". Some display a title but not the order ID at all.
+  // The View click records visible dialogs so that a newly opened Order
+  // Information popup can be recognized safely without a particular ID label.
+  const ID_IN_DETAILS=/(?:\border\s*(?:(?:number|no\.?|#|id)\s*[:#-]?\s*)|\bID\s*[:#]\s*)(\d{5,16})\b/ig;
   const sameOrder=(a,b)=>String(a||'').replace(/^0+/,'')===
     String(b||'').replace(/^0+/,'');
-  function matchingDetails(claim){
-    for(const el of document.querySelectorAll(DETAILS_SELECTORS)){
-      if(!el?.isConnected||!el.getClientRects?.().length)continue;
-      const text=String(el.innerText||el.textContent||'');
-      ID_IN_DETAILS.lastIndex=0;
-      if([...text.matchAll(ID_IN_DETAILS)].some(hit=>sameOrder(hit[1],claim.id)))
-        return el;
-    }
-    return null;
+  let beforeViewDialogs=new Map();
+  function openDialogs(){
+    return [...document.querySelectorAll(DETAILS_SELECTORS)]
+      .filter(el=>el?.isConnected && el.getClientRects?.().length);
   }
-  function jumpInside(el){
+  function dialogText(el){return String(el?.innerText||el?.textContent||'');}
+  function hasMatchingId(text,id){
+    ID_IN_DETAILS.lastIndex=0;
+    return [...String(text||'').matchAll(ID_IN_DETAILS)]
+      .some(hit=>sameOrder(hit[1],id));
+  }
+  function matchingDetails(claim){
+    const panels=openDialogs();
+    // Exact order ID remains the strongest evidence.
+    for(const el of panels)
+      if(hasMatchingId(dialogText(el),claim.id))return el;
+    // Fallback: require a fresh or newly populated order-information popup
+    // since THIS View click. Never treat the underlying order-list as a popup.
+    const changed=panels.filter(el=>{
+      const previous=beforeViewDialogs.get(el);
+      const now=dialogText(el);
+      return previous===undefined || previous!==now;
+    }).filter(el=>/\border\s+information\b/i.test(dialogText(el)));
+    // Nested .modal-content and .modal-body often represent the same popup.
+    // Prefer the first suitable parent; don't require every nested panel to
+    // repeat the order number.
+    return changed.length?changed[0]:null;
+  }
+  function scrollInside(el){
     if(!el||el===document.body||el===document.documentElement||
        el===document.scrollingElement)return;
     const bottom=Math.max(0,Number(el.scrollHeight)-Number(el.clientHeight));
-    if(Number.isFinite(bottom)&&bottom>Number(el.scrollTop||0)+2)
-      try{el.scrollTop=bottom;}catch(_){}
+    if(!Number.isFinite(bottom)||bottom<=Number(el.scrollTop||0)+2)return;
+    try{
+      if(typeof el.scrollTo==='function')el.scrollTo(0,bottom);
+      else el.scrollTop=bottom;
+    }catch(_){try{el.scrollTop=bottom;}catch(__){}}
   }
   function openedOrderAndScroll(claim){
     const panel=matchingDetails(claim);
     if(panel){
+      // Scroll ONLY inside the verified popup, including custom overflow
+      // children whose class does not contain "scroll" or "modal-body".
       const descendants=typeof panel.querySelectorAll==='function'
-        ?[...panel.querySelectorAll('.modal-body,.modal-content,[class*="scroll"],[style*="overflow"],[data-order-details]')]:[];
-      for(const el of new Set([panel,...descendants]))jumpInside(el);
+        ?[...panel.querySelectorAll('*')]:[];
+      for(const el of new Set([panel,...descendants]))scrollInside(el);
       return true;
     }
-    if(location.href!==claim.listUrl){
-      const text=String(document.body?.innerText||'');
-      ID_IN_DETAILS.lastIndex=0;
-      if([...text.matchAll(ID_IN_DETAILS)].some(hit=>sameOrder(hit[1],claim.id))){
-        const el=document.scrollingElement||document.documentElement;
-        if(el){
-          const bottom=Math.max(0,Number(el.scrollHeight||document.body?.scrollHeight||0)
-            -Number(el.clientHeight||window.innerHeight||0));
-          if(Number.isFinite(bottom)&&bottom>Number(el.scrollTop||0)+2)
-            try{el.scrollTop=bottom;}catch(_){}
-        }else try{window.scrollTo(0,document.body?.scrollHeight||0);}catch(_){}
-        return true;
-      }
+    // A View link can also navigate to an entire details page or new tab.
+    // Verify its order number before scrolling the full details page.
+    if(location.href!==claim.listUrl &&
+       hasMatchingId(String(document.body?.innerText||''),claim.id)){
+      const el=document.scrollingElement||document.documentElement;
+      if(el){
+        const bottom=Math.max(0,Number(el.scrollHeight||document.body?.scrollHeight||0)
+          -Number(el.clientHeight||window.innerHeight||0));
+        if(Number.isFinite(bottom)&&bottom>Number(el.scrollTop||0)+2)
+          try{
+            if(typeof el.scrollTo==='function')el.scrollTo(0,bottom);
+            else el.scrollTop=bottom;
+          }catch(_){try{el.scrollTop=bottom;}catch(__){}}
+      }else try{window.scrollTo(0,document.body?.scrollHeight||0);}catch(_){}
+      return true;
     }
     return false;
   }
@@ -204,6 +231,9 @@
       if(view.isConnected!==false)try{view.click();}catch(_){}
       return;
     }
+    // Snapshot visible popups BEFORE clicking View; a newly opened popup
+    // may omit the ID, so its new/changed Order Information content matters.
+    beforeViewDialogs=new Map(openDialogs().map(el=>[el,dialogText(el)]));
     // Keep armed only for the short View→Take it handoff. Setting claim
     // pauses the separate 4writers refresh controller immediately.
     const claim={id,stage:VIEW_STAGE,startedAt:Date.now(),
