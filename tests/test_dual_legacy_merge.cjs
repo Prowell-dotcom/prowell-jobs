@@ -31,14 +31,23 @@ for(const site of ['four','good']){
    const original=read('legacy/'+site+'/'+name);
    const runner=read('legacy/'+site+'/runtime-'+name);
    if(name==='content.js'){
-     // The archived supplied engines remain untouched; active dual wrappers
-     // now only alert, stop monitoring and click View for a human handoff.
+     // Archived engines stay untouched. 4writers goes to Take it only;
+     // Good-Writers stops immediately after View with no scroll.
      assert.match(runner,/async function handoffToOwner\(card\)/);
      assert.match(runner,/view\.click\(\)/);
      assert.match(runner,/type:'PROWELL_ORDER_SOUND'/);
-     assert.doesNotMatch(runner,/clickStage\(|scrollOpenedOrder\(|scrollAcknowledgment\(/,
-       'No automated Take it, OK, I understand or scrolling may remain');
-     assert.doesNotMatch(runner,/rapidScroll\(|rapidTargets\(|lastAcknowledgementScroll/);
+     assert.doesNotMatch(runner,/clickStage\(|scrollAcknowledgment\(|find\(OK\)|find\(ACCEPT\)/,
+       'No automatic OK or I understand is allowed');
+     assert.doesNotMatch(runner,/lastAcknowledgementScroll/);
+     if(site==='four'){
+       assert.match(runner,/function openedOrderAndScroll\(claim\)/);
+       assert.match(runner,/async function stopAfterTake\(claim,button\)/);
+       assert.match(runner,/const TAKE =/);
+       assert.doesNotMatch(runner,/dispatchEvent\(new Event\(['"]prowell-order-confirm-arm/);
+     }else{
+       assert.doesNotMatch(runner,/openedOrderAndScroll\(|const TAKE =|button\.click\(\)/);
+       assert.doesNotMatch(runner,/rapidScroll\(|rapidTargets\(|scrollTop\s*=/);
+     }
      assert.doesNotMatch(original,/async function handoffToOwner\(card\)/,
        'Archived original is not replaced by the new handoff');
    }else if(name==='refresh.js'&&site==='good'){
