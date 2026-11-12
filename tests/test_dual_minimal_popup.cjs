@@ -1,6 +1,6 @@
 'use strict';
 // The dual popup must match the user's supplied screenshots: exactly one
-// site name and one START WATCH / STOP pair for each platform, without
+// site name with the proper separate handoff START control and STOP button, without
 // the old walls of status text. All workflow scripts stay in the manifest.
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const base=path.join(__dirname,'../extension/dual-writers');
@@ -15,7 +15,8 @@ assert.equal((visible.match(/<h2>/g)||[]).length,2);
 assert.match(visible,/<h2>4writers\.net<\/h2>/);
 assert.match(visible,/<h2>good-writers\.com<\/h2>/);
 assert.equal((visible.match(/<button\b/g)||[]).length,4);
-assert.equal((visible.match(/>START WATCH<\/button>/g)||[]).length,2);
+assert.equal((visible.match(/>START WATCH<\/button>/g)||[]).length,1);
+assert.equal((visible.match(/>START TO TAKE<\/button>/g)||[]).length,1);
 assert.equal((visible.match(/>STOP<\/button>/g)||[]).length,2);
 for(const site of ['four','good']){
   assert.match(visible,new RegExp('data-start="'+site+'"'));
@@ -45,4 +46,4 @@ assert(manifest.content_scripts.some(x=>x.js.includes('legacy/four/runtime-conte
 assert(manifest.content_scripts.some(x=>x.js.includes('legacy/good/runtime-content.js')));
 assert(manifest.content_scripts.some(x=>x.js.includes('four-section-refresh.js')));
 assert(manifest.content_scripts.some(x=>x.js.includes('legacy/good/runtime-refresh.js')));
-console.log('Dual minimal popup: START WATCH/STOP controls, sound, and manual acceptance PASS');
+console.log('Dual popup: 4writers START TO TAKE, Good-Writers START WATCH; four compact controls PASS');
