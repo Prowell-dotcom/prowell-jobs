@@ -31,28 +31,28 @@ for(const site of ['four','good']){
    const original=read('legacy/'+site+'/'+name);
    const runner=read('legacy/'+site+'/runtime-'+name);
    if(name==='content.js'){
-     // Archived engines stay untouched. 4writers goes to Take it only;
-     // Good-Writers stops immediately after View with no scroll.
-     assert.match(runner,/async function handoffToOwner\(card\)/);
-     assert.match(runner,/view\.click\(\)/);
+     // Active runtimes use the last working full-auto View/scroll routine,
+     // then STOP at the specifically requested per-site handoff point.
+     // The archived engines remain byte-for-byte unchanged.
+     assert.match(runner,/async function scrollOpenedOrder\(claim\)/);
+     assert.match(runner,/function jumpTargets\(nodes\)/);
+     assert.match(runner,/function notifyNewOrder\(card\)/);
+     assert.match(runner,/async function stopHandoff\(claim,stage,message\)/);
      assert.match(runner,/type:'PROWELL_ORDER_SOUND'/);
      assert.doesNotMatch(runner,/clickStage\(|scrollAcknowledgment\(|find\(OK\)|find\(ACCEPT\)/,
-       'No automatic OK or I understand is allowed');
-     assert.doesNotMatch(runner,/lastAcknowledgementScroll/);
+       'No automatic OK or I understand allowed');
+     assert.doesNotMatch(runner,/lastAcknowledgementScroll|prowell-order-confirm-arm'\)\)/,
+       'No automatic final acknowledgement or browser confirmation');
      if(site==='four'){
-       assert.match(runner,/function openedOrderAndScroll\(claim\)/);
-       assert.match(runner,/async function stopAfterTake\(claim,button\)/);
        assert.match(runner,/const TAKE =/);
-       assert.doesNotMatch(runner,/dispatchEvent\(new Event\(['"]prowell-order-confirm-arm/);
+       assert.match(runner,/take\.click\(\)/);
+       assert.match(runner,/current\.stage!=='four-view-await-take'/);
      }else{
-       assert.match(runner,/function scrollOpenedDetails\(claim\)/);
-       assert.match(runner,/function instantScroll\(el\)/);
-       assert.match(runner,/const SCROLL_STAGE='good-view-await-scroll'/);
-       assert.doesNotMatch(runner,/openedOrderAndScroll\(|const TAKE =|button\.click\(\)/);
-       assert.doesNotMatch(runner,/rapidScroll\(|rapidTargets\(|find\(TAKE\)/);
+       assert.doesNotMatch(runner,/const TAKE =|take\.click\(\)|find\(TAKE\)/);
+       assert.match(runner,/current\.stage!=='good-view-await-scroll'/);
      }
-     assert.doesNotMatch(original,/async function handoffToOwner\(card\)/,
-       'Archived original is not replaced by the new handoff');
+     assert.doesNotMatch(original,/async function stopHandoff\(claim,stage,message\)/,
+       'Archived original must stay unchanged');
    }else if(name==='refresh.js'&&site==='good'){
      // The active Good-Writers refresh wrapper now intentionally ignores
      // historical ID arrays and uses the per-appearance View guard.
