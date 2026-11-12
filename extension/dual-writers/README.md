@@ -105,7 +105,7 @@ report other errors unrelated to these fixes; inspect the extension's
 ## Installation
 
 After ProwellJobs is deployed from the new repository commit, download
-**Dual Bot v2.1.19** from the Prowell administrator dashboard. Remove/disable
+**Dual Bot v2.1.20** from the Prowell administrator dashboard. Remove/disable
 the previous dual and separate bots, extract the new ZIP, and load the folder
 containing `manifest.json` through `chrome://extensions` with Developer Mode
 enabled. Reload the 4writers and Good-Writers site tabs. Press START separately
@@ -182,3 +182,9 @@ Both sites disarm after their handoff; press the site’s START button again whe
 ### 4writers View opened but Take it did not run — popup recognition fix (v2.1.19)
 
 The live 4writers order popup may use **Order ID**, **ID**, **Order number** or **Order #**, or contain **ORDER INFORMATION without repeating the order ID**. Older detection insisted on one specific ID label and therefore could leave the bot waiting after clicking View. The active 4writers engine now (1) recognizes these common order-ID labels; (2) captures visible order-information dialogs *before* View and recognizes a new/changed ORDER INFORMATION popup even if it has no ID; (3) refuses the fallback when the popup explicitly identifies a different order; and (4) jumps every scrollable descendant of the verified popup directly to its bottom, including custom-scroll containers. It then clicks **Take it** and permanently disarms before human browser confirmation, **OK**, and **I understand**. The bot does **not** automatically approve any confirmation. If the popup cannot be verified, it leaves the controls to the user rather than risk accepting the wrong order. Processing orders remain View-only, and Good-Writers is **unchanged**: notify → View → stop, without any scrolling or automatic acceptance. Dedicated simulation tests cover several order-number formats, absent order ID, wrong order ID, short/medium/long details, and delayed rendering. Live behavior still requires verification on the account.
+
+### Good-Writers now instantly scrolls after View (v2.1.20 — current)
+
+**Good-Writers (available and processing orders):** Press START WATCH. When an order appears, the bot requests a sound notification, clicks **View**, waits for the genuine matching Order Information popup (or the verified order details page), jumps that popup's scrollable panels directly to the bottom **without animation or any timed pause**, and then **stops monitoring and refreshing**. It **never** clicks **Take it, OK, or I understand**. The user clicks all acceptance and confirmation controls manually. The bot keeps a short pending View-and-scroll state while the website renders; if details cannot be verified within 12 seconds, it stops and leaves the screen for the user rather than scrolling an unrelated page. The matcher recognizes Order ID, ID, Order number, Order #, and newly displayed Order Information popups without IDs, but rejects an explicitly different order ID. Both available and processing previews use View and the instant details scroll. Repeat IDs can be processed again after a new START. The small Good-Writers control remains **START WATCH**.
+
+**4writers remains unchanged from v2.1.19:** notification → View → instant verified scroll → Take it → STOP. Only the user completes browser confirmation, OK and I understand. All prior version descriptions above are historical; this section describes current behavior. Dedicated automated tests confirm these separate workflows, but live website interactions require real-account verification.
