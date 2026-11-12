@@ -22,11 +22,8 @@
   const ACTIONS = 'a,button,input[type="button"],input[type="submit"],[role="button"]';
   let state={...DEFAULTS}, tabId=null, busy=false, pendingScan=false;
   let nextRefresh=null, statusNode=null, lastAction=0;
-  // Rapid visual scrolling, not slow multi-second pacing. Only the verified
-  // order details and (4writers only) acknowledgement popup may scroll;
-  // never the available-orders background list.
-  // VIEW-ONLY HANDOFF. No scrolling, no Take it, no OK, and no
-  // acknowledgement are ever automated by this active dual engine.
+  // Good-Writers: alert → View → instantly scroll ONLY the opened order
+  // details → STOP. The human clicks Take it, OK and I understand.
   const sendResult = (payload) => chrome.runtime.sendMessage({type:'GOOD_WRITERS_RESULT',payload},()=>void chrome.runtime.lastError);
 
   const label = el => (el?.getAttribute?.('aria-label') || el?.value ||
@@ -86,65 +83,152 @@
   // Never scroll the available-orders list: only scroll after matching the
   // opened details to the order whose View was clicked.
   const DETAILS_SELECTORS='dialog[open],[role="dialog"],.modal.show,.modal.in,.modal-content,.modal-dialog,.modal-body,[class*="order-info"],[class*="orderInfo"],[id*="modal"],[data-order-details]';
-  const ID_IN_DETAILS=/\border\s*(?:#|id\s*[:#]?)\s*(\d{5,16})\b/ig;
+  const ID_IN_DETAILS=/(?:\border\s*(?:(?:number|no\.?|#|id)\s*[:#-]?\s*)|\bID\s*[:#]\s*)(\d{5,16})\b/ig;
+  const sameOrder=(a,b)=>String(a||'').replace(/^0+/,'')===
+    String(b||'').replace(/^0+/,'');
+  const SCROLL_STAGE='good-view-await-scroll';
+  let beforeViewDialogs=new Map();
+  function dialogs(){
+    return [...document.querySelectorAll(DETAILS_SELECTORS)]
+      .filter(el=>el?.isConnected && el.getClientRects?.().length);
+  }
+  const dialogText=el=>String(el?.innerText||el?.textContent||'');
+  function matchedId(text,id){
+    ID_IN_DETAILS.lastIndex=0;
+    return [...String(text||'').matchAll(ID_IN_DETAILS)]
+      .some(hit=>sameOrder(hit[1],id));
+  }
+  function openedDetails(claim){
+    const panels=dialogs();
+    for(const el of panels)if(matchedId(dialogText(el),claim.id))return el;
+    // A newly opened or updated ORDER INFORMATION popup is valid even when
+    // the website omits the number, but never if it shows a different ID.
+    return panels.find(el=>{
+      const text=dialogText(el);
+      if(!/\border\s+information\b/i.test(text))return false;
+      ID_IN_DETAILS.lastIndex=0;
+      if([...text.matchAll(ID_IN_DETAILS)].length)return false;
+      const before=beforeViewDialogs.get(el);
+      // A reload/new tab can lose this snapshot; require a matching ID there.
+      return before!==undefined?before!==text:beforeViewDialogs.size===0||
+        !beforeViewDialogs.has(el);
+    })||null;
+  }
+  function instantScroll(el){
+    if(!el||el===document.body||el===document.documentElement||
+       el===document.scrollingElement)return;
+    const bottom=Math.max(0,Number(el.scrollHeight)-Number(el.clientHeight));
+    if(!Number.isFinite(bottom)||bottom<=Number(el.scrollTop||0)+2)return;
+    try{
+      if(typeof el.scrollTo==='function')el.scrollTo(0,bottom);
+      else el.scrollTop=bottom;
+    }catch(_){try{el.scrollTop=bottom;}catch(__){}}
+  }
+  function scrollOpenedDetails(claim){
+    const popup=openedDetails(claim);
+    if(popup){
+      // Scroll the popup and ALL its overflow children directly to bottom,
+      // without any animation steps or pauses. Never move the order list.
+      const children=typeof popup.querySelectorAll==='function'
+        ?[...popup.querySelectorAll('*')]:[];
+      for(const el of new Set([popup,...children]))instantScroll(el);
+      return true;
+    }
+    if(location.href!==claim.listUrl&&matchedId(pageText(),claim.id)){
+      const root=document.scrollingElement||document.documentElement;
+      if(root){
+        const bottom=Math.max(0,Number(root.scrollHeight||document.body?.scrollHeight||0)
+          -Number(root.clientHeight||window.innerHeight||0));
+        if(Number.isFinite(bottom)&&bottom>Number(root.scrollTop||0)+2)
+          try{
+            if(typeof root.scrollTo==='function')root.scrollTo(0,bottom);
+            else root.scrollTop=bottom;
+          }catch(_){try{root.scrollTop=bottom;}catch(__){}}
+      }else try{window.scrollTo(0,document.body?.scrollHeight||0);}catch(_){}
+      return true;
+    }
+    return false;
+  }
   function stopRefresh(){if(nextRefresh){clearTimeout(nextRefresh);nextRefresh=null;}}
   // Refresh scheduling is controlled exclusively by refresh.js.
   function scheduleRefresh(){}
-  // An available or processing order is treated as a one-time handoff.
-  // Disarm BEFORE clicking View so a full-page navigation or new tab cannot
-  // restart refreshing or any auto-accept workflow.
+  // Keep refreshing paused while the View details load, then disarm as soon
+  // as the matching popup/page is scrolled. Never click acceptance controls.
+  async function finishScroll(claim,found){
+    if(!active()||!state.claim||state.claim.stage!==SCROLL_STAGE||
+       !sameOrder(state.claim.id,claim.id))return;
+    stopRefresh();
+    state.armed=false;state.claim=null;
+    await chrome.storage.local.set({
+      armed:false,autoAcceptEnabled:false,claim:null,targetTabId:null,
+      lastHandoffOrderId:claim.id,lastHandoffKind:claim.kind,
+      lastHandoffStage:found?'scroll':'view',lastHandoffAt:Date.now(),
+      lastResult:found
+        ?'Order #'+claim.id+': View opened and scrolled to bottom. Click Take it manually.'
+        :'Order #'+claim.id+': details not found; View opened. Continue manually.'
+    });
+  }
   async function handoffToOwner(card){
     const view=card?.view;
     if(!active()||!view||typeof view.click!=='function')return;
-    const id=String(card.id||'').trim();
-    const kind=card.type;
+    const id=String(card.id||'').trim(),kind=card.type;
     if(!/^[0-9]{5,16}$/.test(id)||
        !['available','processing'].includes(kind))return;
     handledOnThisPage.set(cardKey(card),cardElement(card));
     stopRefresh();
-    // Sound alerts are requested directly here BEFORE monitoring is
-    // disarmed; the independent sidecar may also request the same alert,
-    // but background sound cooldown prevents rapid duplicate chimes.
     try{
       chrome.runtime.sendMessage({
         type:'PROWELL_ORDER_SOUND',orderId:id,kind,
         soundRunId:state.soundRunId
       },()=>void chrome.runtime.lastError);
     }catch(_){}
-    // Disable refresh/monitoring persistently before clicking View. No
-    // claim remains for this engine to resume after a website navigation.
-    state.armed=false;
-    const message='Order #'+id+' detected. View only — manually take and confirm.';
+    beforeViewDialogs=new Map(dialogs().map(el=>[el,dialogText(el)]));
+    // Persist pending handoff before View; it survives same-site navigation.
+    const claim={id,kind,stage:SCROLL_STAGE,startedAt:Date.now(),
+      listUrl:location.href,viewClickedAt:Date.now()};
+    state.claim=claim;
     await chrome.storage.local.set({
-      armed:false,autoAcceptEnabled:false,claim:null,targetTabId:null,
-      lastHandoffOrderId:id,lastHandoffKind:kind,lastHandoffAt:Date.now(),
-      lastResult:message
+      claim,autoAcceptEnabled:false,
+      lastResult:'Order #'+id+': opening View and scrolling; acceptance manual.'
     });
-    // Leave the site on the official View screen for the human. Never
-    // scroll, click Take it, OK, or I understand, even on Processing.
-    if(view.isConnected===false)return;
+    if(!active()||state.claim?.stage!==SCROLL_STAGE)return;
+    if(view.isConnected===false){
+      await finishScroll(claim,false);return;
+    }
     try{view.click();}
-    catch(error){void chrome.storage.local.set({
-      lastResult:'Order #'+id+' found, but View could not open: '+error.message
-    });}
+    catch(error){
+      await finishScroll(claim,false);
+      void chrome.storage.local.set({
+        lastResult:'Order #'+id+': View could not open: '+error.message
+      });
+      return;
+    }
+    scheduleScan();
   }
   async function scan(){
     if(!active()||busy||!document.body)return;
     if(challenge()){
       stopRefresh();
-      await report('Paused: website security challenge',{armed:false,claim:null});
-      return;
+      await report('Paused: website security challenge',
+        {armed:false,claim:null,autoAcceptEnabled:false});return;
     }
-    // An older installed version may leave an unfinished claim. Never
-    // resume its Take it / OK / I understand state in view-only mode.
     if(state.claim){
-      stopRefresh();
-      await report('Paused previous claim; manual action only',
-        {armed:false,claim:null,autoAcceptEnabled:false});
+      const current=state.claim;
+      if(current.stage!==SCROLL_STAGE){
+        // Never resume an older Take it / OK / acknowledgement stage.
+        stopRefresh();
+        await report('Paused old claim; manual action only',
+          {armed:false,claim:null,autoAcceptEnabled:false});
+        return;
+      }
+      if(scrollOpenedDetails(current)){
+        await finishScroll(current,true);return;
+      }
+      if(Date.now()-Number(current.startedAt||Date.now())>12000)
+        await finishScroll(current,false);
       return;
     }
     const cards=actionableCards();
-    // If both kinds exist, prioritize available orders for immediate review.
     const found=cards.find(c=>c.type==='available')||
       cards.find(c=>c.type==='processing');
     if(found){await handoffToOwner(found);return;}
@@ -177,6 +261,11 @@
     if(records.every(record=>statusNode?.contains(record.target)))return;
     scheduleScan();
   }).observe(document,{childList:true,subtree:true,characterData:true});
+  // Retry only while waiting for a View popup; never after the scroll or
+  // after STOP. Browser timer throttling may delay rendering but cannot
+  // cause an automatic Take it, OK or acknowledgement click.
+  setInterval(()=>{if(active()&&state.claim?.stage===SCROLL_STAGE)
+    scheduleScan();},150);
   document.addEventListener('DOMContentLoaded',scheduleScan,{once:true});
 })();
 })();
