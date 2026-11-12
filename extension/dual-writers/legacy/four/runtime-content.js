@@ -19,7 +19,7 @@
   const ID = /\b(?:order\s*)?ID\s*[:#]\s*(\d{5,})\b/i;
   const VIEW = /^view(?:\s+(?:order|details))?$/i;
   // Only Take it is automated for available orders; all confirmations are manual.
-  const TAKE = /^take\s*it(?:\s+now)?[.!]?$/i;
+  const TAKE = /^take\s+it(?:\s+now)?[.!]?$/i;
   const ACTIONS = 'a,button,input[type="button"],input[type="submit"],[role="button"]';
   let state={...DEFAULTS}, tabId=null, busy=false, pendingScan=false;
   let nextRefresh=null, statusNode=null, lastAction=0;
