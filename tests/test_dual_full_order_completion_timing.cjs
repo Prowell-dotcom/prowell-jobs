@@ -1,6 +1,7 @@
 'use strict';
 // An older bot may leave a saved View/Take it/OK/acknowledgement claim.
-// The new dual handoff engine MUST NOT resume those automatic clicks.
+// Neither bot may resume old acceptance stages. Only the explicit new
+// 4writers 'four-view-await-take' stage may click Take it; no other stages.
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const base=path.join(__dirname,'../extension/dual-writers');
@@ -48,7 +49,7 @@ async function run(site,stage){
    origin:'https://'+host,href:'https://'+host+'/available_orders'
   },Date,Promise,Set,Map,Number,URL,Error,Event:class{},queueMicrotask,
    setTimeout(){throw Error('No scheduled auto-accept allowed');},
-   clearTimeout(){},setInterval(){throw Error('No auto-accept polling allowed');},
+   clearTimeout(){},setInterval(){return 1;},
    MutationObserver:class{observe(){}}
  });
  await tick();
