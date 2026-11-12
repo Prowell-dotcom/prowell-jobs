@@ -1,6 +1,7 @@
 'use strict';
-/* Minimal VIEW-ONLY dual popup: START WATCH and STOP per website.
- * The bot alerts, opens View and stops; all acceptance is manual.
+/* Compact dual popup with distinct handoffs:
+ * 4writers goes through Take it, then the owner confirms.
+ * Good-Writers stops at View; all other steps are manual.
  */
 const SITES={
   four:{name:'4writers.net',prefix:'dual_four_',legacyVersion:'0.5.4',
@@ -32,7 +33,9 @@ async function render(site){
   startButton(site).disabled=!tab||running;
   stopButton(site).disabled=!running;
   startButton(site).title=!tab?'Open '+cfg.name+' in a browser tab':
-    running?'Already watching '+cfg.name:'Watch orders, alert and open View on '+cfg.name;
+    running?'Already watching '+cfg.name:site==='four'
+      ? 'Alert, View, scroll and click Take it; you confirm manually'
+      : 'Alert, open View and stop; you scroll and accept manually';
   stopButton(site).title=running?'Stop watching orders on '+cfg.name:
     'Monitoring is already stopped';
 }
@@ -48,7 +51,7 @@ async function start(site){
     ...(site==='four'?{fourLastCheckedSection:'',fourLastCheckedAt:null,
       fourCycleCount:0,refreshCount:0,lastRefreshAt:null}:{}),
     lastResult:site==='four'
-      ? 'Watching Overview + Writings + Rewritings; alert and View only, then stop.'
+      ? 'Watching 4writers; alert, View, scroll, Take it, then stop before OK.'
       : 'Watching Good-Writers; alert and View only, then stop.'
   });
   // Sound is prepared separately; it does not delay scanning or clicking.
