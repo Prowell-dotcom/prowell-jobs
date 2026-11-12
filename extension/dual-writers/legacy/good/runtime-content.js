@@ -14,7 +14,7 @@
   if (window.__prowellGoodWritersV1) return;
   window.__prowellGoodWritersV1 = true;
 
-  const DEFAULTS = {armed:false,claimConsentVersion:'',targetTabId:null,refreshMs:2000,claim:null,
+  const DEFAULTS = {armed:false,claimConsentVersion:'',targetTabId:null,refreshMs:1000,claim:null,
     attemptedIds:[],completed:[],processingPreviewedIds:[],lastResult:'Ready',log:[],returnToList:true,soundRunId:''};
   const ID = /\b(?:order\s*)?ID\s*[:#]\s*(\d{5,})\b/i;
   const VIEW = /^view(?:\s+(?:order|details))?$/i;

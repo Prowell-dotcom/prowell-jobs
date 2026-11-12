@@ -11,7 +11,7 @@
   const store=window.__prowellDualStorage;
   const sections=window.__prowellFourSections;
   if(!store||!sections)return;
-  const VERSION='0.5.4',INTERVAL=2000,RENDER_RECOVERY_MS=12000;
+  const VERSION='0.5.4',INTERVAL=1000,RENDER_RECOVERY_MS=12000;
   let tabId=null,timer=null,timerMode='',startedAt=Date.now(),count=0,lastSection='';
   let status='',local={armed:false,claimConsentVersion:'',targetTabId:null,
     claim:null,attemptedIds:[],completed:[],refreshCount:0};
@@ -58,7 +58,7 @@
   }
   // The neutral 4writers account screen is a separate orders surface. It
   // has no selected Writings/Rewritings tab, so section switching never
-  // refreshes it. Reload THIS SAME SCREEN every 2 seconds while idle.
+  // refreshes it. Reload THIS SAME SCREEN every 1 second while idle.
   async function refreshOverview(){
     timer=null;timerMode='';
     if(!active()||local.claim||blocked()||unseenOrder()||
@@ -157,7 +157,7 @@
       if(timer!==null && timerMode==='render-wait')stopTimer();
       if(timer!==null&&timerMode==='overview')return;
       stopTimer();
-      report('4writers: refreshing neutral Available Orders screen every 2 seconds');
+      report('4writers: refreshing neutral Available Orders screen every 1 second');
       timerMode='overview';
       timer=setTimeout(()=>void refreshOverview(),INTERVAL);
       return;
@@ -170,7 +170,7 @@
     if(!listReady()){
       stopTimer();
       report('4writers waiting for Available Orders to finish loading');
-      // Avoid a loop that reloads a blank page every 2 seconds.
+      // Avoid a loop that reloads a blank page every 1 second.
       if(document.readyState==='complete'&&Date.now()-startedAt>=RENDER_RECOVERY_MS){
         startedAt=Date.now();
         void store.local.set({refreshStatus:'4writers list is still blank; retrying page load'})
@@ -183,7 +183,7 @@
     }
     if(timer!==null && (timerMode==='render-wait'||timerMode==='overview'))stopTimer();
     if(timer!==null)return;
-    report('4writers: monitoring Writings + Rewritings; next check in 2 seconds');
+    report('4writers: monitoring Writings + Rewritings; next check in 1 second');
     timerMode='cycle';
     timer=setTimeout(()=>void cycle(),INTERVAL);
   }

@@ -1,4 +1,4 @@
-# Prowell Dual-Platform Bot v2.1.19
+# Prowell Dual-Platform Bot v2.1.22
 
 ## Source engines and changes
 
@@ -22,11 +22,11 @@ available-order surfaces without rewriting the original Take it workflow:
    the user's screenshots.
 2. Once the visible order list is fully rendered, the controller checks that
    section and switches to the other through its **actual link**. It alternates
-   sections approximately every **2 seconds** when idle and when the site
+   sections approximately every **1 second** when idle and when the site
    responds normally. It never guesses hard-coded section URLs.
 3. **Neutral Available Orders overview (neither tab selected):** the exact
    screenshot's blank middle with Writings/Rewritings links and sidebar is a
-   third valid monitoring screen. It reloads its existing URL every **2 seconds**
+   third valid monitoring screen. It reloads its existing URL every **1 second**
    while armed and idle, even with no orders yet. It does not force a tab switch.
    New order cards on that overview are recognized by the original detector.
 4. **A selected Writings or Rewritings tab still loading:** the controller
@@ -105,7 +105,7 @@ report other errors unrelated to these fixes; inspect the extension's
 ## Installation
 
 After ProwellJobs is deployed from the new repository commit, download
-**Dual Bot v2.1.21** from the Prowell administrator dashboard. Remove/disable
+**Dual Bot v2.1.22** from the Prowell administrator dashboard. Remove/disable
 the previous dual and separate bots, extract the new ZIP, and load the folder
 containing `manifest.json` through `chrome://extensions` with Developer Mode
 enabled. Reload the 4writers and Good-Writers site tabs. Press START separately
@@ -167,13 +167,13 @@ The previous five-position ~64 ms animation has been removed from both active en
 
 ### Alert and VIEW-only handoff — NO scrolling or automatic acceptance (v2.1.19)
 
-This is the **current active mode** on both websites. Press **START WATCH** for a site. The extension watches its supported available/processing order listings and continues 2-second refreshing only while idle. As soon as it detects a supported order, it **cancels refreshing, requests the order sound, disables further monitoring, and clicks View exactly once**. The sound is sent before monitoring is disarmed, and the existing background audio cooldown prevents duplicate near-simultaneous alerts. The selected order screen remains open for the human.
+This is the **current active mode** on both websites. Press **START WATCH** for a site. The extension watches its supported available/processing order listings and continues 1-second refreshing only while idle. As soon as it detects a supported order, it **cancels refreshing, requests the order sound, disables further monitoring, and clicks View exactly once**. The sound is sent before monitoring is disarmed, and the existing background audio cooldown prevents duplicate near-simultaneous alerts. The selected order screen remains open for the human.
 
 **There is NO scrolling whatsoever**, and the bot has no active code to click **Take it, OK or I understand**. The user manually completes every acceptance and confirmation step. Processing orders get the same sound/stop/View handoff, with no acceptance. Monitoring must be restarted explicitly for another order; repeated IDs remain eligible on a new START. Claims left unfinished by older extension versions are disarmed and cleared instead of being resumed. The compact popup keeps the same quarter-sized four-button layout, with the two green actions correctly labeled **START WATCH**. Archived original source engines remain unchanged. Earlier-version auto-taking and scrolling documentation above is historical, not active behavior.
 
 ### Different handoff steps for each website (v2.1.19 — current)
 
-**4writers.net — available orders:** Click **START TO TAKE**. The bot monitors the supported Overview/Writings/Rewritings lists (2-second idle refresh), requests an audible alert when an order appears, then clicks **View**. It waits until the order ID is verified in the opened Order Information popup (or navigated details page), jumps directly to the bottom **once without animation**, clicks **Take it** when the real button is available, and **stops monitoring BEFORE that click**. The user must personally handle **any native “Are you sure?” confirmation**, then **OK** and **I understand, take the order**. The extension does NOT arm the earlier native-confirmation automation. If details/Take it do not appear within twelve seconds, it stops without taking the order and leaves the user to finish manually. 4writers processing orders still alert, View, then stop; they are never taken automatically.
+**4writers.net — available orders:** Click **START TO TAKE**. The bot monitors the supported Overview/Writings/Rewritings lists (1-second idle refresh), requests an audible alert when an order appears, then clicks **View**. It waits until the order ID is verified in the opened Order Information popup (or navigated details page), jumps directly to the bottom **once without animation**, clicks **Take it** when the real button is available, and **stops monitoring BEFORE that click**. The user must personally handle **any native “Are you sure?” confirmation**, then **OK** and **I understand, take the order**. The extension does NOT arm the earlier native-confirmation automation. If details/Take it do not appear within twelve seconds, it stops without taking the order and leaves the user to finish manually. 4writers processing orders still alert, View, then stop; they are never taken automatically.
 
 **Good-Writers.com — all detected orders:** Click **START WATCH**. The bot alerts, stops refreshing, clicks **View**, and immediately ends its actions. **No scrolling and no Take it, OK or I understand clicks** occur on Good-Writers. The user scrolls and completes every following step manually.
 
@@ -198,3 +198,11 @@ After v2.1.19 and v2.1.20 failed to scroll reliably on the real 4writers and Goo
 **Good-Writers available/processing orders:** alert → View → instant order-details scroll → STOP, with Take it, OK and I understand entirely manual. Only an explicit fresh START will resume monitoring after handoff. The runtime has no automatic acceptance selectors for Good-Writers; both runtimes have no automatic OK or I understand actions, and 4writers does not arm native confirmation automation.
 
 The restored routines and exact stop stages passed the dedicated simulated regression suite, including delayed order info popups, short/medium/long descriptions, differing ID labels, and wrong-order exclusion. This does not prove the website will behave identically in a live account; an actual order is needed for that verification.
+
+
+### v2.1.22 — 1-second idle refresh (current)
+
+- **4writers:** The active controller now refreshes the neutral Available Orders overview or alternates Writings and Rewritings every **1,000 milliseconds** while armed and idle. Incomplete page loads still pause switching; new orders stop refreshing.
+- **Good-Writers:** The active dual-engine controller now reloads every **1,000 milliseconds** while idle. DOM changes do not restart the timer and newly detected orders cancel it.
+- **Handoff is unchanged:** 4writers sounds → View → instant verified scroll → Take it → STOP (confirmations manual). Good-Writers sounds → View → instant verified scroll → STOP (Take it and confirmations manual).
+- Browser timer throttling and website response times can slow real-world checks; the 1,000-ms interval is a requested timer setting, not a guaranteed network/page refresh completion rate. Previous release notes above are historical.

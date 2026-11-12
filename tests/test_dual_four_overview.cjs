@@ -77,8 +77,8 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve();await new Pr
    'Screenshot-style neutral available-orders page must be identified');
  assert.equal(win.__prowellCardDetector.pageKind(),'available',
    'The neutral overview must let original order action engine inspect cards');
- assert(timer(2000),'Blank neutral overview must refresh every 2 seconds');
- await fire(2000);
+ assert(timer(1000),'Blank neutral overview must refresh every 1 second');
+ await fire(1000);
  assert.equal(reloads,1,'The overview URL must be reloaded');
  assert.equal(state.fourLastCheckedSection,'overview');
  assert.equal(events.some(x=>x.includes('section click')),false,
@@ -86,15 +86,15 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve();await new Pr
  // In a fresh browser document, a new order arrives while watching.
  card={id:'12345678',type:'unknown'};mutation();await settle();
  assert.equal(win.__prowellCardDetector.cards()[0].type,'available');
- assert.equal(Boolean(timer(2000)),false,'An order must cancel pending reload');
+ assert.equal(Boolean(timer(1000)),false,'An order must cancel pending reload');
  card=null;mutation();await settle();
- assert(timer(2000),'Idle overview should resume after no order remains');
+ assert(timer(1000),'Idle overview should resume after no order remains');
  await store.local.set({claim:{id:'12345678',stage:'view-clicked'}});
- assert.equal(Boolean(timer(2000)),false,'View/Take it claim must pause reload');
+ assert.equal(Boolean(timer(1000)),false,'View/Take it claim must pause reload');
  await store.local.set({claim:null});
- assert(timer(2000));
+ assert(timer(1000));
  await store.local.set({armed:false});
- assert.equal(Boolean(timer(2000)),false,'STOP cancels all overview reloads');
+ assert.equal(Boolean(timer(1000)),false,'STOP cancels all overview reloads');
  assert.equal(reloads,1,'No reloads are allowed after STOP');
- console.log('4writers neutral Available Orders overview: reload at 2s, no tab switch, stop on new order/claim/STOP PASS');
+ console.log('4writers neutral Available Orders overview: reload at 1s, no tab switch, stop on new order/claim/STOP PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});

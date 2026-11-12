@@ -5,7 +5,7 @@ const assert=require('node:assert/strict');
 const dir=path.join(__dirname,'../extension/dual-writers');
 const read=p=>fs.readFileSync(path.join(dir,p),'utf8');
 const manifest=JSON.parse(read('manifest.json'));
-assert.equal(manifest.version,'2.1.21');
+assert.equal(manifest.version,'2.1.22');
 const four=manifest.content_scripts.find(x=>x.world!=='MAIN'&&
   x.matches.some(m=>m.includes('4writers.net')));
 const good=manifest.content_scripts.find(x=>x.world!=='MAIN'&&
@@ -106,35 +106,35 @@ const tick=async()=>{for(let i=0;i<8;i++)await Promise.resolve();
    await timer.fn();await tick();
  }
  assert.equal(window.__prowellCardDetector.pageKind(),'available');
- assert(timerWith(2000),'Writings should be scheduled');
- await fire(2000);
+ assert(timerWith(1000),'Writings should be scheduled');
+ await fire(1000);
  assert.deepEqual(history,['CLICK rewritings']);
  assert.equal(state.fourLastCheckedSection,'writings');
  mutate();await tick();
  assert.equal(window.__prowellCardDetector.pageKind(),'available',
    'Rewritings must count as an available order list');
- assert(timerWith(2000),'Rewritings should be scheduled');
- await fire(2000);
+ assert(timerWith(1000),'Rewritings should be scheduled');
+ await fire(1000);
  assert.deepEqual(history,['CLICK rewritings','CLICK writings']);
  assert.equal(state.fourLastCheckedSection,'rewritings');
- // The screenshot's transient blank page must not trigger a 2-second reload.
+ // The screenshot's transient blank page must not trigger a 1-second reload.
  ready=false;mutate();await tick();
- assert.equal(Boolean(timerWith(2000)),false);
+ assert.equal(Boolean(timerWith(1000)),false);
  assert(timerWith(900),'Incomplete page should enter a guarded render-wait');
  const before=history.length;
  await fire(900);
  assert.equal(history.length,before,'Do not switch from incomplete lists');
  ready=true;mutate();await tick();
- assert(timerWith(2000),'Resume section switching once loaded');
+ assert(timerWith(1000),'Resume section switching once loaded');
  cards=[{type:'available',id:'1234567890'}];mutate();await tick();
- assert.equal(Boolean(timerWith(2000)),false,'Order must cancel section switching');
+ assert.equal(Boolean(timerWith(1000)),false,'Order must cancel section switching');
  cards=[];mutate();await tick();
- assert(timerWith(2000));
+ assert(timerWith(1000));
  await store.local.set({claim:{id:'1234567890',stage:'take-clicked'}});
- assert.equal(Boolean(timerWith(2000)),false,'No tab switch during acceptance');
+ assert.equal(Boolean(timerWith(1000)),false,'No tab switch during acceptance');
  await store.local.set({claim:null});
- assert(timerWith(2000));
+ assert(timerWith(1000));
  await store.local.set({armed:false});
- assert.equal(Boolean(timerWith(2000)),false,'STOP cancels section switching');
+ assert.equal(Boolean(timerWith(1000)),false,'STOP cancels section switching');
  console.log('Dual 4writers: Writings/Rewritings cycle, blank-page guard and claim pausing PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});
