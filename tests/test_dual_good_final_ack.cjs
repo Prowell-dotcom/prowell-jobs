@@ -1,17 +1,23 @@
 'use strict';
-// Good-Writers final acknowledgements are HUMAN-ONLY in handoff mode.
-// Even if the website shows a Take it, OK or I understand button, this
-// active engine must never scroll or click any acceptance control.
+// Good-Writers may scroll the VIEW order-details popup only, then STOP.
+// The final after-OK acknowledgement is entirely human-controlled:
+// no automated Take it, OK, I understand or second scroll.
 const fs=require('node:fs'),path=require('node:path');
 const assert=require('node:assert/strict');
 const src=fs.readFileSync(path.join(__dirname,
   '../extension/dual-writers/legacy/good/runtime-content.js'),'utf8');
 assert.match(src,/async function handoffToOwner\(card\)/);
-assert.match(src,/view\.click\(\)/,'Only View is clicked automatically');
+assert.match(src,/view\.click\(\)/);
+assert.match(src,/function scrollOpenedDetails\(claim\)/);
+assert.match(src,/function instantScroll\(el\)/);
+assert.match(src,/const SCROLL_STAGE='good-view-await-scroll'/);
+assert.match(src,/state\.armed=false;state\.claim=null;/,
+  'Monitoring must stop as soon as View details are scrolled');
 for(const blocked of [
- /scrollOpenedOrder\(/, /scrollAcknowledgment\(/,
- /rapidScroll\(/, /rapidTargets\(/, /scrollTop\s*=/,
- /clickStage\(/, /find\(TAKE\)/, /find\(OK\)/, /find\(ACCEPT\)/,
- /lastAcknowledgementScroll/
-])assert.doesNotMatch(src,blocked,'No post-View automated scrolling or acceptance');
-console.log('Good-Writers final acknowledgement: human only, no bot scroll/click PASS');
+ /scrollAcknowledgment\(/, /clickStage\(/,
+ /find\(TAKE\)/, /find\(OK\)/, /find\(ACCEPT\)/,
+ /lastAcknowledgementScroll/, /button\.click\(\)/,
+ /FAST_SCROLL_POSITIONS|FAST_SCROLL_FRAME_MS/
+])assert.doesNotMatch(src,blocked,
+  'Good-Writers must not click acceptance buttons or scroll after OK');
+console.log('Good-Writers View popup: instant scroll then STOP; Take it, OK and I understand manual PASS');
