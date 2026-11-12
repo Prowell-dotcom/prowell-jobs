@@ -18,15 +18,17 @@
     attemptedIds:[],completed:[],processingPreviewedIds:[],lastResult:'Ready',log:[],returnToList:true,soundRunId:''};
   const ID = /\b(?:order\s*)?ID\s*[:#]\s*(\d{5,})\b/i;
   const VIEW = /^view(?:\s+(?:order|details))?$/i;
-  // Intentionally NO Take it / OK / I understand click selectors in this bot.
+  // Only Take it is automated for available orders; all confirmations are manual.
+  const TAKE = /^take\s+it(?:\s+now)?[.!]?$/i;
   const ACTIONS = 'a,button,input[type="button"],input[type="submit"],[role="button"]';
   let state={...DEFAULTS}, tabId=null, busy=false, pendingScan=false;
   let nextRefresh=null, statusNode=null, lastAction=0;
-  // Rapid visual scrolling, not slow multi-second pacing. Only the verified
-  // order details and (4writers only) acknowledgement popup may scroll;
-  // never the available-orders background list.
-  // VIEW-ONLY HANDOFF. No scrolling, no Take it, no OK, and no
-  // acknowledgement are ever automated by this active dual engine.
+  // 4writers available orders: sound → View → instant scroll to the bottom
+  // of the MATCHED order details → Take it → STOP.
+  // The human completes OK, I understand and any native confirmations.
+  // Processing orders still stop at View without scrolling/acceptance.
+  // Never dispatch "prowell-order-confirm-arm"; that would accept the
+  // browser's Are you sure? dialog without the owner's confirmation.
   const sendResult = (payload) => chrome.runtime.sendMessage({type:'PROWELL_CLAIM_REPORT',payload},()=>void chrome.runtime.lastError);
 
   const label = el => (el?.getAttribute?.('aria-label') || el?.value ||
@@ -87,64 +89,164 @@
   // opened details to the order whose View was clicked.
   const DETAILS_SELECTORS='dialog[open],[role="dialog"],.modal.show,.modal.in,.modal-content,.modal-dialog,.modal-body,[class*="order-info"],[class*="orderInfo"],[id*="modal"],[data-order-details]';
   const ID_IN_DETAILS=/\border\s*(?:#|id\s*[:#]?)\s*(\d{5,16})\b/ig;
+  // Scroll ONLY a visible order-details popup containing the selected ID,
+  // or the verified details page after View navigates to another URL.
+  const sameOrder=(a,b)=>String(a||'').replace(/^0+/,'')===
+    String(b||'').replace(/^0+/,'');
+  function matchingDetails(claim){
+    for(const el of document.querySelectorAll(DETAILS_SELECTORS)){
+      if(!el?.isConnected||!el.getClientRects?.().length)continue;
+      const text=String(el.innerText||el.textContent||'');
+      ID_IN_DETAILS.lastIndex=0;
+      if([...text.matchAll(ID_IN_DETAILS)].some(hit=>sameOrder(hit[1],claim.id)))
+        return el;
+    }
+    return null;
+  }
+  function jumpInside(el){
+    if(!el||el===document.body||el===document.documentElement||
+       el===document.scrollingElement)return;
+    const bottom=Math.max(0,Number(el.scrollHeight)-Number(el.clientHeight));
+    if(Number.isFinite(bottom)&&bottom>Number(el.scrollTop||0)+2)
+      try{el.scrollTop=bottom;}catch(_){}
+  }
+  function openedOrderAndScroll(claim){
+    const panel=matchingDetails(claim);
+    if(panel){
+      const descendants=typeof panel.querySelectorAll==='function'
+        ?[...panel.querySelectorAll('.modal-body,.modal-content,[class*="scroll"],[style*="overflow"],[data-order-details]')]:[];
+      for(const el of new Set([panel,...descendants]))jumpInside(el);
+      return true;
+    }
+    if(location.href!==claim.listUrl){
+      const text=String(document.body?.innerText||'');
+      ID_IN_DETAILS.lastIndex=0;
+      if([...text.matchAll(ID_IN_DETAILS)].some(hit=>sameOrder(hit[1],claim.id))){
+        const el=document.scrollingElement||document.documentElement;
+        if(el){
+          const bottom=Math.max(0,Number(el.scrollHeight||document.body?.scrollHeight||0)
+            -Number(el.clientHeight||window.innerHeight||0));
+          if(Number.isFinite(bottom)&&bottom>Number(el.scrollTop||0)+2)
+            try{el.scrollTop=bottom;}catch(_){}
+        }else try{window.scrollTo(0,document.body?.scrollHeight||0);}catch(_){}
+        return true;
+      }
+    }
+    return false;
+  }
   function stopRefresh(){if(nextRefresh){clearTimeout(nextRefresh);nextRefresh=null;}}
   // Refresh scheduling is controlled exclusively by refresh.js.
   function scheduleRefresh(){}
-  // An available or processing order is treated as a one-time handoff.
-  // Disarm BEFORE clicking View so a full-page navigation or new tab cannot
-  // restart refreshing or any auto-accept workflow.
+  // Available-order state persists across a View navigation, but no
+  // generic older auto-accept states can resume. Refresh controller pauses
+  // because claim is non-null until Take it, STOP, or a timeout.
+  const VIEW_STAGE='four-view-await-take';
+  async function stopAfterTake(claim,button){
+    if(!active()||!state.claim||state.claim.stage!==VIEW_STAGE||
+       !sameOrder(claim.id,state.claim.id)||!visible(button)||challenge())return;
+    stopRefresh();
+    // Disarm BEFORE Take it to ensure nothing can click OK or I understand.
+    state.armed=false;
+    state.claim=null;
+    const message='Order #'+claim.id+': Take it clicked; YOU click OK and I understand.';
+    await chrome.storage.local.set({
+      armed:false,claim:null,targetTabId:null,autoAcceptEnabled:false,
+      lastHandoffOrderId:claim.id,lastHandoffKind:'available',
+      lastHandoffStage:'take-it',lastHandoffAt:Date.now(),
+      lastResult:message
+    });
+    // Do NOT dispatch prowell-order-confirm-arm, which would approve the
+    // native Are you sure? confirmation automatically.
+    try{button.click();}
+    catch(err){void chrome.storage.local.set({
+      lastResult:'Order #'+claim.id+': Take it could not be clicked: '+err.message
+    });}
+  }
+  async function scanTake(claim){
+    if(!active()||!state.claim||state.claim.stage!==VIEW_STAGE||
+       !sameOrder(claim.id,state.claim.id))return;
+    if(Date.now()-Number(claim.startedAt||Date.now())>12000){
+      stopRefresh();state.armed=false;state.claim=null;
+      await chrome.storage.local.set({
+        armed:false,claim:null,targetTabId:null,autoAcceptEnabled:false,
+        lastResult:'Order #'+claim.id+': details or Take it not found. Manually continue.'
+      });
+      return;
+    }
+    // Require a matching ID in opened details BEFORE clicking Take it.
+    if(!openedOrderAndScroll(claim))return;
+    const take=find(TAKE);
+    if(take)await stopAfterTake(claim,take);
+  }
   async function handoffToOwner(card){
     const view=card?.view;
     if(!active()||!view||typeof view.click!=='function')return;
-    const id=String(card.id||'').trim();
-    const kind=card.type;
+    const id=String(card.id||'').trim(),kind=card.type;
     if(!/^[0-9]{5,16}$/.test(id)||
        !['available','processing'].includes(kind))return;
     handledOnThisPage.set(cardKey(card),cardElement(card));
     stopRefresh();
-    // Sound alerts are requested directly here BEFORE monitoring is
-    // disarmed; the independent sidecar may also request the same alert,
-    // but background sound cooldown prevents rapid duplicate chimes.
     try{
       chrome.runtime.sendMessage({
         type:'PROWELL_ORDER_SOUND',orderId:id,kind,
         soundRunId:state.soundRunId
       },()=>void chrome.runtime.lastError);
     }catch(_){}
-    // Disable refresh/monitoring persistently before clicking View. No
-    // claim remains for this engine to resume after a website navigation.
-    state.armed=false;
-    const message='Order #'+id+' detected. View only — manually take and confirm.';
+    if(kind==='processing'){
+      // Already assigned: View only, then stop; never click Take it.
+      state.armed=false;
+      await chrome.storage.local.set({
+        armed:false,claim:null,targetTabId:null,autoAcceptEnabled:false,
+        lastHandoffOrderId:id,lastHandoffKind:kind,lastHandoffStage:'view',
+        lastHandoffAt:Date.now(),
+        lastResult:'Processing order #'+id+': View opened; manual action only.'
+      });
+      if(view.isConnected!==false)try{view.click();}catch(_){}
+      return;
+    }
+    // Keep armed only for the short View→Take it handoff. Setting claim
+    // pauses the separate 4writers refresh controller immediately.
+    const claim={id,stage:VIEW_STAGE,startedAt:Date.now(),
+      listUrl:location.href,viewClickedAt:Date.now()};
+    state.claim=claim;
     await chrome.storage.local.set({
-      armed:false,autoAcceptEnabled:false,claim:null,targetTabId:null,
-      lastHandoffOrderId:id,lastHandoffKind:kind,lastHandoffAt:Date.now(),
-      lastResult:message
+      claim,autoAcceptEnabled:false,
+      lastResult:'Order #'+id+': opening View, then Take it; confirmations manual.'
     });
-    // Leave the site on the official View screen for the human. Never
-    // scroll, click Take it, OK, or I understand, even on Processing.
-    if(view.isConnected===false)return;
+    if(!active()||state.claim?.stage!==VIEW_STAGE)return;
+    if(view.isConnected===false){
+      state.armed=false;state.claim=null;
+      await chrome.storage.local.set({armed:false,claim:null,targetTabId:null,
+        lastResult:'Order #'+id+': View disappeared, manual action required.'});
+      return;
+    }
     try{view.click();}
-    catch(error){void chrome.storage.local.set({
-      lastResult:'Order #'+id+' found, but View could not open: '+error.message
-    });}
+    catch(error){
+      state.armed=false;state.claim=null;
+      await chrome.storage.local.set({armed:false,claim:null,targetTabId:null,
+        lastResult:'Order #'+id+': View could not open: '+error.message});
+      return;
+    }
+    scheduleScan();
   }
   async function scan(){
     if(!active()||busy||!document.body)return;
     if(challenge()){
       stopRefresh();
-      await report('Paused: website security challenge',{armed:false,claim:null});
-      return;
+      await report('Paused: website security challenge',
+        {armed:false,claim:null,autoAcceptEnabled:false});return;
     }
-    // An older installed version may leave an unfinished claim. Never
-    // resume its Take it / OK / I understand state in view-only mode.
     if(state.claim){
+      if(state.claim.stage===VIEW_STAGE){
+        await scanTake(state.claim);return;
+      }
+      // Do not resume Take it/OK/acknowledgement from an older release.
       stopRefresh();
-      await report('Paused previous claim; manual action only',
+      await report('Old claim stopped. Manual action required',
         {armed:false,claim:null,autoAcceptEnabled:false});
       return;
     }
     const cards=actionableCards();
-    // If both kinds exist, prioritize available orders for immediate review.
     const found=cards.find(c=>c.type==='available')||
       cards.find(c=>c.type==='processing');
     if(found){await handoffToOwner(found);return;}
@@ -177,6 +279,10 @@
     if(records.every(record=>statusNode?.contains(record.target)))return;
     scheduleScan();
   }).observe(document,{childList:true,subtree:true,characterData:true});
+  // A View navigation can render details asynchronously; retry only
+  // while the selected order is pending, never after clicking Take it.
+  setInterval(()=>{if(active()&&state.claim?.stage===VIEW_STAGE)
+    scheduleScan();},150);
   document.addEventListener('DOMContentLoaded',scheduleScan,{once:true});
 })();
 })();
