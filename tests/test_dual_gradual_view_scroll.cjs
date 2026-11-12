@@ -2,7 +2,7 @@
 // Two different handoffs:
 // 4writers AVAILABLE: sound → View → verified details scroll → Take it → STOP.
 // 4writers PROCESSING: sound → View → STOP, no scroll/Take it.
-// Good-Writers: sound → View → STOP, no scroll/Take it.
+// Good-Writers: sound → View → instant scroll → STOP, no Take it.
 // All OK / I understand / native confirmation must remain MANUAL.
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const assert=require('node:assert/strict');
@@ -118,13 +118,30 @@ async function run(site,kind,range,delayed=false,variant='orderId'){
      'SCROLL '+(height-400),'TAKE IT']);
    assert.equal(scrollY,height-400);
    assert.equal(state.lastHandoffStage,'take-it');
+ }else if(!four){
+   if(variant==='wrongId'){
+     assert.equal(state.claim?.stage,'good-view-await-scroll');
+     assert.equal(state.armed,true,'Wrong-ID Good-Writers popup must not be scrolled');
+     assert.deepEqual(events,['SOUND '+kind,'VIEW']);
+     console.log('good '+kind+' wrong ID: refused to scroll PASS');
+     return;
+   }
+   if(delayed){
+     assert.equal(state.claim?.stage,'good-view-await-scroll');
+     assert.equal(state.armed,true,'Good-Writers waits for real details');
+     assert.deepEqual(events,['SOUND '+kind,'VIEW'],
+       'Good-Writers cannot scroll before View popup opens');
+     opened=true;mutation([{target:document.body}]);await settle();
+   }
+   assert.deepEqual(events,['SOUND '+kind,'VIEW','SCROLL '+(height-400)],
+     'Good-Writers must scroll exactly once, but never click Take it');
+   assert.equal(scrollY,height-400);
+   assert.equal(state.lastHandoffStage,'scroll');
  }else{
    assert.deepEqual(events,['SOUND '+kind,'VIEW'],
-     'Processing and Good-Writers must do View only');
-   assert.equal(scrollY,0,'No scrolling except 4writers available orders');
-   if(four)assert.equal(state.lastHandoffStage,'view');
-   else assert.equal(state.lastHandoffStage,undefined,
-     'Good-Writers keeps its existing view-only handoff state');
+     '4writers processing orders must only open View');
+   assert.equal(scrollY,0,'Never scroll an existing processing order on 4writers');
+   assert.equal(state.lastHandoffStage,'view');
  }
  assert.equal(pageY,0,'Never scroll the background orders list');
  assert.equal(state.armed,false,'Stop monitoring at correct handoff');
@@ -150,4 +167,9 @@ async function run(site,kind,range,delayed=false,variant='orderId'){
  for(const variant of ['plainId','number','noId'])
    await run('four','available','long',false,variant);
  await run('four','available','long',false,'wrongId');
+ for(const variant of ['plainId','number','noId'])
+   await run('good','available','long',false,variant);
+ await run('good','available','long',false,'wrongId');
+ await run('good','available','long',true);
+ await run('good','processing','long',true);
 })().catch(error=>{console.error(error);process.exitCode=1;});
