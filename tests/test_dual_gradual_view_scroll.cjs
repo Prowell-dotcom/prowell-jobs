@@ -106,7 +106,9 @@ async function run(site,kind,range,delayed=false){
    assert.deepEqual(events,['SOUND '+kind,'VIEW'],
      'Processing and Good-Writers must do View only');
    assert.equal(scrollY,0,'No scrolling except 4writers available orders');
-   assert.equal(state.lastHandoffStage,'view');
+   if(four)assert.equal(state.lastHandoffStage,'view');
+   else assert.equal(state.lastHandoffStage,undefined,
+     'Good-Writers keeps its existing view-only handoff state');
  }
  assert.equal(pageY,0,'Never scroll the background orders list');
  assert.equal(state.armed,false,'Stop monitoring at correct handoff');
