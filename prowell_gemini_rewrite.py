@@ -9,7 +9,7 @@ import threading
 import time
 
 import admin_paraphraser as core
-import prowell_openai_rewrite as checks
+import prowell_rewrite_quality as quality
 
 MAX_WORDS = 350
 _LOCK = threading.Lock()
@@ -55,61 +55,60 @@ def _release():
 
 
 def rewrite(source, original, tone, level, terms=(), history=(), attempt=0):
+    """Edit with a bounded Gemini request and retain the best valid version."""
     if not enabled():
         raise GeminiUnavailable("Gemini editing is not enabled by the website owner.")
     if core.count_words(source) > MAX_WORDS or core.count_words(original) > MAX_WORDS:
         raise ValueError("Gemini editing supports up to 350 words per request.")
+    level = min(10, max(1, int(level)))
     _reserve()
     try:
         model = os.getenv("PROWELL_GEMINI_MODEL", "gemini-3.8-flash").strip()
         if not re.fullmatch(r"[A-Za-z0-9._-]{5,120}", model):
             raise GeminiUnavailable("Gemini model configuration is invalid.")
-        style = core.TONES[tone]
-        instructions = (
-            "Rewrite the passage in fluent, natural English using meaningful "
-            "structural changes, without adding or changing claims. Preserve "
-            "numbers, exact dates, names, citations, quotations, negations, "
-            "medical terminology, tense and degree of certainty. Do not "
-            "invent outcomes or omit factual details. Avoid mechanical "
-            "synonym replacement. Return only the rewritten text. "
-            "Requested style: " + style
-        )
-        if terms:
-            instructions += "\nProtected terms to preserve exactly: " + repr(list(terms))
         prompt = "<source>\n" + source + "\n</source>"
-        candidate_count = 0
-        for round_index in range(2):
-            retry_notes = (
-                "\nTry a different sentence structure, but be especially "
-                "careful about every factual detail and original verb tense."
-                if round_index else ""
+        reason = ""
+        attempts = 0
+        best = None
+        for index in range(2):
+            instruction = quality.instructions(
+                tone, level, terms, retry=bool(index), reason=reason
             )
             try:
                 candidate = core._request_gemini(
                     os.environ["GEMINI_API_KEY"].strip(), model,
-                    instructions + retry_notes, prompt
+                    instruction, prompt
                 )
             except RuntimeError as exc:
-                # Existing provider function sanitizes HTTP errors and never
-                # includes the key or submitted text in its exceptions.
+                if best is not None:
+                    break  # Preserve a good draft even when a later pass fails.
                 raise GeminiUnavailable(str(exc)) from None
-            candidate_count += 1
-            if checks._valid(original, source, candidate, terms, history):
-                return {
-                    "paraphrased": candidate.strip(),
-                    "candidateCount": candidate_count,
-                    "validCandidateCount": 1,
-                    "enginePipeline": "gemini_editorial_verified",
-                    "editorialPass": "validated",
-                    "verificationMethods": [
-                        "protected details", "role and tense checks",
-                        "negation and uncertainty", "fluency checks",
-                        "minimum substantive variation"
-                    ],
-                }
-        raise GeminiUnavailable(
-            "Gemini returned text, but no version passed the accuracy and "
-            "writing-quality checks. Your original text was preserved."
-        )
+            attempts += 1
+            decision = quality.evaluate(original, source, candidate, terms, history, level)
+            if decision["passed"]:
+                if best is None or decision["score"] > best["score"]:
+                    best = decision
+                if level < 9 or best["score"] >= .77:
+                    break
+                reason = "fluency"
+            else:
+                reason = decision["reason"]
+        if best is None:
+            raise GeminiUnavailable(
+                "Gemini generated a draft, but no version passed the accuracy "
+                "and writing-quality checks. Your original text was preserved."
+            )
+        return {
+            "paraphrased": best["text"],
+            "candidateCount": attempts,
+            "validCandidateCount": 1,
+            "enginePipeline": "gemini_level_aware_editorial",
+            "editorialPass": "quality_ranked",
+            "verificationMethods": [
+                "exact protected details", "named entities",
+                "actor, event and tense checks", "negation and uncertainty",
+                "fluency and meaningful structural variation",
+            ],
+        }
     finally:
         _release()
