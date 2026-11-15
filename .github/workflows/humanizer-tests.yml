@@ -18,7 +18,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Compile Python source
-        run: python -m compileall -q server.py admin_paraphraser.py prowell_deeprewrite.py prowell_openai_rewrite.py prowell_gemini_rewrite.py tests
+        run: python -m compileall -q server.py admin_paraphraser.py prowell_deeprewrite.py prowell_openai_rewrite.py prowell_gemini_rewrite.py prowell_rewrite_quality.py tests
       - name: Run all unit tests
         env:
           PYTHONDONTWRITEBYTECODE: '1'
