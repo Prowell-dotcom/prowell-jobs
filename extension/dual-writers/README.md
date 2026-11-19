@@ -1,4 +1,4 @@
-# Prowell Dual-Platform Bot v2.1.22
+# Prowell Dual-Platform Bot v2.1.23
 
 ## Source engines and changes
 
@@ -206,3 +206,7 @@ The restored routines and exact stop stages passed the dedicated simulated regre
 - **Good-Writers:** The active dual-engine controller now reloads every **1,000 milliseconds** while idle. DOM changes do not restart the timer and newly detected orders cancel it.
 - **Handoff is unchanged:** 4writers sounds → View → instant verified scroll → Take it → STOP (confirmations manual). Good-Writers sounds → View → instant verified scroll → STOP (Take it and confirmations manual).
 - Browser timer throttling and website response times can slow real-world checks; the 1,000-ms interval is a requested timer setting, not a guaranteed network/page refresh completion rate. Previous release notes above are historical.
+
+### v2.1.23 — No on-page Prowell status banners
+
+Both site-specific active monitoring scripts no longer inject floating Prowell status overlays onto the websites. Internal state, existing safety checks, Chrome popup controls, reporting and the independent site workflows remain unchanged. This is a cosmetic update only: it does not obscure network requests, browser automation signals, or modify anti-bot detection.
