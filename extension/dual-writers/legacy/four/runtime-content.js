@@ -1,281 +1,78 @@
-/* Runs the user's unchanged legacy source in the dual extension's
- * per-site storage adapter. Only this wrapper is new; the embedded source is
- * copied byte-for-byte from legacy/four/content.js.
- */
-(() => {
-  const chrome=window.__prowellLegacyChrome;
-  if(!chrome?.storage?.local)return;
-/* Prowell Order Assistant. Runs only inside the signed-in 4writers browser tab.
- * Uses the page's normal user interface; never reads passwords or bypasses challenges.
- */
+/* Prowell dual-site, alert-only runtime: never click website controls. */
 (() => {
   'use strict';
-  if (window !== window.top || !/^https:\/\/(?:www\.)?4writers\.net$/i.test(location.origin)) return;
-  if (window.__prowellAssistantV5) return;
-  window.__prowellAssistantV5 = true;
-
-  const DEFAULTS = {armed:false,claimConsentVersion:'',targetTabId:null,refreshMs:1000,claim:null,
-    attemptedIds:[],completed:[],processingPreviewedIds:[],lastResult:'Ready',log:[],returnToList:true,soundRunId:''};
-  const ID = /\b(?:order\s*)?ID\s*[:#]\s*(\d{5,})\b/i;
-  const VIEW = /^view(?:\s+(?:order|details))?$/i;
-  const TAKE = /^take\s*it(?:\s*now)?[.!]?$/i;
-  const ACTIONS = 'a,button,input[type="button"],input[type="submit"],[role="button"]';
-  let state={...DEFAULTS}, tabId=null, busy=false, pendingScan=false;
-  let nextRefresh=null, statusNode=null, lastAction=0;
-  // RESTORED original full-auto View/details-scroll mechanism, but STOP
-  // immediately after clicking Take it. OK/I understand remain manual.
-  const POST_VIEW_TARGET_MS=2000; // legacy reporting threshold only
-  let scrolling=false;
-  function jumpToBottom(el,bottom){
-    if(!el||!Number.isFinite(Number(bottom)))return false;
-    const start=Number(el.scrollTop)||0;
-    const end=Math.max(start,Number(bottom));
-    if(end-start<=2)return false;
-    try{el.scrollTop=end;}catch(_){return false;}
-    return Number(el.scrollTop)>start+1;
-  }
-  function jumpTargets(nodes){
-    const targets=[...new Set(nodes)].filter(el=>el&&el!==document.body &&
-      el!==document.documentElement&&el!==document.scrollingElement&&
-      Number(el.clientHeight)>40&&
-      Number(el.scrollHeight)-Number(el.clientHeight)>10);
-    return targets.map(el=>jumpToBottom(el,
-      Math.max(0,Number(el.scrollHeight)-Number(el.clientHeight))))
-      .some(Boolean);
-  }
-
-  const sendResult = (payload) => chrome.runtime.sendMessage({type:'PROWELL_CLAIM_REPORT',payload},()=>void chrome.runtime.lastError);
-
-  const label = el => (el?.getAttribute?.('aria-label') || el?.value ||
-    el?.innerText || el?.textContent || '').trim().replace(/\s+/g,' ');
-  const visible = el => Boolean(el && el.isConnected && el.getClientRects().length &&
-    !el.disabled && el.getAttribute('aria-disabled')!=='true');
-  const find = pattern => [...document.querySelectorAll(ACTIONS)]
-    .find(el => visible(el) && pattern.test(label(el)));
-  const active = () => Boolean(state.armed && state.claimConsentVersion==='0.5.4' && tabId === state.targetTabId);
-  const pageText = () => document.body?.innerText || '';
-  const orderList = () => window.__prowellCardDetector?.pageKind()==='available';
-  const challenge = () => /captcha|verify you are human|unusual activity|using automated site parsers is prohibited|automated (?:access|activity|parsing) (?:is )?prohibited|your account will be banned|automation warning/i.test(pageText()) ||
-    Boolean(document.querySelector('iframe[src*="captcha"], [class*="g-recaptcha"]'));
-  const success = () => /now you can write the order|you (?:can|may) start writing|order (?:has been )?(?:assigned to you|taken successfully)/i.test(pageText());
-  const failure = () => /(?:the )?order (?:has been )?(?:taken(?: by another)?|no longer available)|not available|this order is unavailable|failed to take (?:the )?order/i.test(pageText());
-  async function report(message,update={}){
-    const entry=new Date().toLocaleTimeString()+' '+message;
-    state={...state,...update,lastResult:message,log:[...(state.log||[]),entry].slice(-30)};
-    await chrome.storage.local.set({ ...update,lastResult:message,log:state.log});
-  }
-  async function setClaim(id,stage,other={}){
-    const claim={id,stage,startedAt:state.claim?.startedAt||Date.now(),
-      listUrl:state.claim?.listUrl||location.href,
-      viewClickedAt:state.claim?.viewClickedAt||Date.now(),
-      kind:state.claim?.kind||'available',...other};
-    state.claim=claim;
-    await chrome.storage.local.set({claim});
-  }
-  function orderCards(){return window.__prowellCardDetector?.cards()||[];}
-  // The persisted attempted/completed/previewed ID lists are history only.
-  // They must never permanently block an order that returns. Prevent only
-  // duplicate View clicks for the same continuously displayed card; the
-  // same ID is eligible again after disappearing/reappearing, a real page
-  // reload, or a fresh owner START session.
-  const handledOnThisPage=new Map();
-  const cardKey=card=>String(card?.type||'')+':'+
-    String(card?.id||'').replace(/^0+/,'');
-  const cardElement=card=>card?.view||card?.container||null;
-  function actionableCards(){
-    const cards=orderCards();
-    const present=new Set(cards.map(cardKey));
-    for(const key of handledOnThisPage.keys())if(!present.has(key))
-      handledOnThisPage.delete(key);
-    // When the site renders a NEW View button for the same ID, it is a
-    // fresh appearance and must be handled. Do not deduplicate by order ID.
-    // The SAME View button stays protected against repeated observer scans.
-    return cards.filter(card=>['available','processing'].includes(card?.type)
-      && (!handledOnThisPage.has(cardKey(card)) ||
-        (cardElement(card) && handledOnThisPage.get(cardKey(card))!==cardElement(card))));
-  }
-  // Refresh controllers share the same present-card guard. Historical IDs
-  // never prevent either automatic View handling or pausing refresh.
-  window.__prowellDualActionableCards=actionableCards;
-  // The View button may open an ORDER INFORMATION modal on the same URL.
-  // Never scroll the available-orders list: only scroll after matching the
-  // opened details to the order whose View was clicked.
-  const DETAILS_SELECTORS='dialog[open],[role="dialog"],.modal.show,.modal.in,.modal-content,.modal-dialog,.modal-body,[class*="order-info"],[class*="orderInfo"],[id*="modal"],[data-order-details]';
-  const ID_IN_DETAILS=/(?:\border\s*(?:(?:number|no\.?|#|id)\s*[:#-]?\s*)|\bID\s*[:#]\s*)(\d{5,16})\b/ig;
-  const sameOrder=(a,b)=>String(a||'').replace(/^0+/,'')===
-    String(b||'').replace(/^0+/,'');
-  let viewDialogSnapshot=new Map();
-  function visibleDetails(){
-    return [...document.querySelectorAll(DETAILS_SELECTORS)]
-      .filter(el=>el?.isConnected&&el.getClientRects?.().length);
-  }
-  const detailText=el=>String(el?.innerText||el?.textContent||'');
-  function detailIds(text){
-    ID_IN_DETAILS.lastIndex=0;
-    return [...String(text||'').matchAll(ID_IN_DETAILS)].map(hit=>hit[1]);
-  }
-  function matchedDetailsPanel(claim){
-    if(!claim)return null;
-    const panels=visibleDetails();
-    // Prefer matching ID, exactly like the earlier working full-auto bot.
-    for(const el of panels)
-      if(detailIds(detailText(el)).some(id=>sameOrder(id,claim.id)))return el;
-    // Some site themes omit order numbers inside a View popup. Accept only
-    // a newly displayed/updated order popup since the specific View click;
-    // do not mistake the background list or an explicitly DIFFERENT ID.
-    for(const el of panels){
-      const text=detailText(el);
-      if(detailIds(text).length)continue;
-      const prior=viewDialogSnapshot.get(el);
-      if(prior!==undefined&&prior===text)continue;
-      if(/\border\s+information\b/i.test(text))return el;
-      if(el.matches?.('dialog[open],[role="dialog"],.modal.show,.modal.in') &&
-         !viewDialogSnapshot.has(el))return el;
-    }
-    return null;
-  }
-  function captureBeforeView(){
-    viewDialogSnapshot=new Map(visibleDetails().map(el=>[el,detailText(el)]));
-  }
-  async function scrollOpenedOrder(claim){
-    if(!active()||!state.claim||!sameOrder(state.claim.id,claim.id))return false;
-    const panel=matchedDetailsPanel(claim);
-    if(panel){
-      // Scroll only inside the verified ORDER INFORMATION popup.
-      const descendants=typeof panel.querySelectorAll==='function'
-        ?[...panel.querySelectorAll('*')]:[];
-      // A verified popup's actual scrollbar may live on an OUTER dialog
-      // container, not on the element that contains ORDER INFORMATION.
-      const ancestors=[];
-      for(let p=panel.parentElement,depth=0;
-          p && depth<8 && p!==document.body &&
-          p!==document.documentElement && p!==document.scrollingElement;
-          p=p.parentElement,depth++){
-        if(!p.isConnected || !p.getClientRects?.().length)continue;
-        const hint=String(p.className||'')+' '+String(p.id||'')+' '+
-          String(p.getAttribute?.('role')||'');
-        const overflow=typeof getComputedStyle==='function'
-          ?String(getComputedStyle(p)?.overflowY||''):'';
-        if(/modal|dialog|popup|overlay|order|detail|scroll|window|pane|content/i.test(hint) ||
-           /auto|scroll/i.test(overflow))ancestors.push(p);
-      }
-      const targets=[...new Set([panel,...descendants,...ancestors])]
-        .filter(el=>el && el!==document.body &&
-          el!==document.documentElement && el!==document.scrollingElement &&
-          Number(el.clientHeight)>40 &&
-          Number(el.scrollHeight)-Number(el.clientHeight)>10);
-      jumpTargets(targets);
-      // Do not say 'scrolled' (or click Take it) when the popup never moved.
-      if(targets.some(el=>Number(el.scrollTop)<
-        Number(el.scrollHeight)-Number(el.clientHeight)-3))return false;
-      return active() && state.claim && sameOrder(state.claim.id,claim.id);
-    }
-    // For real full-page View navigation, scroll that details page instead.
-    if(location.href!==claim.listUrl){
-      const txt=String(document.body?.innerText||'');
-      ID_IN_DETAILS.lastIndex=0;
-      if([...txt.matchAll(ID_IN_DETAILS)].some(hit=>sameOrder(hit[1],claim.id))){
-        const root=document.scrollingElement||document.documentElement;
-        const bottom=Math.max(0,Number(root?.scrollHeight||document.body?.scrollHeight||0)
-          -Number(root?.clientHeight||window.innerHeight||0));
-        if(root)jumpToBottom(root,bottom);
-        else try{window.scrollTo(0,bottom);}catch(_){}
-        return active()&&state.claim&&sameOrder(state.claim.id,claim.id);
-      }
-    }
-    return false;
-  }
-  function stopRefresh(){if(nextRefresh){clearTimeout(nextRefresh);nextRefresh=null;}}
-  // Refresh scheduling is controlled exclusively by refresh.js.
-  function scheduleRefresh(){}
-  // One-time manual handoff. Clear the claim and STOP BEFORE any
-  // acceptance action, so a website DOM update cannot trigger OK/ack.
-  async function stopHandoff(claim,stage,message){
-    if(!state.claim||!sameOrder(state.claim.id,claim.id))return false;
-    state.armed=false;
-    state.claim=null;
-    stopRefresh();
-    await chrome.storage.local.set({
-      armed:false,autoAcceptEnabled:false,claim:null,targetTabId:null,
-      lastHandoffOrderId:claim.id,lastHandoffKind:claim.kind||'available',
-      lastHandoffStage:stage,lastHandoffAt:Date.now(),lastResult:message
-    });
-    return true;
-  }
-  function notifyNewOrder(card){
-    try{chrome.runtime.sendMessage({
-      type:'PROWELL_ORDER_SOUND',orderId:String(card.id),kind:card.type,
-      soundRunId:state.soundRunId
-    },()=>void chrome.runtime.lastError);}catch(_){}
-  }
-  // Alert-only handoff. Do not navigate or click any order controls.
-  // Disarm in memory before asynchronous storage, and cancel the current
-  // page refresh timer synchronously to avoid racing with another reload.
-  async function stopAndAlert(message,card=null){
-    if(!active())return;
-    state.armed=false;
-    state.targetTabId=null;
-    state.claim=null;
-    stopRefresh();
+  const chrome=window.__prowellLegacyChrome;
+  if(!chrome?.storage?.local)return;
+  const SITE='four';
+  const HOST=/^(?:www\.)?4writers\.net$/i;
+  const VERSION='0.5.4';
+  const TAB_MESSAGE='PROWELL_TAB_ID';
+  const FLAG='__prowellDualFourAlertOnly';
+  if(window!==window.top||!HOST.test(location.hostname))return;
+  if(window[FLAG])return;
+  window[FLAG]=true;
+  const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,
+    claim:null,soundRunId:'',autoAcceptEnabled:false};
+  let state={...DEFAULTS},tabId=null,pending=false,stopping=false;
+  const active=()=>state.armed===true&&state.claimConsentVersion===VERSION&&
+    Number.isInteger(tabId)&&state.targetTabId===tabId;
+  const warned=()=>{
+    const text=String(document.body?.innerText||document.body?.textContent||'');
+    return /captcha|verify you are human|unusual activity|using automated site parsers is prohibited|automated (?:access|activity|parsing) (?:is )?prohibited|your account will be banned|automation warning/i.test(text)||
+      Boolean(document.querySelector?.('iframe[src*="captcha"],[class*="g-recaptcha"]'));
+  };
+  const cards=()=> (window.__prowellCardDetector?.cards?.()||[])
+    .filter(c=>['available','processing'].includes(c?.type)&&
+      /^\d{5,16}$/.test(String(c.id||'')));
+  function stop(reason,card=null){
+    if(!active()||stopping)return;
+    stopping=true;
+    state.armed=false;state.targetTabId=null;state.claim=null;
     try{window.__prowellDualStopRefresh?.();}catch(_){}
-    // Request the original sound before waiting on a storage write.
-    if(card)notifyNewOrder(card);
-    const patch={armed:false,targetTabId:null,autoAcceptEnabled:false,
-      autoFlow:null,claim:null,lastResult:message,
-      lastAlertOrderId:card?String(card.id):null,
-      lastAlertKind:card?.type||null,lastAlertAt:Date.now()};
-    await chrome.storage.local.set(patch);
+    // Send the notification before waiting for any storage write.
+    if(card)try{chrome.runtime.sendMessage({
+      type:'PROWELL_ORDER_SOUND',orderId:String(card.id),
+      kind:card.type,soundRunId:String(state.soundRunId||'')
+    },()=>void chrome.runtime.lastError);}catch(_){}
+    void chrome.storage.local.set({
+      armed:false,targetTabId:null,claim:null,autoFlow:null,
+      autoAcceptEnabled:false,lastAlertOrderId:card?String(card.id):null,
+      lastAlertKind:card?.type||null,lastAlertAt:card?Date.now():null,
+      lastResult:reason
+    }).catch(error=>console.warn('Prowell STOP persistence failed:',
+      String(error?.message||error))).finally(()=>{stopping=false;});
   }
-  async function scan(){
-    if(!active()||busy||scrolling||!document.body)return;
-    if(challenge()){
-      await stopAndAlert('4writers: automation/security warning detected — stopped until manual restart.');
-      return;
-    }
-    // Old in-progress claims must never resume from a previous auto-take release.
-    if(state.claim){
-      await stopAndAlert('4writers: previous automated claim cleared; restart manually.');
-      return;
-    }
-    const card=actionableCards().find(item=>
-      item?.type==='available'||item?.type==='processing');
-    if(card){
-      handledOnThisPage.set(cardKey(card),cardElement(card));
-      await stopAndAlert('4writers: order #'+card.id+
-        ' detected — sound alert sent; monitoring stopped. Open View manually.',card);
-      return;
-    }
-    scheduleRefresh();
+  function scan(){
+    if(!active()||stopping||!document.body)return;
+    if(warned()){stop(SITE+': security/automation warning — stopped until manually restarted.');return;}
+    // Ignore and clear stale claims from older automatic-accept releases.
+    if(state.claim){stop(SITE+': old claim cleared; restart manually.');return;}
+    const card=cards()[0];
+    if(card)stop(SITE+': '+card.type+' order #'+card.id+
+      ' detected; sound requested and monitoring stopped. Open manually.',card);
   }
-  function scheduleScan(){
-    if(!active()||pendingScan)return;
-    pendingScan=true;
-    queueMicrotask(()=>{pendingScan=false;void scan().catch(err=>report('Scan error: '+err.message));});
+  function schedule(){
+    if(pending||!active())return;
+    pending=true;
+    queueMicrotask(()=>{pending=false;scan();});
   }
-  chrome.runtime.onMessage.addListener((msg,sender,respond)=>{
-    if(msg?.type==='PROWELL_SCAN_NOW'){scheduleScan();respond({ok:true});}
-  });
+  window.__prowellDualActionableCards=cards;
   chrome.storage.onChanged.addListener((changes,area)=>{
     if(area!=='local')return;
-    // Explicit owner re-START must make a returning ID actionable even if
-    // its original card is still present. No reset during routine DOM events.
-    if(changes.armed?.newValue===true &&
-       changes.armed?.oldValue!==true)handledOnThisPage.clear();
-    for(const key of Object.keys(changes))if(key in DEFAULTS)state[key]=changes[key].newValue;
-    if(!active()){stopRefresh();statusNode?.remove();statusNode=null;return;}
-    scheduleScan();
+    for(const key of Object.keys(DEFAULTS))if(changes[key])
+      state[key]=changes[key].newValue;
+    if(changes.armed?.newValue===true)stopping=false;
+    schedule();
   });
-  chrome.runtime.sendMessage({type:'PROWELL_TAB_ID'},async answer=>{
-    tabId=answer?.tabId??null;
-    state={...DEFAULTS,...await chrome.storage.local.get(DEFAULTS)};
-    scheduleScan();
+  chrome.runtime.sendMessage({type:TAB_MESSAGE},async result=>{
+    tabId=result?.tabId??null;
+    try{state={...DEFAULTS,...await chrome.storage.local.get(DEFAULTS)};}
+    catch(error){console.warn('Prowell monitor state unavailable:',
+      String(error?.message||error));return;}
+    schedule();
   });
-  new MutationObserver(records=>{
-    if(records.every(record=>statusNode?.contains(record.target)))return;
-    scheduleScan();
-  }).observe(document,{childList:true,subtree:true,characterData:true});
-  // Retry only the View-details-scrolling handoff, never any confirmation.
-  setInterval(()=>{if(active()&&state.claim&&!busy)scheduleScan();},150);
-  document.addEventListener('DOMContentLoaded',scheduleScan,{once:true});
-})();
+  new MutationObserver(schedule).observe(document,{
+    childList:true,subtree:true,characterData:true
+  });
+  document.addEventListener('DOMContentLoaded',schedule,{once:true});
 })();
