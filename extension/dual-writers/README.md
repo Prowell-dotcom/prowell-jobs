@@ -210,3 +210,9 @@ The restored routines and exact stop stages passed the dedicated simulated regre
 ### v2.1.23 — No on-page Prowell status banners
 
 Both site-specific active monitoring scripts no longer inject floating Prowell status overlays onto the websites. Internal state, existing safety checks, Chrome popup controls, reporting and the independent site workflows remain unchanged. This is a cosmetic update only: it does not obscure network requests, browser automation signals, or modify anti-bot detection.
+
+### v2.1.24 — Alert-only, immediate stop on order or security warning (current)
+
+For both websites, press START WATCH to begin the existing 1-second idle refresh monitoring. On the first detected available or processing order card, the active content runtime **immediately disables itself in memory, synchronously cancels any pending refresh timer, requests the original sound notification, and persists STOP**. It does not click View, scroll, Take it, OK, or I understand. A fresh manual START is required to monitor again. Notification sound is requested before storage I/O so it is not delayed by persistence. Repeated sound events are deduplicated by the existing background sound service. The two sites remain independent.
+
+If the page displays a CAPTCHA, human-verification challenge, unusual-activity message, or explicit automated-parsing/account-ban warning, monitoring stops and remains stopped until the user explicitly restarts it. A new START while the warning is still visible is immediately stopped again. This is a defensive safeguard, **not** stealth or detection bypass. Chrome timer throttling, network delays, or page rendering can affect detection timing. The extension is not an authorization to automate sites whose terms prohibit it. Prior README sections describe historical modes.
