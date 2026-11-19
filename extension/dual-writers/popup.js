@@ -1,7 +1,6 @@
 'use strict';
-/* Compact dual popup with distinct handoffs:
- * 4writers goes through Take it, then the owner confirms.
- * Good-Writers instantly scrolls after View; Take it and confirmations are manual.
+/* Compact dual popup: sound-only detection on both sites.
+ * Stop monitoring on an order or security warning; all website clicks are manual.
  */
 const SITES={
   four:{name:'4writers.net',prefix:'dual_four_',legacyVersion:'0.5.4',
@@ -9,7 +8,7 @@ const SITES={
   good:{name:'good-writers.com',prefix:'dual_good_',legacyVersion:'1.0.4',
     host:/^https:\/\/(?:www\.)?good-writers\.com\//i}
 };
-const VERSION='2.1.23';
+const VERSION='2.1.24';
 const notice=document.querySelector('#sr-notice');
 const key=(site,name)=>SITES[site].prefix+name;
 const put=(site,values)=>chrome.storage.local.set(Object.fromEntries(
@@ -33,9 +32,8 @@ async function render(site){
   startButton(site).disabled=!tab||running;
   stopButton(site).disabled=!running;
   startButton(site).title=!tab?'Open '+cfg.name+' in a browser tab':
-    running?'Already watching '+cfg.name:site==='four'
-      ? 'Alert, View, scroll and click Take it; you confirm manually'
-      : 'Alert, open View, instantly scroll its details and stop; accept manually';
+    running?'Already watching '+cfg.name:
+      'Sound alert on order, stop monitoring, and leave all clicks to you';
   stopButton(site).title=running?'Stop watching orders on '+cfg.name:
     'Monitoring is already stopped';
 }
@@ -50,9 +48,8 @@ async function start(site){
     lastPostViewDurationMs:null,lastPostViewWithin2s:null,
     ...(site==='four'?{fourLastCheckedSection:'',fourLastCheckedAt:null,
       fourCycleCount:0,refreshCount:0,lastRefreshAt:null}:{}),
-    lastResult:site==='four'
-      ? 'Watching 4writers; alert, View, scroll, Take it, then stop before OK.'
-      : 'Watching Good-Writers; alert, View and instant details scroll, then stop.'
+    lastResult:'Watching '+SITES[site].name+
+      '; on order sound and STOP, no automatic website clicks.'
   });
   // Sound is prepared separately; it does not delay scanning or clicking.
   void chrome.runtime.sendMessage({type:'PROWELL_PREPARE_ORDER_SOUND'}).catch(()=>{});
