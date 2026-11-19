@@ -55,7 +55,7 @@
   const active = () => Boolean(state.armed && state.claimConsentVersion==='1.0.4' && tabId === state.targetTabId);
   const pageText = () => document.body?.innerText || '';
   const orderList = () => window.__prowellCardDetector?.pageKind()==='available';
-  const challenge = () => /captcha|verify you are human|unusual activity/i.test(pageText()) ||
+  const challenge = () => /captcha|verify you are human|unusual activity|using automated site parsers is prohibited|automated (?:access|activity|parsing) (?:is )?prohibited|your account will be banned|automation warning/i.test(pageText()) ||
     Boolean(document.querySelector('iframe[src*="captcha"], [class*="g-recaptcha"]'));
   const success = () => /now you can write the order|you (?:can|may) start writing|order (?:has been )?(?:assigned to you|taken successfully)/i.test(pageText());
   const failure = () => /(?:the )?order (?:has been )?(?:taken(?: by another)?|no longer available)|not available|this order is unavailable|failed to take (?:the )?order/i.test(pageText());
@@ -208,55 +208,41 @@
       soundRunId:state.soundRunId
     },()=>void chrome.runtime.lastError);}catch(_){}
   }
+  // Alert-only handoff. Do not navigate or click any order controls.
+  // Disarm in memory before asynchronous storage, and cancel the current
+  // page refresh timer synchronously to avoid racing with another reload.
+  async function stopAndAlert(message,card=null){
+    if(!active())return;
+    state.armed=false;
+    state.targetTabId=null;
+    state.claim=null;
+    stopRefresh();
+    try{window.__prowellDualStopRefresh?.();}catch(_){}
+    // Request the original sound before waiting on a storage write.
+    if(card)notifyNewOrder(card);
+    const patch={armed:false,targetTabId:null,autoAcceptEnabled:false,
+      autoFlow:null,claim:null,lastResult:message,
+      lastAlertOrderId:card?String(card.id):null,
+      lastAlertKind:card?.type||null,lastAlertAt:Date.now()};
+    await chrome.storage.local.set(patch);
+  }
   async function scan(){
     if(!active()||busy||scrolling||!document.body)return;
     if(challenge()){
-      stopRefresh();
-      await report('Paused for website security check',
-        {armed:false,claim:null,autoAcceptEnabled:false});return;
-    }
-    if(state.claim){
-      const current=state.claim;
-      // Restore the ORIGINAL View→scroll mechanism, then stop before
-      // Take it. Never resume older auto-accept stage names.
-      if(current.stage!=='good-view-await-scroll'){
-        await stopHandoff(current,'view','Old claim paused; manual control.');
-        return;
-      }
-      if(Date.now()-Number(current.startedAt||Date.now())>12000){
-        await stopHandoff(current,'view',
-          'Order #'+current.id+' details not found; scroll manually.');
-        return;
-      }
-      scrolling=true;
-      let opened=false;
-      try{opened=await scrollOpenedOrder(current);}
-      finally{scrolling=false;}
-      if(!active()||!state.claim||!sameOrder(current.id,state.claim.id)||!opened)return;
-      await stopHandoff(current,'scroll',
-        'Order #'+current.id+': View details scrolled. Take it manually.');
+      await stopAndAlert('Good-Writers: automation/security warning detected — stopped until manual restart.');
       return;
     }
-    const cards=actionableCards();
-    const found=cards.find(c=>c.type==='available')||
-      cards.find(c=>c.type==='processing');
-    if(found){
-      handledOnThisPage.set(cardKey(found),cardElement(found));
-      stopRefresh();
-      notifyNewOrder(found);
-      captureBeforeView();
-      await setClaim(found.id,'good-view-await-scroll',{
-        kind:found.type,listUrl:location.href,
-        startedAt:Date.now(),viewClickedAt:Date.now()
-      });
-      if(!active()||!state.claim)return;
-      try{found.view.click();}
-      catch(error){await stopHandoff(state.claim,'view',
-        'Order View failed: '+error.message);return;}
-      // Trigger a scan immediately when View has filled the popup, then
-      // retry on the next event loop turn if the site renders later.
-      scheduleScan();
-      setTimeout(scheduleScan,0);
+    // Old in-progress claims must never resume from a previous auto-take release.
+    if(state.claim){
+      await stopAndAlert('Good-Writers: previous automated claim cleared; restart manually.');
+      return;
+    }
+    const card=actionableCards().find(item=>
+      item?.type==='available'||item?.type==='processing');
+    if(card){
+      handledOnThisPage.set(cardKey(card),cardElement(card));
+      await stopAndAlert('Good-Writers: order #'+card.id+
+        ' detected — sound alert sent; monitoring stopped. Open View manually.',card);
       return;
     }
     scheduleRefresh();
