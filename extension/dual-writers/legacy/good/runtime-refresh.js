@@ -32,10 +32,11 @@
     if (timer !== null) clearTimeout(timer);
     timer = null;
   }
+  window.__prowellDualStopRefresh=cancel;
   function orderListVisible(){return window.__prowellCardDetector?.pageKind()==='available';}
   function challengeVisible() {
     const text = document.body?.innerText || '';
-    return /captcha|verify you are human|unusual activity/i.test(text) ||
+    return /captcha|verify you are human|unusual activity|using automated site parsers is prohibited|automated (?:access|activity|parsing) (?:is )?prohibited|your account will be banned|automation warning/i.test(text) ||
       Boolean(document.querySelector('iframe[src*="captcha"],[class*="g-recaptcha"]'));
   }
   function unseenOrderVisible(){
@@ -58,7 +59,11 @@
     }
     if (challengeVisible()) {
       cancel();
-      setStatus('Paused — website security check detected');
+      local.armed=false;local.targetTabId=null;local.claim=null;
+      void chrome.storage.local.set({armed:false,targetTabId:null,claim:null,
+        autoAcceptEnabled:false,autoFlow:null,
+        lastResult:'Good-Writers: automation/security warning — stopped until manual restart.'});
+      setStatus('Stopped — website security warning detected');
       return;
     }
     if (unseenOrderVisible()) {
