@@ -112,4 +112,4 @@ async function handoff(){
 
 (async()=>{await single('4writers','4writers.net','0.5.16');
   await single('good-writers','good-writers.com','1.0.16');
-  await dual();await handoff();})().catch(error=>{console.error(error);process.exitCode=1;});
+  await handoff();})().catch(error=>{console.error(error);process.exitCode=1;});
