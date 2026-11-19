@@ -18,12 +18,13 @@
   const active=()=>Boolean(local.armed && local.claimConsentVersion===VERSION &&
     Number.isInteger(tabId) && local.targetTabId===tabId);
   const stopTimer=()=>{if(timer!==null)clearTimeout(timer);timer=null;timerMode='';};
+  window.__prowellDualStopRefresh=stopTimer;
   function report(message){
     if(message===status)return;
     status=message;
     void store.local.set({refreshStatus:message});
   }
-  const blocked=()=>/captcha|verify you are human|unusual activity/i.test(
+  const blocked=()=>/captcha|verify you are human|unusual activity|using automated site parsers is prohibited|automated (?:access|activity|parsing) (?:is )?prohibited|your account will be banned|automation warning/i.test(
     String(document.body?.innerText||''))||
     Boolean(document.querySelector?.('iframe[src*="captcha"],[class*="g-recaptcha"]'));
   function listReady(){
@@ -135,7 +136,11 @@
     }
     if(blocked()){
       stopTimer();
-      report('4writers paused — website security check');
+      local.armed=false;local.targetTabId=null;local.claim=null;
+      void store.local.set({armed:false,targetTabId:null,claim:null,
+        autoAcceptEnabled:false,autoFlow:null,
+        lastResult:'4writers: automation/security warning — stopped until manual restart.'});
+      report('4writers stopped — website security warning');
       return;
     }
     if(unseenOrder()){

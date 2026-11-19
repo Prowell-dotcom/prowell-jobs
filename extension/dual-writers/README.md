@@ -1,4 +1,4 @@
-# Prowell Dual-Platform Bot v2.1.22
+# Prowell Dual-Platform Bot v2.1.23
 
 ## Source engines and changes
 
@@ -206,3 +206,13 @@ The restored routines and exact stop stages passed the dedicated simulated regre
 - **Good-Writers:** The active dual-engine controller now reloads every **1,000 milliseconds** while idle. DOM changes do not restart the timer and newly detected orders cancel it.
 - **Handoff is unchanged:** 4writers sounds → View → instant verified scroll → Take it → STOP (confirmations manual). Good-Writers sounds → View → instant verified scroll → STOP (Take it and confirmations manual).
 - Browser timer throttling and website response times can slow real-world checks; the 1,000-ms interval is a requested timer setting, not a guaranteed network/page refresh completion rate. Previous release notes above are historical.
+
+### v2.1.23 — No on-page Prowell status banners
+
+Both site-specific active monitoring scripts no longer inject floating Prowell status overlays onto the websites. Internal state, existing safety checks, Chrome popup controls, reporting and the independent site workflows remain unchanged. This is a cosmetic update only: it does not obscure network requests, browser automation signals, or modify anti-bot detection.
+
+### v2.1.24 — Alert-only, immediate stop on order or security warning (current)
+
+For both websites, press START WATCH to begin the existing 1-second idle refresh monitoring. On the first detected available or processing order card, the active content runtime **immediately disables itself in memory, synchronously cancels any pending refresh timer, requests the original sound notification, and persists STOP**. It does not click View, scroll, Take it, OK, or I understand. A fresh manual START is required to monitor again. Notification sound is requested before storage I/O so it is not delayed by persistence. Repeated sound events are deduplicated by the existing background sound service. The two sites remain independent.
+
+If the page displays a CAPTCHA, human-verification challenge, unusual-activity message, or explicit automated-parsing/account-ban warning, monitoring stops and remains stopped until the user explicitly restarts it. A new START while the warning is still visible is immediately stopped again. This is a defensive safeguard, **not** stealth or detection bypass. Chrome timer throttling, network delays, or page rendering can affect detection timing. The extension is not an authorization to automate sites whose terms prohibit it. Prior README sections describe historical modes.
