@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Prowell Dual-Platform Instant Bot",
-  "version": "2.1.23",
-  "description": "Earlier supplied 4writers and Good-Writers engines with sound alerts, plus Writings/Rewritings monitoring in 4writers.",
+  "version": "2.1.24",
+  "description": "Dual-site order sound alerts: stop monitoring immediately on an order or website warning. All order controls are manual.",
   "permissions": [
     "storage",
     "tabs",
