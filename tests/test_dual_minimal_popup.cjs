@@ -7,7 +7,7 @@ const base=path.join(__dirname,'../extension/dual-writers');
 const html=fs.readFileSync(path.join(base,'popup.html'),'utf8');
 const js=fs.readFileSync(path.join(base,'popup.js'),'utf8');
 const manifest=JSON.parse(fs.readFileSync(path.join(base,'manifest.json'),'utf8'));
-assert.equal(manifest.version,'2.1.23');
+assert.equal(manifest.version,'2.1.24');
 const visible=html
   .replace(/<style>[\s\S]*?<\/style>/g,'')
   .replace(/<script[^>]*>[\s\S]*?<\/script>/g,'');
@@ -15,8 +15,8 @@ assert.equal((visible.match(/<h2>/g)||[]).length,2);
 assert.match(visible,/<h2>4writers\.net<\/h2>/);
 assert.match(visible,/<h2>good-writers\.com<\/h2>/);
 assert.equal((visible.match(/<button\b/g)||[]).length,4);
-assert.equal((visible.match(/>START WATCH<\/button>/g)||[]).length,1);
-assert.equal((visible.match(/>START TO TAKE<\/button>/g)||[]).length,1);
+assert.equal((visible.match(/>START WATCH<\/button>/g)||[]).length,2);
+assert.equal((visible.match(/>START TO TAKE<\/button>/g)||[]).length,0);
 assert.equal((visible.match(/>STOP<\/button>/g)||[]).length,2);
 for(const site of ['four','good']){
   assert.match(visible,new RegExp('data-start="'+site+'"'));
@@ -46,4 +46,4 @@ assert(manifest.content_scripts.some(x=>x.js.includes('legacy/four/runtime-conte
 assert(manifest.content_scripts.some(x=>x.js.includes('legacy/good/runtime-content.js')));
 assert(manifest.content_scripts.some(x=>x.js.includes('four-section-refresh.js')));
 assert(manifest.content_scripts.some(x=>x.js.includes('legacy/good/runtime-refresh.js')));
-console.log('Dual popup: 4writers START TO TAKE, Good-Writers START WATCH; four compact controls PASS');
+console.log('Dual popup: both START WATCH, four compact controls PASS');
