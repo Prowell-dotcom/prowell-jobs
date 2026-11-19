@@ -59,20 +59,10 @@
     Boolean(document.querySelector('iframe[src*="captcha"], [class*="g-recaptcha"]'));
   const success = () => /now you can write the order|you (?:can|may) start writing|order (?:has been )?(?:assigned to you|taken successfully)/i.test(pageText());
   const failure = () => /(?:the )?order (?:has been )?(?:taken(?: by another)?|no longer available)|not available|this order is unavailable|failed to take (?:the )?order/i.test(pageText());
-  function banner(message){
-    if(!active()) return;
-    if(!statusNode){
-      statusNode=document.createElement('aside');statusNode.id='prowell-status';
-      statusNode.style.cssText='position:fixed!important;bottom:12px!important;right:12px!important;z-index:2147483647!important;background:#102d51!important;color:#fff!important;padding:12px 15px!important;border-radius:11px!important;font:13px system-ui!important;max-width:300px!important;box-shadow:0 3px 20px #0004!important;';
-      document.documentElement.appendChild(statusNode);
-    }
-    if(statusNode.textContent!==message) statusNode.textContent=message;
-  }
   async function report(message,update={}){
     const entry=new Date().toLocaleTimeString()+' '+message;
     state={...state,...update,lastResult:message,log:[...(state.log||[]),entry].slice(-30)};
     await chrome.storage.local.set({ ...update,lastResult:message,log:state.log});
-    banner('Prowell · '+message);
   }
   async function setClaim(id,stage,other={}){
     const claim={id,stage,startedAt:state.claim?.startedAt||Date.now(),
