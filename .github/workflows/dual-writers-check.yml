@@ -35,9 +35,9 @@ jobs:
           node tests/test_dual_minimal_popup.cjs
           node tests/test_dual_four_sections.cjs
           node tests/test_dual_four_overview.cjs
-          node tests/test_dual_eight_second_refresh.cjs
+          node tests/test_dual_five_second_refresh.cjs
           node tests/test_dual_service_worker_boot.cjs
           node tests/test_dual_legacy_merge.cjs
-          node tests/test_dual_alert_only.cjs
+          node tests/test_dual_view_once.cjs
       - name: Validate packaged extension
         run: python -m unittest discover -s tests -p test_dual_writers_bundle.py -v
