@@ -6,7 +6,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),
 const dir=path.join(__dirname,'../extension/dual-writers');
 const read=p=>fs.readFileSync(path.join(dir,p),'utf8');
 const manifest=JSON.parse(read('manifest.json'));
-assert.equal(manifest.version,'2.1.25');
+assert.equal(manifest.version,'2.1.26');
 assert.equal(manifest.content_scripts.length,4);
 for(const site of ['four','good']){
   const host=site==='four'?'4writers.net':'good-writers.com';
@@ -18,8 +18,9 @@ for(const site of ['four','good']){
   assert.match(code,/PROWELL_ORDER_SOUND/);
   assert.match(code,/__prowellDualStopRefresh/);
   assert.match(code,/using automated site parsers is prohibited/);
-  assert.doesNotMatch(code,/\.click\s*\(|scrollTop\s*=|scrollTo\s*\(/,
-    'Active bot must never click or scroll the website');
+  assert.match(code,/view\.click\(\)/,'Active bot opens View once');
+  assert.doesNotMatch(code,/take\.click\(|scrollTop\s*=|scrollTo\s*\(/,
+    'Active bot must never accept or scroll the website');
   new vm.Script(code);
   assert(active.js.includes('legacy/'+site+'/order-card.js'));
   assert(active.js.includes('legacy/'+site+'/runtime-content.js'));
@@ -30,4 +31,4 @@ for(const site of ['four','good']){
 for(const disallowed of ['auto-accept.js','content.js','refresh.js']){
   assert(!manifest.content_scripts.flatMap(x=>x.js).includes(disallowed));
 }
-console.log('Dual legacy archive retained; active alert-only scripts have no website click PASS');
+console.log('Dual legacy archive retained; active scripts click View only PASS');

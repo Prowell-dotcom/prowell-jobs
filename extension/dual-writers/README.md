@@ -1,4 +1,4 @@
-# Prowell Dual-Platform Bot v2.1.23
+# Prowell Dual-Platform Bot v2.1.26
 
 ## Source engines and changes
 
@@ -220,3 +220,7 @@ If the page displays a CAPTCHA, human-verification challenge, unusual-activity m
 ### v2.1.25 — 8-second idle refresh (current)
 
 The dual bot waits **8,000 milliseconds** between each idle refresh/navigation check on 4Writers and Good-Writers (previously 1,000 ms). Order detection and the existing sound-only notification remain event-driven: the extension requests the sound, cancels scheduled refreshing, and stops monitoring when an order is found. It does not click View or accept orders. Monitoring also stops on recognized security warnings, with a manual START required to resume. Chrome background throttling and website/network delays may lengthen the actual time between refreshes; the interval is a minimum scheduled wait, not a guaranteed fetch cadence. Earlier 1-second release notes are historical.
+
+### v2.1.26 — 5-second refresh, sound and STOP, open View once (current)
+
+Both site monitors schedule a **5,000-ms idle refresh** (formerly 8,000 ms). When a valid available or processing order card appears, the active observer immediately disarms in memory, cancels pending refresh, and requests the existing audible notification. It **persists STOP before clicking the order's View control exactly once**, if that control remains available. It never scrolls, clicks Take it, OK, or I understand, and never restarts automatically. On a security warning it stops without opening View. The two sites retain independent START WATCH/STOP controls and no injected page banners. The precise order-detection and refresh timing depends on browser and site rendering. Older release notes above are historical.

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Prowell Dual-Platform Instant Bot",
-  "version": "2.1.25",
-  "description": "Dual-site order sound alerts: stop monitoring immediately on an order or website warning. All order controls are manual.",
+  "version": "2.1.26",
+  "description": "Dual-site 5-second idle monitoring with sound, immediate stop, and one View click when an order appears. Order acceptance remains manual.",
   "permissions": [
     "storage",
     "tabs",

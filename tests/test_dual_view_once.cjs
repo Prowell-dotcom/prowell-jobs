@@ -1,22 +1,22 @@
 'use strict';
-// Active dual-bot regression: order -> refresh cancelled -> sound -> STOP;
-// no website clicks or scrolling; security warning requires manual restart.
+// Live-active dual logic: STOP refresh synchronously, request sound, persist
+// STOP, open View exactly once; never accept an order or ignore a warning.
 const assert=require('node:assert/strict'),fs=require('node:fs'),
   path=require('node:path'),vm=require('node:vm');
 const ROOT=path.join(__dirname,'../extension/dual-writers');
-const settle=async()=>{for(let i=0;i<12;i++)await Promise.resolve();
+const settle=async()=>{for(let i=0;i<18;i++)await Promise.resolve();
   await new Promise(r=>setImmediate(r));};
 async function run(site,kind){
   const host=site==='four'?'4writers.net':'good-writers.com';
   const version=site==='four'?'0.5.4':'1.0.4';
   const code=fs.readFileSync(path.join(ROOT,'legacy',site,'runtime-content.js'),'utf8');
-  // This is a structural guarantee: no website interactions in active runtime.
-  assert.doesNotMatch(code,/\.click\s*\(|scrollTop\s*=|scrollTo\s*\(/);
+  assert.match(code,/view\.click\(\)/);
+  assert.doesNotMatch(code,/take\.click\(|scrollTop\s*=|scrollTo\s*\(/);
   const state={armed:true,targetTabId:7,claimConsentVersion:version,
     soundRunId:'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',claim:null};
   const events=[],subscribers=[];
-  const button={click(){events.push('VIEW CLICK');}};
-  const card={type:kind==='warning'?'available':kind,id:'1234567890',view:button};
+  const view={isConnected:true,click(){events.push('VIEW CLICK');}};
+  const card={type:kind==='warning'?'available':kind,id:'1234567890',view};
   let visible=[],mutation;
   const store={local:{
     async get(defaults){return {...defaults,...state};},
@@ -45,31 +45,46 @@ async function run(site,kind){
       constructor(fn){mutation=fn;}observe(){}
     }});
   await settle();
-  visible=[card];mutation();await settle();
-  assert.deepEqual(events.slice(0,3),['CANCEL REFRESH','SOUND','STORED']);
+  if(kind==='warning'){
+    document.body.innerText='Using automated site parsers is prohibited. Your account will be banned.';
+  }else{
+    visible=[card];
+  }
+  mutation();await settle();
+  const expected=kind==='warning'
+    ?['CANCEL REFRESH','STORED']
+    :['CANCEL REFRESH','SOUND','STORED','VIEW CLICK'];
+  assert.deepEqual(events.slice(0,expected.length),expected,
+    'STOP and notification must precede single View click');
   assert.equal(state.armed,false);
   assert.equal(state.targetTabId,null);
   assert.equal(state.claim,null);
   assert.equal(state.autoAcceptEnabled,false);
-  assert.equal(state.lastAlertOrderId,card.id);
-  assert(!events.includes('VIEW CLICK'));
-  mutation();await settle();
-  assert.equal(events.filter(x=>x==='SOUND').length,1);
   if(kind==='warning'){
-    visible=[];
-    document.body.innerText='Using automated site parsers is prohibited. If you do not stop, your account will be banned.';
+    assert.equal(events.filter(x=>x==='SOUND').length,0);
+    assert.equal(events.filter(x=>x==='VIEW CLICK').length,0);
+  }else{
+    assert.equal(state.lastAlertOrderId,card.id);
+    assert.equal(events.filter(x=>x==='VIEW CLICK').length,1);
+  }
+  mutation();mutation();await settle();
+  assert.equal(events.filter(x=>x==='VIEW CLICK').length,kind==='warning'?0:1,
+    'Repeated DOM changes cannot click a second time');
+  if(kind==='warning'){
     await store.local.set({armed:true,targetTabId:7,claim:null});
     mutation();await settle();
     assert.equal(state.armed,false,'Warning must disarm after manual restart');
-    assert.equal(events.filter(x=>x==='SOUND').length,1,'No sound for warning');
+    assert.equal(events.filter(x=>x==='VIEW CLICK').length,0);
   }else{
     await store.local.set({armed:true,targetTabId:7,claim:null});
     await settle();
     assert.equal(events.filter(x=>x==='SOUND').length,2,
-      'Manual START may alert on an order still visible');
+      'A fresh manual START can re-alert a still-visible order');
+    assert.equal(events.filter(x=>x==='VIEW CLICK').length,2,
+      'Exactly one new View click per manual START');
     assert.equal(state.armed,false);
   }
-  console.log(site,kind,'alert-only PASS');
+  console.log(site,kind,'5-second monitor: STOP + SOUND + single View PASS');
 }
 (async()=>{for(const site of ['four','good'])
   for(const kind of ['available','processing','warning'])await run(site,kind);
