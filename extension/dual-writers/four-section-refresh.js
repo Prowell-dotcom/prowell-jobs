@@ -11,7 +11,7 @@
   const store=window.__prowellDualStorage;
   const sections=window.__prowellFourSections;
   if(!store||!sections)return;
-  const VERSION='0.5.4',INTERVAL=5000,RENDER_RECOVERY_MS=12000;
+  const VERSION='0.5.4',INTERVAL=6500,RENDER_RECOVERY_MS=12000;
   let tabId=null,timer=null,timerMode='',startedAt=Date.now(),count=0,lastSection='';
   let status='',local={armed:false,claimConsentVersion:'',targetTabId:null,
     claim:null,attemptedIds:[],completed:[],refreshCount:0};
@@ -59,7 +59,7 @@
   }
   // The neutral 4writers account screen is a separate orders surface. It
   // has no selected Writings/Rewritings tab, so section switching never
-  // refreshes it. Reload THIS SAME SCREEN every 5 seconds while idle.
+  // refreshes it. Reload THIS SAME SCREEN every 6.5 seconds while idle.
   async function refreshOverview(){
     timer=null;timerMode='';
     if(!active()||local.claim||blocked()||unseenOrder()||
@@ -175,7 +175,7 @@
     if(!listReady()){
       stopTimer();
       report('4writers waiting for Available Orders to finish loading');
-      // Avoid a loop that reloads a blank page every 5 seconds.
+      // Avoid a loop that reloads a blank page every 6.5 seconds.
       if(document.readyState==='complete'&&Date.now()-startedAt>=RENDER_RECOVERY_MS){
         startedAt=Date.now();
         void store.local.set({refreshStatus:'4writers list is still blank; retrying page load'})
@@ -188,7 +188,7 @@
     }
     if(timer!==null && (timerMode==='render-wait'||timerMode==='overview'))stopTimer();
     if(timer!==null)return;
-    report('4writers: monitoring Writings + Rewritings; next check in 5 seconds');
+    report('4writers: monitoring Writings + Rewritings; next check in 6.5 seconds');
     timerMode='cycle';
     timer=setTimeout(()=>void cycle(),INTERVAL);
   }
