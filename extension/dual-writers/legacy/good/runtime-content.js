@@ -1,4 +1,4 @@
-/* Prowell dual-site, alert-only runtime: never click website controls. */
+/* Prowell dual-site runtime: sound, immediate STOP, then View once. */
 (() => {
   'use strict';
   const chrome=window.__prowellLegacyChrome;
@@ -24,23 +24,47 @@
   const cards=()=> (window.__prowellCardDetector?.cards?.()||[])
     .filter(c=>['available','processing'].includes(c?.type)&&
       /^\d{5,16}$/.test(String(c.id||'')));
-  function stop(reason,card=null){
+  async function stop(reason,card=null){
     if(!active()||stopping)return;
+    // Disarm and cancel the idle refresh SYNCHRONOUSLY, before notifying or
+    // opening a View. The website's order acceptance stays fully manual.
     stopping=true;
     state.armed=false;state.targetTabId=null;state.claim=null;
     try{window.__prowellDualStopRefresh?.();}catch(_){}
-    // Send the notification before waiting for any storage write.
+    // Request the existing audible alert immediately; never wait for audio.
     if(card)try{chrome.runtime.sendMessage({
       type:'PROWELL_ORDER_SOUND',orderId:String(card.id),
       kind:card.type,soundRunId:String(state.soundRunId||'')
     },()=>void chrome.runtime.lastError);}catch(_){}
-    void chrome.storage.local.set({
-      armed:false,targetTabId:null,claim:null,autoFlow:null,
-      autoAcceptEnabled:false,lastAlertOrderId:card?String(card.id):null,
-      lastAlertKind:card?.type||null,lastAlertAt:card?Date.now():null,
-      lastResult:reason
-    }).catch(error=>console.warn('Prowell STOP persistence failed:',
-      String(error?.message||error))).finally(()=>{stopping=false;});
+    try{
+      // Persist STOP before navigating away or opening an order popup.
+      await chrome.storage.local.set({
+        armed:false,targetTabId:null,claim:null,autoFlow:null,
+        autoAcceptEnabled:false,lastAlertOrderId:card?String(card.id):null,
+        lastAlertKind:card?.type||null,lastAlertAt:card?Date.now():null,
+        lastResult:reason
+      });
+      // Exactly one View action per detected order/START session.
+      // No scrolling, Take it, confirmation, or acknowledgement is automated.
+      if(card){
+        const view=card.view;
+        if(view?.isConnected===false||typeof view?.click!=='function'){
+          await chrome.storage.local.set({
+            lastResult:SITE+': order #'+card.id+
+              ' detected and stopped; View unavailable, open manually.'
+          });
+        }else{
+          try{view.click();}
+          catch(error){
+            await chrome.storage.local.set({lastResult:SITE+': View failed: '+
+              String(error?.message||error)+'. Open manually.'});
+          }
+        }
+      }
+    }catch(error){
+      console.warn('Prowell safe STOP or View failed:',
+        String(error?.message||error));
+    }finally{stopping=false;}
   }
   function scan(){
     if(!active()||stopping||!document.body)return;
@@ -49,7 +73,7 @@
     if(state.claim){stop(SITE+': old claim cleared; restart manually.');return;}
     const card=cards()[0];
     if(card)stop(SITE+': '+card.type+' order #'+card.id+
-      ' detected; sound requested and monitoring stopped. Open manually.',card);
+      ' detected; sound requested, monitoring stopped, View opens once.',card);
   }
   function schedule(){
     if(pending||!active())return;
