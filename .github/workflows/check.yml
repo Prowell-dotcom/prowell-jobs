@@ -94,7 +94,7 @@ jobs:
           node tests/test_dual_service_worker_boot.cjs
           node tests/test_dual_legacy_merge.cjs
           node tests/test_dual_view_once.cjs
-          node tests/test_dual_five_second_refresh.cjs
+          node tests/test_dual_six_half_second_refresh.cjs
 
       - name: Run website tests
         run: python -m unittest discover -s tests -v

@@ -1,5 +1,5 @@
 'use strict';
-/* Compact dual popup: monitor at 5-second idle intervals.
+/* Compact dual popup: monitor at 6.5-second idle intervals.
  * On order: sound, STOP, one View click; acceptance remains manual.
  */
 const SITES={
@@ -8,7 +8,7 @@ const SITES={
   good:{name:'good-writers.com',prefix:'dual_good_',legacyVersion:'1.0.4',
     host:/^https:\/\/(?:www\.)?good-writers\.com\//i}
 };
-const VERSION='2.1.26';
+const VERSION='2.1.27';
 const notice=document.querySelector('#sr-notice');
 const key=(site,name)=>SITES[site].prefix+name;
 const put=(site,values)=>chrome.storage.local.set(Object.fromEntries(

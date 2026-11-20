@@ -20,7 +20,7 @@
   let count = 0;
   let status = '';
   let local = {armed:false,targetTabId:null,claim:null,claimConsentVersion:'',attemptedIds:[],completed:[]};
-  const interval = 5000;
+  const interval = 6500;
   const isActive = () => local.armed && local.claimConsentVersion === '1.0.4' && local.targetTabId === tabId;
 
   function setStatus(message) {
@@ -82,7 +82,7 @@
       return;
     }
     if (timer !== null) return;
-    setStatus('Refreshing every 5 seconds');
+    setStatus('Refreshing every 6.5 seconds');
     timer = setTimeout(async () => {
       timer = null;
       if (!isActive() || local.claim || challengeVisible() || !orderListVisible() || unseenOrderVisible()) {

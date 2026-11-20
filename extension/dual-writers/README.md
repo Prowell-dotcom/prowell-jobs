@@ -1,4 +1,4 @@
-# Prowell Dual-Platform Bot v2.1.26
+# Prowell Dual-Platform Bot v2.1.27
 
 ## Source engines and changes
 
@@ -224,3 +224,7 @@ The dual bot waits **8,000 milliseconds** between each idle refresh/navigation c
 ### v2.1.26 — 5-second refresh, sound and STOP, open View once (current)
 
 Both site monitors schedule a **5,000-ms idle refresh** (formerly 8,000 ms). When a valid available or processing order card appears, the active observer immediately disarms in memory, cancels pending refresh, and requests the existing audible notification. It **persists STOP before clicking the order's View control exactly once**, if that control remains available. It never scrolls, clicks Take it, OK, or I understand, and never restarts automatically. On a security warning it stops without opening View. The two sites retain independent START WATCH/STOP controls and no injected page banners. The precise order-detection and refresh timing depends on browser and site rendering. Older release notes above are historical.
+
+### v2.1.27 — 6.5-second idle refresh (current)
+
+Both active 4Writers and Good-Writers idle refresh engines now use a **6,500-ms timer** instead of 5,000 ms. This change affects only the idle refresh/navigation interval. When an available or processing order appears, the monitors immediately cancel refreshing, request the original sound notification, persist STOP, and click **View once** if its control is still present; Take it, OK and I understand remain entirely manual. Security/automation warnings still stop monitoring without View, and a new manual START WATCH is required to resume. Browser throttling and loading time can extend actual intervals beyond 6.5 seconds. Older version descriptions above are historical.
