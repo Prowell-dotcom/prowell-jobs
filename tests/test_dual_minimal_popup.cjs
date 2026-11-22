@@ -33,7 +33,7 @@ assert.match(html,/height:27px/,'Buttons should be half their earlier height');
 assert.match(html,/font:700 10px/,'Small button text must fit compact controls');
 assert.match(html,/gap:6px/,'Compact buttons should remain separate');
 assert.doesNotMatch(html,/width:490px|height:54px/,'Old oversized controls must be gone');
-assert.match(js,/autoAcceptEnabled:false,armed:true/,'START watches orders but forbids automatic acceptance');
+assert.match(js,/autoAcceptEnabled:false,\s*processingScroll:null,armed:true/,'START watches orders and clears stale processing scrolls');
 assert.match(js,/autoAcceptEnabled:false/,'STOP must disable automation');
 assert.match(js,/PROWELL_PREPARE_ORDER_SOUND/,'Starting must still prepare audio');
 assert.match(js,/claimConsentVersion:SITES\[site\]\.legacyVersion/);
