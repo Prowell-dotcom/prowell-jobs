@@ -1,5 +1,5 @@
 'use strict';
-// Regression test for the active Good-Writers dual 6.5-second refresh.
+// Regression test for the active Good-Writers dual 4-second refresh.
 const assert=require('node:assert/strict'),vm=require('node:vm');
 const fs=require('node:fs'),path=require('node:path');
 const root=path.join(__dirname,'../extension/dual-writers');
@@ -31,8 +31,8 @@ const code=fs.readFileSync(path.join(root,'legacy/good/runtime-refresh.js'),'utf
     clearTimeout(id){timers=timers.filter(t=>t.id!==id);}};
   vm.runInNewContext(code,context);
   for(let i=0;i<20;i++)await Promise.resolve();
-  const find=()=>timers.find(t=>t.ms===6500);
-  assert(find(),'Good-Writers must schedule 6.5-second refresh');
+  const find=()=>timers.find(t=>t.ms===4000);
+  assert(find(),'Good-Writers must schedule 4-second refresh');
   assert(!timers.some(t=>t.ms===1000),'No residual 1-second refresh allowed');
   const first=find();
   observer([{target:document.body}]);observer([{target:document.body}]);
@@ -49,5 +49,5 @@ const code=fs.readFileSync(path.join(root,'legacy/good/runtime-refresh.js'),'utf
   observer([{target:document.body}]);
   assert.equal(find(),undefined,'Detected order must cancel pending refresh');
   assert.equal(reloads,1,'No reload after an order is detected');
-  console.log('Dual Good-Writers: 6500 ms timer, stable countdown, refresh on idle, order stop PASS');
+  console.log('Dual Good-Writers: 4000 ms timer, stable countdown, refresh on idle, order stop PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});

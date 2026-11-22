@@ -20,7 +20,7 @@
   let count = 0;
   let status = '';
   let local = {armed:false,targetTabId:null,claim:null,claimConsentVersion:'',attemptedIds:[],completed:[]};
-  const interval = 6500;
+  const interval = 4000;
   const isActive = () => local.armed && local.claimConsentVersion === '1.0.4' && local.targetTabId === tabId;
 
   function setStatus(message) {
@@ -49,7 +49,7 @@
   function evaluate() {
     if (!isActive()) {
       cancel();
-      setStatus('Stopped — press START AUTO-CLAIM');
+      setStatus('Stopped — press START WATCH');
       return;
     }
     if (local.claim) {
@@ -82,7 +82,7 @@
       return;
     }
     if (timer !== null) return;
-    setStatus('Refreshing every 6.5 seconds');
+    setStatus('Refreshing every 4 seconds');
     timer = setTimeout(async () => {
       timer = null;
       if (!isActive() || local.claim || challengeVisible() || !orderListVisible() || unseenOrderVisible()) {
