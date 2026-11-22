@@ -1,6 +1,7 @@
 'use strict';
-/* Compact dual popup: monitor at 6.5-second idle intervals.
- * On order: sound, STOP, one View click; acceptance remains manual.
+/* Compact dual popup: monitor at 4-second idle intervals.
+ * On available order: sound, pause, View -> Take it -> OK -> STOP.
+ * Final I understand acknowledgement remains manual.
  */
 const SITES={
   four:{name:'4writers.net',prefix:'dual_four_',legacyVersion:'0.5.4',
@@ -8,7 +9,7 @@ const SITES={
   good:{name:'good-writers.com',prefix:'dual_good_',legacyVersion:'1.0.4',
     host:/^https:\/\/(?:www\.)?good-writers\.com\//i}
 };
-const VERSION='2.1.27';
+const VERSION='2.1.28';
 const notice=document.querySelector('#sr-notice');
 const key=(site,name)=>SITES[site].prefix+name;
 const put=(site,values)=>chrome.storage.local.set(Object.fromEntries(
@@ -33,7 +34,7 @@ async function render(site){
   stopButton(site).disabled=!running;
   startButton(site).title=!tab?'Open '+cfg.name+' in a browser tab':
     running?'Already watching '+cfg.name:
-      'Sound alert, stop monitoring, click View once; acceptance is manual';
+      'Sound, pause, View, Take it and OK; then STOP before final acknowledgement';
   stopButton(site).title=running?'Stop watching orders on '+cfg.name:
     'Monitoring is already stopped';
 }
@@ -49,7 +50,7 @@ async function start(site){
     ...(site==='four'?{fourLastCheckedSection:'',fourLastCheckedAt:null,
       fourCycleCount:0,refreshCount:0,lastRefreshAt:null}:{}),
     lastResult:'Watching '+SITES[site].name+
-      '; on order sound, STOP and open View once; accept manually.'
+      '; on order sound, View, Take it and OK, then STOP. Final acknowledgement manual.'
   });
   // Sound is prepared separately; it does not delay scanning or clicking.
   void chrome.runtime.sendMessage({type:'PROWELL_PREPARE_ORDER_SOUND'}).catch(()=>{});
