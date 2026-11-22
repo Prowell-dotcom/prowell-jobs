@@ -19,7 +19,7 @@
   const ACTIONS='a,button,input[type="button"],input[type="submit"],[role="button"]';
   const DETAILS='dialog[open],[role="dialog"],.modal.show,.modal.in,.modal-content,.modal-dialog,.modal-body,[class*="order-info"],[class*="orderInfo"],[data-order-details]';
   const MODALS='dialog[open],[role="dialog"],.modal.show,.modal.in,.swal2-popup,.sweet-alert,.modal-content';
-  const ID_IN_DETAILS=/\border\s*(?:#|id\s*[:#]?)\s*(\d{5,16})\b/ig;
+  const ID_IN_DETAILS=/\b(?:(?:order\s*)?id\s*[:#]?\s*|order\s*#\s*)(\d{5,16})\b/ig;
   const TAKE=/^take\s*it(?:\s*now)?[.!]?$/i;
   const OK=/^(?:ok|okay)$/i;
   const WARNING=/captcha|verify you are human|unusual activity|using automated site parsers is prohibited|automated (?:access|activity|parsing) (?:is )?prohibited|your account will be banned|automation warning/i;
