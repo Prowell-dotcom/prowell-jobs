@@ -1,6 +1,6 @@
 'use strict';
 // Simulate both live-active runtimes. Available: sound, View, Take it, OK,
-// STOP (no acknowledgement). Processing: sound, View, STOP. Warning: STOP.
+// STOP (no acknowledgement). Processing: sound, STOP, View, verified scroll.
 const assert=require('node:assert/strict'),fs=require('node:fs'),
   path=require('node:path'),vm=require('node:vm');
 const ROOT=path.join(__dirname,'../extension/dual-writers');
@@ -118,6 +118,25 @@ async function run(site,kind,{mismatched=false,resumeAtOk=false}={}){
     assert.equal(events.filter(x=>x==='TAKE').length,0,'Processing is never taken');
     assert.equal(events.filter(x=>x==='OK').length,0);
     assert.equal(events.filter(x=>x==='SOUND').length,1);
+    if(mismatched){
+      assert.equal(events.filter(x=>x==='DETAIL SCROLL').length,0,
+        'Wrong-order processing modal must not be scrolled');
+      assert.equal(state.processingScroll?.id,'1234567890',
+        'One-time scroll remains pending until matching order details appear');
+      detail.innerText='ID: 1234567890';
+      mutation();await settle();
+    }
+    assert.equal(events.filter(x=>x==='DETAIL SCROLL').length,1,
+      'Scroll matching order details exactly once');
+    assert.equal(detail.scrollTop,detail.scrollHeight);
+    assert.equal(state.processingScroll,null,'Clear one-use processing marker');
+    assert(events.indexOf('STORE STOP')<events.indexOf('VIEW'),
+      'Persist STOP before processing View');
+    assert(events.indexOf('VIEW')<events.indexOf('DETAIL SCROLL'),
+      'Scroll only after View has opened order details');
+    mutation();mutation();await settle();
+    assert.equal(events.filter(x=>x==='DETAIL SCROLL').length,1,
+      'Repeated DOM changes must not scroll again');
   }else{
     assert.equal(events.filter(x=>x==='VIEW').length,0,'Warning never clicks View');
     assert.equal(events.filter(x=>x==='SOUND').length,0,'Warning never triggers sound');
@@ -131,5 +150,6 @@ async function run(site,kind,{mismatched=false,resumeAtOk=false}={}){
     for(const kind of ['available','processing','warning'])await run(site,kind);
     await run(site,'available',{mismatched:true});
     await run(site,'available',{resumeAtOk:true});
+    await run(site,'processing',{mismatched:true});
   }
 })().catch(e=>{console.error(e);process.exitCode=1;});

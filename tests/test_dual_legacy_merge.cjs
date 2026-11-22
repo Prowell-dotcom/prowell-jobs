@@ -6,7 +6,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),
 const dir=path.join(__dirname,'../extension/dual-writers');
 const read=p=>fs.readFileSync(path.join(dir,p),'utf8');
 const manifest=JSON.parse(read('manifest.json'));
-assert.equal(manifest.version,'2.1.28');
+assert.equal(manifest.version,'2.1.29');
 assert.equal(manifest.content_scripts.length,4);
 for(const site of ['four','good']){
   const host=site==='four'?'4writers.net':'good-writers.com';
@@ -21,6 +21,8 @@ for(const site of ['four','good']){
   assert.match(code,/card\.view\.click\(\)/,'Active bot opens View');
   assert.match(code,/function takeStage\(/,'Active bot handles Take it');
   assert.match(code,/function okStage\(/,'Active bot handles OK');
+  assert.match(code,/function inspectProcessingScroll\(/,
+    'Active bot scrolls verified processing details only');
   assert.doesNotMatch(code,/\baccept\.click\(\)|\backnowledg\w*\.click\(\)/i,
     'The bot must not click final I understand');
   new vm.Script(code);

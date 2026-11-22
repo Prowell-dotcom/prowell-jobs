@@ -7,7 +7,7 @@ const base=path.join(__dirname,'../extension/dual-writers');
 const html=fs.readFileSync(path.join(base,'popup.html'),'utf8');
 const js=fs.readFileSync(path.join(base,'popup.js'),'utf8');
 const manifest=JSON.parse(fs.readFileSync(path.join(base,'manifest.json'),'utf8'));
-assert.equal(manifest.version,'2.1.28');
+assert.equal(manifest.version,'2.1.29');
 const visible=html
   .replace(/<style>[\s\S]*?<\/style>/g,'')
   .replace(/<script[^>]*>[\s\S]*?<\/script>/g,'');
@@ -33,7 +33,7 @@ assert.match(html,/height:27px/,'Buttons should be half their earlier height');
 assert.match(html,/font:700 10px/,'Small button text must fit compact controls');
 assert.match(html,/gap:6px/,'Compact buttons should remain separate');
 assert.doesNotMatch(html,/width:490px|height:54px/,'Old oversized controls must be gone');
-assert.match(js,/autoAcceptEnabled:false,armed:true/,'START watches orders but forbids automatic acceptance');
+assert.match(js,/autoAcceptEnabled:false,\s*processingScroll:null,armed:true/,'START watches orders and clears stale processing scrolls');
 assert.match(js,/autoAcceptEnabled:false/,'STOP must disable automation');
 assert.match(js,/PROWELL_PREPARE_ORDER_SOUND/,'Starting must still prepare audio');
 assert.match(js,/claimConsentVersion:SITES\[site\]\.legacyVersion/);

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Prowell Dual-Platform Instant Bot",
-  "version": "2.1.28",
-  "description": "Dual-site 4-second idle monitoring: sound and pause, View → Take it → OK for available orders, then STOP. Final acknowledgement is manual.",
+  "version": "2.1.29",
+  "description": "Dual-site 4-second idle monitoring: sound and pause, View → Take it → OK for available orders, then STOP. Processing View scrolls verified details to bottom before handoff.",
   "permissions": [
     "storage",
     "tabs",
