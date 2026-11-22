@@ -123,7 +123,7 @@ async function run(site,kind,{mismatched=false,resumeAtOk=false}={}){
         'Wrong-order processing modal must not be scrolled');
       assert.equal(state.processingScroll?.id,'1234567890',
         'One-time scroll remains pending until matching order details appear');
-      detail.innerText='Order ID: 1234567890';
+      detail.innerText='ID: 1234567890';
       mutation();await settle();
     }
     assert.equal(events.filter(x=>x==='DETAIL SCROLL').length,1,
