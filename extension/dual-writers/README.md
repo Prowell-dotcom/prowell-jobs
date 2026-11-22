@@ -1,4 +1,4 @@
-# Prowell Dual-Platform Bot v2.1.27
+# Prowell Dual-Platform Bot v2.1.28
 
 ## Source engines and changes
 
@@ -228,3 +228,7 @@ Both site monitors schedule a **5,000-ms idle refresh** (formerly 8,000 ms). Whe
 ### v2.1.27 — 6.5-second idle refresh (current)
 
 Both active 4Writers and Good-Writers idle refresh engines now use a **6,500-ms timer** instead of 5,000 ms. This change affects only the idle refresh/navigation interval. When an available or processing order appears, the monitors immediately cancel refreshing, request the original sound notification, persist STOP, and click **View once** if its control is still present; Take it, OK and I understand remain entirely manual. Security/automation warnings still stop monitoring without View, and a new manual START WATCH is required to resume. Browser throttling and loading time can extend actual intervals beyond 6.5 seconds. Older version descriptions above are historical.
+
+### v2.1.28 — 4-second idle refresh and order-taking through OK (current)
+
+Both active site controllers now schedule a **4,000-ms idle refresh/navigation** rather than 6,500 ms. When an available order appears, the content runtime **cancels pending refreshing immediately, requests the original sound, opens View once, waits for that order's verified details, selects Take it, accepts the site's order-specific Are you sure browser confirmation, and clicks the site OK button once**. It persists STOP before the OK click and never clicks the final **I understand** acknowledgement. The user must finish any final acknowledgement manually; the bot does not report the order as fully accepted. A newly visible processing order still triggers sound, immediate STOP, and a single View click **without Take it or OK**. A visible security/automation warning stops monitoring without order actions. A wrong order ID on the details screen is never automatically taken, and missing actions or unexpected navigation lead to timeout/STOP for manual inspection, not blind clicking. A fresh START WATCH is required for another order. The two sites remain isolated and do not inject floating banners. Website loads and background tab throttling can extend actual timings; simulations do not guarantee successful live acceptance. Earlier release notes describe historical modes.
