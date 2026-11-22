@@ -9,7 +9,7 @@ const SITES={
   good:{name:'good-writers.com',prefix:'dual_good_',legacyVersion:'1.0.4',
     host:/^https:\/\/(?:www\.)?good-writers\.com\//i}
 };
-const VERSION='2.1.28';
+const VERSION='2.1.29';
 const notice=document.querySelector('#sr-notice');
 const key=(site,name)=>SITES[site].prefix+name;
 const put=(site,values)=>chrome.storage.local.set(Object.fromEntries(
@@ -43,7 +43,8 @@ async function start(site){
   if(!tab){announce('Open '+SITES[site].name+' in a browser tab first.');return;}
   // Preserve the precise accepted START configuration from v2.1.6.
   await put(site,{
-    autoFlow:null,seenOrderIds:[],autoAcceptEnabled:false,armed:true,
+    autoFlow:null,seenOrderIds:[],autoAcceptEnabled:false,
+    processingScroll:null,armed:true,
     claimConsentVersion:SITES[site].legacyVersion,targetTabId:tab.id,
     claim:null,soundRunId:crypto.randomUUID(),
     lastPostViewDurationMs:null,lastPostViewWithin2s:null,
@@ -58,7 +59,7 @@ async function start(site){
   await render(site);
 }
 async function stop(site){
-  await put(site,{armed:false,targetTabId:null,autoFlow:null,
+  await put(site,{armed:false,targetTabId:null,autoFlow:null,processingScroll:null,
     autoAcceptEnabled:false,lastResult:'Stopped by owner'});
   announce(SITES[site].name+' monitoring stopped.');
   await render(site);
