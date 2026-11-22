@@ -15,7 +15,7 @@
   window[FLAG]=true;
 
   const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,
-    claim:null,soundRunId:'',autoAcceptEnabled:false};
+    claim:null,soundRunId:'',autoAcceptEnabled:false,processingScroll:null};
   const ACTIONS='a,button,input[type="button"],input[type="submit"],[role="button"]';
   const DETAILS='dialog[open],[role="dialog"],.modal.show,.modal.in,.modal-content,.modal-dialog,.modal-body,[class*="order-info"],[class*="orderInfo"],[data-order-details]';
   const MODALS='dialog[open],[role="dialog"],.modal.show,.modal.in,.swal2-popup,.sweet-alert,.modal-content';
@@ -25,7 +25,7 @@
   const WARNING=/captcha|verify you are human|unusual activity|using automated site parsers is prohibited|automated (?:access|activity|parsing) (?:is )?prohibited|your account will be banned|automation warning/i;
   const MAX_FLOW_MS=25000;
   let state={...DEFAULTS},tabId=null,queued=false,busy=false,finishing=false,
-    pollTimer=null;
+    pollTimer=null,processingTimer=null,processingQueued=false,processingBusy=false;
 
   const active=()=>state.armed===true&&state.claimConsentVersion===VERSION&&
     Number.isInteger(tabId)&&state.targetTabId===tabId;
@@ -73,11 +73,14 @@
     if(finishing)return;
     finishing=true;
     state.armed=false;state.targetTabId=null;state.claim=null;
+    state.processingScroll=extra.processingScroll||null;
+    if(!state.processingScroll&&processingTimer!==null){clearTimeout(processingTimer);processingTimer=null;}
     cancel();
     try{
       await chrome.storage.local.set({
         armed:false,targetTabId:null,claim:null,autoFlow:null,
-        autoAcceptEnabled:false,lastResult:SITE+': '+reason,...extra
+        autoAcceptEnabled:false,processingScroll:null,
+        lastResult:SITE+': '+reason,...extra
       });
     }catch(error){
       console.warn('Prowell STOP persistence failed:',String(error?.message||error));
@@ -129,18 +132,97 @@
     return candidates.length===1 && /(?:order|confirm|success|sure)/i.test(
       textOf(document.body))?candidates[0]:null;
   }
+  // A processing order is VIEW-ONLY: after monitoring STOPs, inspect the
+  // single opened order details panel and scroll its content to the bottom.
+  // This short-lived handoff can survive a same-tab page navigation. It never
+  // scans for new orders or clicks any button after View.
+  function scheduleProcessingScroll(){
+    if(!state.processingScroll||processingQueued||processingBusy)return;
+    processingQueued=true;
+    queueMicrotask(()=>{
+      processingQueued=false;
+      void inspectProcessingScroll().catch(error=>
+        console.warn('Prowell processing scroll:',String(error?.message||error)));
+    });
+  }
+  function processingRetry(){
+    if(processingTimer!==null||!state.processingScroll)return;
+    processingTimer=setTimeout(()=>{
+      processingTimer=null;scheduleProcessingScroll();
+    },300);
+  }
+  async function clearProcessingScroll(reason){
+    if(processingTimer!==null){clearTimeout(processingTimer);processingTimer=null;}
+    state.processingScroll=null;
+    await chrome.storage.local.set({processingScroll:null,
+      lastResult:SITE+': '+reason});
+  }
+  async function inspectProcessingScroll(){
+    const preview=state.processingScroll;
+    if(!preview||processingBusy||!Number.isInteger(tabId)||
+       preview.tabId!==tabId||!document.body)return;
+    processingBusy=true;
+    try{
+      if(warned()){
+        await clearProcessingScroll('Processing details: security warning; no scroll.');
+        return;
+      }
+      if(!/^[0-9]{5,16}$/.test(String(preview.id||''))||
+         Date.now()-Number(preview.startedAt||0)>12000){
+        await clearProcessingScroll('Processing details were not verified; stopped.');
+        return;
+      }
+      const panel=detailScope(preview);
+      if(!panel){processingRetry();return;}
+      if(panel===document){
+        // Only a navigated details page for the exact order can use page scroll.
+        const root=document.scrollingElement||document.documentElement||document.body;
+        const bottom=Math.max(Number(root?.scrollHeight)||0,
+          Number(document.body?.scrollHeight)||0);
+        try{root?.scrollTo?.(0,bottom);}catch(_){}
+        try{window.scrollTo?.(0,bottom);}catch(_){}
+      }else{
+        // Scroll the verified modal and its scrollable descendants. Never
+        // scroll the background list or another order's detail modal.
+        const inner=[...(panel.querySelectorAll?.(
+          '.modal-body,.modal-content,[class*="scroll"],[style*="overflow"]')||[])];
+        for(const el of [...new Set([panel,...inner])]){
+          if(!visible(el))continue;
+          const bottom=Number(el.scrollHeight)||0;
+          try{
+            if(typeof el.scrollTo==='function')el.scrollTo(0,bottom);
+            else if('scrollTop' in el)el.scrollTop=bottom;
+          }catch(_){
+            try{if('scrollTop' in el)el.scrollTop=bottom;}catch(__){}
+          }
+        }
+      }
+      await clearProcessingScroll('Processing order #'+preview.id+
+        ': View opened; verified details scrolled to the bottom; stopped.');
+    }finally{processingBusy=false;}
+  }
   async function processingView(card){
     // Never take an already assigned / processing order.
     if(!active()||busy)return;
     busy=true;
     cancel();
     alert(card);
+    const preview={id:String(card.id),startedAt:Date.now(),tabId,
+      listUrl:location.href};
+    // Refresh and order monitoring remain STOPPED during the one-time scroll.
     await stop('Processing order #'+card.id+
-      ' detected; sound requested, View opened once and monitoring stopped.',
-      {lastAlertOrderId:String(card.id),lastAlertKind:card.type,lastAlertAt:Date.now()});
-    try{if(visible(card.view)&&typeof card.view.click==='function')card.view.click();}
-    catch(error){console.warn('Prowell processing View failed:',String(error?.message||error));}
-    busy=false;
+      ' detected; sound requested, View opens once; scroll pending.',
+      {lastAlertOrderId:String(card.id),lastAlertKind:card.type,
+        lastAlertAt:Date.now(),processingScroll:preview});
+    try{
+      if(!warned()&&visible(card.view)&&typeof card.view.click==='function')
+        card.view.click();
+      else await clearProcessingScroll('Processing View unavailable; stopped.');
+    }catch(error){
+      console.warn('Prowell processing View failed:',String(error?.message||error));
+      await clearProcessingScroll('Processing View failed; stopped.');
+    }finally{busy=false;}
+    scheduleProcessingScroll();
   }
   async function begin(card){
     if(!active()||busy||!visible(card.view)||
@@ -245,6 +327,7 @@
     for(const key of Object.keys(DEFAULTS))if(changes[key])
       state[key]=changes[key].newValue;
     if(!active())cancel();
+    if(changes.processingScroll)scheduleProcessingScroll();
     schedule();
   });
   chrome.runtime.sendMessage({type:TAB_MESSAGE},async result=>{
@@ -255,9 +338,12 @@
       return;
     }
     schedule();
+    scheduleProcessingScroll();
   });
-  new MutationObserver(schedule).observe(document,{
+  new MutationObserver(()=>{schedule();scheduleProcessingScroll();}).observe(document,{
     childList:true,subtree:true,characterData:true
   });
-  document.addEventListener('DOMContentLoaded',schedule,{once:true});
+  document.addEventListener('DOMContentLoaded',()=>{
+    schedule();scheduleProcessingScroll();
+  },{once:true});
 })();
