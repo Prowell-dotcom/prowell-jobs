@@ -345,7 +345,7 @@ def good_writers_download(handler, root: Path):
 DUAL_WRITERS_BUNDLE_NAME = 'prowell-dual-writers-instant-bot.zip'
 DUAL_WRITERS_FILES = (
     'manifest.json', 'scoped-store.js', 'legacy-bridge.js',
-    'legacy-order-sound.js', 'four-sections.js', 'four-section-refresh.js',
+    'legacy-order-sound.js', 'four-sections.js',
     'four-order-sort.js',
     'background.js', 'popup.html', 'popup.js',
     'legacy/four/confirm-main.js', 'legacy/four/order-card.js',
