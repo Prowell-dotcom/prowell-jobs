@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Prowell Dual-Platform Instant Bot",
-  "version": "2.1.30",
-  "description": "Dual-site 4-second idle monitoring; on empty 4Writers Available Orders, rotate four sort headings every 800ms. Sound and order handling unchanged.",
+  "version": "2.1.31",
+  "description": "4-second idle refresh, 800ms 4Writers sorting, immediate order priority and staged View / Take it / OK. Final acknowledgement manual.",
   "permissions": [
     "storage",
     "tabs",
