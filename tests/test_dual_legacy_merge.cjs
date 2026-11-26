@@ -6,7 +6,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),
 const dir=path.join(__dirname,'../extension/dual-writers');
 const read=p=>fs.readFileSync(path.join(dir,p),'utf8');
 const manifest=JSON.parse(read('manifest.json'));
-assert.equal(manifest.version,'2.1.30');
+assert.equal(manifest.version,'2.1.31');
 assert.equal(manifest.content_scripts.length,4);
 for(const site of ['four','good']){
   const host=site==='four'?'4writers.net':'good-writers.com';

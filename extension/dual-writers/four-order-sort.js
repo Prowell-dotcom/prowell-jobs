@@ -18,7 +18,8 @@
   const HEADINGS=['date added','time remaining','pages','total price'];
   const CONTROLS='a,button,span,th,[role="button"],[role="columnheader"],[data-sort],[ng-click],[onclick]';
   const WARNING=/captcha|verify you are human|unusual activity|using automated site parsers is prohibited|automated (?:access|activity|parsing) (?:is )?prohibited|your account will be banned|automation warning/i;
-  let tabId=null,timer=null,next=0,disabled=false,clicking=false;
+  let tabId=null,timer=null,next=0,disabled=false,clicking=false,
+    handedOffKey='';
   let state={armed:false,claimConsentVersion:'',targetTabId:null,claim:null,
     fourSortIndex:0};
 
@@ -79,6 +80,28 @@
     return true;
   }
   function evaluate(){
+    // An order revealed by a sort-triggered AJAX update takes priority NOW.
+    // The direct call avoids waiting for another timer or microtask before
+    // the existing View / Take it / OK flow begins.
+    if(active()&&!state.claim){
+      const found=window.__prowellDualActionableCards?.()||
+        window.__prowellCardDetector?.cards?.()||[];
+      const first=found.find(card=>
+        ['available','processing'].includes(card?.type));
+      if(first){
+        stopTimer();
+        // DOM/storage observers can fire repeatedly for the same card.
+        // Hand off only once per appearance and let the order runtime own it.
+        const key=String(first.type)+':'+String(first.id);
+        if(handedOffKey!==key){
+          handedOffKey=key;
+          try{window.__prowellDualPrioritizeOrder?.();}
+          catch(error){console.warn('Prowell order priority:',String(error?.message||error));}
+        }
+        return;
+      }
+      handedOffKey='';
+    }
     if(!emptySortScreen()){
       stopTimer();
       return;
@@ -111,10 +134,10 @@
       clicking=false;
       // Order detection wins immediately after the storage round-trip too.
       // Re-acquire the live control (do not click a stale detached element).
-      if(!emptySortScreen())return;
+      if(!emptySortScreen()){evaluate();return;}
       const controls=findSortControls();
       if(HEADINGS.some(heading=>!controls.has(heading)))return;
-      if(!emptySortScreen())return;
+      if(!emptySortScreen()){evaluate();return;}
       controls.get(name).click();
     }catch(error){
       clicking=false;
@@ -133,8 +156,9 @@
     for(const key of ['armed','claimConsentVersion','targetTabId','claim',
       'fourSortIndex'])
       if(changes[key])state[key]=changes[key].newValue;
-    if(changes.armed?.newValue===true&&changes.armed?.oldValue!==true)
-      disabled=false;
+    if(changes.armed?.newValue===true&&changes.armed?.oldValue!==true){
+      disabled=false;handedOffKey='';
+    }
     if(changes.fourSortIndex)next=Math.max(0,
       Number(changes.fourSortIndex.newValue)||0)%HEADINGS.length;
     evaluate();

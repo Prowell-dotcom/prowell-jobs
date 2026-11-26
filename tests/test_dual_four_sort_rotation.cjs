@@ -19,7 +19,12 @@ assert(four.js.indexOf('legacy/four/runtime-content.js')<
 const labels=['Date added','Time remaining','Pages','Total price'];
 const state={armed:true,claimConsentVersion:'0.5.4',targetTabId:7,
   claim:null,fourSortIndex:0};
-const history=[];
+const history=[],handoffs=[];
+const runtime=fs.readFileSync(path.join(__dirname,
+  '../extension/dual-writers/legacy/four/runtime-content.js'),'utf8');
+assert.match(runtime,/FOLLOWUP_MS=120/,'4Writers detail-stage fallback must be responsive');
+assert.match(runtime,/window\.__prowellDualPrioritizeOrder=prioritizeVisibleOrder/,
+  '4Writers runtime must expose the order-priority handoff');
 const flush=async()=>{for(let i=0;i<16;i++)await Promise.resolve();
   await new Promise(resolve=>setImmediate(resolve));};
 function newPage({loaded=true,warning=false,available=true,overview=false,
@@ -60,6 +65,7 @@ function newPage({loaded=true,warning=false,available=true,overview=false,
   };
   const window={__prowellDualStorage:store,
     __prowellFourSections:{available:()=>available,overview:()=>overview},
+    __prowellDualPrioritizeOrder(){handoffs.push(cards[0]?.id);return true;},
     __prowellDualActionableCards:()=>cards,
     __prowellCardDetector:{cards:()=>cards}};
   window.top=window;
@@ -103,9 +109,15 @@ function newPage({loaded=true,warning=false,available=true,overview=false,
   }
   let page=newPage();
   await page.settle();
+  const earlierHandoffs=handoffs.length;
   page.cards([{type:'available',id:'1234567890'}]);
+  assert.equal(handoffs.length,earlierHandoffs+1,
+    'Sort observer must hand off a newly visible order synchronously');
   assert.equal(page.timer(),undefined,'Visible order cancels sorting');
+  const beforeReloadHandoffs=handoffs.length;
   page=newPage({card:true});await page.settle();
+  assert.equal(handoffs.length,beforeReloadHandoffs+1,
+    'Page reload containing an order must trigger the immediate handoff');
   assert.equal(page.timer(),undefined,'Order on reloaded page preempts any sort click');
   page=newPage({warning:true});await page.settle();
   assert.equal(page.timer(),undefined,'Security warning blocks sorting');
@@ -136,7 +148,10 @@ function newPage({loaded=true,warning=false,available=true,overview=false,
     }
   }});
   await page.settle();assert(page.timer());const before=history.length;
+  const beforeStorageHandoffs=handoffs.length;
   await page.tick();
+  assert.equal(handoffs.length,beforeStorageHandoffs+1,
+    'Order appearing during sort storage write must trigger handoff now');
   assert.equal(history.length,before,
     'A new order during storage write must preempt sort click');
   console.log('4Writers sorted-order refresh across full reloads: 800ms rotation, order priority, START/STOP and warning guards PASS');

@@ -24,6 +24,9 @@
   const OK=/^(?:ok|okay)$/i;
   const WARNING=/captcha|verify you are human|unusual activity|using automated site parsers is prohibited|automated (?:access|activity|parsing) (?:is )?prohibited|your account will be banned|automation warning/i;
   const MAX_FLOW_MS=25000;
+  // Local DOM-only fallback during an active order handoff. Website rendering
+  // remains event-driven; this only reduces waits when a page has no mutation.
+  const FOLLOWUP_MS=120;
   let state={...DEFAULTS},tabId=null,queued=false,busy=false,finishing=false,
     pollTimer=null,processingTimer=null,processingQueued=false,processingBusy=false;
 
@@ -67,7 +70,7 @@
   }
   function followUp(){
     if(!active()||!state.claim||pollTimer!==null||finishing)return;
-    pollTimer=setTimeout(()=>{pollTimer=null;schedule();},350);
+    pollTimer=setTimeout(()=>{pollTimer=null;schedule();},FOLLOWUP_MS);
   }
   async function stop(reason,extra={}){
     if(finishing)return;
@@ -322,6 +325,21 @@
       else await processingView(first);
     }
   }
+  // Sorting may reveal a card synchronously before the next MutationObserver
+  // callback. Offer the sort sidecar a direct, immediate handoff; the normal
+  // observer still works independently and busy/claim guards prevent repeats.
+  function prioritizeVisibleOrder(){
+    if(!active()||state.claim||busy||finishing||!document.body)return false;
+    if(!cards().length)return false;
+    cancel();
+    void scan().catch(error=>{
+      console.warn('Prowell immediate order handoff failed:',
+        String(error?.message||error));
+      void stop('Immediate order handoff failed; inspect order manually.');
+    });
+    return true;
+  }
+  window.__prowellDualPrioritizeOrder=prioritizeVisibleOrder;
   chrome.storage.onChanged.addListener((changes,area)=>{
     if(area!=='local')return;
     for(const key of Object.keys(DEFAULTS))if(changes[key])
