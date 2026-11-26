@@ -79,6 +79,15 @@
     return true;
   }
   function evaluate(){
+    // An order revealed by a sort-triggered AJAX update takes priority NOW.
+    // The direct call avoids waiting for another timer or microtask before
+    // the existing View / Take it / OK flow begins.
+    if(active()&&!state.claim&&orderVisible()){
+      stopTimer();
+      try{window.__prowellDualPrioritizeOrder?.();}
+      catch(error){console.warn('Prowell order priority:',String(error?.message||error));}
+      return;
+    }
     if(!emptySortScreen()){
       stopTimer();
       return;
@@ -111,10 +120,10 @@
       clicking=false;
       // Order detection wins immediately after the storage round-trip too.
       // Re-acquire the live control (do not click a stale detached element).
-      if(!emptySortScreen())return;
+      if(!emptySortScreen()){evaluate();return;}
       const controls=findSortControls();
       if(HEADINGS.some(heading=>!controls.has(heading)))return;
-      if(!emptySortScreen())return;
+      if(!emptySortScreen()){evaluate();return;}
       controls.get(name).click();
     }catch(error){
       clicking=false;
