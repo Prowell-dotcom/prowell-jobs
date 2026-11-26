@@ -5,7 +5,7 @@ const assert=require('node:assert/strict');
 const dir=path.join(__dirname,'../extension/dual-writers');
 const read=p=>fs.readFileSync(path.join(dir,p),'utf8');
 const manifest=JSON.parse(read('manifest.json'));
-assert.equal(manifest.version,'2.1.29');
+assert.equal(manifest.version,'2.1.30');
 const four=manifest.content_scripts.find(x=>x.world!=='MAIN'&&
   x.matches.some(m=>m.includes('4writers.net')));
 const good=manifest.content_scripts.find(x=>x.world!=='MAIN'&&
@@ -13,7 +13,8 @@ const good=manifest.content_scripts.find(x=>x.world!=='MAIN'&&
 assert.deepEqual(four.js,[
   'scoped-store.js','legacy-bridge.js','legacy/four/order-card.js',
   'four-sections.js','legacy-order-sound.js',
-  'legacy/four/runtime-content.js','four-section-refresh.js']);
+  'legacy/four/runtime-content.js','four-section-refresh.js',
+  'four-order-sort.js']);
 assert.deepEqual(good.js,[
   'scoped-store.js','legacy-bridge.js','legacy/good/order-card.js',
   'legacy-order-sound.js','legacy/good/runtime-content.js',
