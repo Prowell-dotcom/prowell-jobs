@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Prowell Dual-Platform Instant Bot",
-  "version": "2.1.29",
-  "description": "Dual-site 4-second idle monitoring: sound and pause, View → Take it → OK for available orders, then STOP. Processing View scrolls verified details to bottom before handoff.",
+  "version": "2.1.30",
+  "description": "Dual-site 4-second idle monitoring; on empty 4Writers Available Orders, rotate four sort headings every 800ms. Sound and order handling unchanged.",
   "permissions": [
     "storage",
     "tabs",
@@ -57,7 +57,8 @@
         "four-sections.js",
         "legacy-order-sound.js",
         "legacy/four/runtime-content.js",
-        "four-section-refresh.js"
+        "four-section-refresh.js",
+        "four-order-sort.js"
       ],
       "run_at": "document_start"
     },
