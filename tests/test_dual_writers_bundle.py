@@ -28,11 +28,12 @@ class DualWritersBundleTests(unittest.TestCase):
                 else:
                     self.assertEqual(script['js'][:2],['scoped-store.js','legacy-bridge.js'])
                     self.assertIn('legacy-order-sound.js',script['js'])
-                    self.assertEqual(len(script['js']),7 if any(
+                    self.assertEqual(len(script['js']),8 if any(
                         '4writers.net' in host for host in script['matches']) else 6)
                     self.assertTrue(any(name.endswith('/runtime-content.js') for name in script['js']))
                     if any('4writers.net' in host for host in script['matches']):
                         self.assertIn('four-section-refresh.js',script['js'])
+                        self.assertIn('four-order-sort.js',script['js'])
                         self.assertIn('four-sections.js',script['js'])
                     else:
                         self.assertTrue(any(name.endswith('/runtime-refresh.js') for name in script['js']))
@@ -45,6 +46,7 @@ class DualWritersBundleTests(unittest.TestCase):
             self.assertIn('legacy/four/runtime-content.js',z.namelist())
             self.assertIn('four-sections.js',z.namelist())
             self.assertIn('four-section-refresh.js',z.namelist())
+            self.assertIn('four-order-sort.js',z.namelist())
             self.assertIn('legacy/four/runtime-background.js',z.namelist())
             self.assertIn('legacy/good/runtime-background.js',z.namelist())
 
