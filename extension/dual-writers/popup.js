@@ -1,5 +1,5 @@
 'use strict';
-/* Compact dual popup: monitor at 4-second idle intervals.
+/* Compact dual popup: 4Writers sorts the empty order page; Good-Writers refreshes every 4 seconds.
  * On available order: sound, pause, View -> Take it -> OK -> STOP.
  * Final I understand acknowledgement remains manual.
  */
@@ -9,7 +9,7 @@ const SITES={
   good:{name:'good-writers.com',prefix:'dual_good_',legacyVersion:'1.0.4',
     host:/^https:\/\/(?:www\.)?good-writers\.com\//i}
 };
-const VERSION='2.1.31';
+const VERSION='2.1.32';
 const notice=document.querySelector('#sr-notice');
 const key=(site,name)=>SITES[site].prefix+name;
 const put=(site,values)=>chrome.storage.local.set(Object.fromEntries(
