@@ -13,6 +13,8 @@ const four=sites.find(x=>x.matches.some(m=>m.includes('4writers.net')));
 const good=sites.find(x=>x.matches.some(m=>m.includes('good-writers.com')));
 assert(four.js.includes('four-order-sort.js'));
 assert(!good.js.includes('four-order-sort.js'));
+assert(!four.js.includes('four-section-refresh.js'),
+  'There must be no 4-second 4Writers refresh engine alongside sorting');
 assert(four.js.indexOf('legacy/four/runtime-content.js')<
   four.js.indexOf('four-order-sort.js'),'Order detection must load before sorting');
 
