@@ -9,7 +9,7 @@ const SITES={
   good:{name:'good-writers.com',prefix:'dual_good_',legacyVersion:'1.0.4',
     host:/^https:\/\/(?:www\.)?good-writers\.com\//i}
 };
-const VERSION='2.1.29';
+const VERSION='2.1.30';
 const notice=document.querySelector('#sr-notice');
 const key=(site,name)=>SITES[site].prefix+name;
 const put=(site,values)=>chrome.storage.local.set(Object.fromEntries(
@@ -48,7 +48,8 @@ async function start(site){
     claimConsentVersion:SITES[site].legacyVersion,targetTabId:tab.id,
     claim:null,soundRunId:crypto.randomUUID(),
     lastPostViewDurationMs:null,lastPostViewWithin2s:null,
-    ...(site==='four'?{fourLastCheckedSection:'',fourLastCheckedAt:null,
+    ...(site==='four'?{fourSortIndex:0,fourSortLastAt:null,
+      fourSortLastHeading:'',fourLastCheckedSection:'',fourLastCheckedAt:null,
       fourCycleCount:0,refreshCount:0,lastRefreshAt:null}:{}),
     lastResult:'Watching '+SITES[site].name+
       '; on order sound, View, Take it and OK, then STOP. Final acknowledgement manual.'
