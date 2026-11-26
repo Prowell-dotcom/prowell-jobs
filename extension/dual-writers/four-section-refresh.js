@@ -162,7 +162,7 @@
       if(timer!==null && timerMode==='render-wait')stopTimer();
       if(timer!==null&&timerMode==='overview')return;
       stopTimer();
-      report('4writers: refreshing neutral Available Orders screen every 1 second');
+      report('4writers: refreshing neutral Available Orders screen every 4 seconds');
       timerMode='overview';
       timer=setTimeout(()=>void refreshOverview(),INTERVAL);
       return;
