@@ -58,15 +58,14 @@
   }
   function schedule(){
     if(!active()||queued||busy||finishing)return;
+    // Start inspecting in the SAME observer callback, not a second queued
+    // microtask. This removes a scheduling step once the order is in the DOM.
+    // Busy/queued guards prevent overlapping scans and duplicate clicks.
     queued=true;
-    queueMicrotask(()=>{
-      queued=false;
-      if(!active()||busy||finishing)return;
-      void scan().catch(error=>{
-        console.warn('Prowell order scan failed:',String(error?.message||error));
-        void stop('Scan failed; restart manually after checking the order.');
-      });
-    });
+    void scan().catch(error=>{
+      console.warn('Prowell order scan failed:',String(error?.message||error));
+      void stop('Scan failed; restart manually after checking the order.');
+    }).finally(()=>{queued=false;});
   }
   function followUp(){
     if(!active()||!state.claim||pollTimer!==null||finishing)return;
@@ -364,4 +363,5 @@
   document.addEventListener('DOMContentLoaded',()=>{
     schedule();scheduleProcessingScroll();
   },{once:true});
+  window.addEventListener?.('pageshow',schedule);
 })();
