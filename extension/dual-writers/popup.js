@@ -48,7 +48,8 @@ async function start(site){
     claimConsentVersion:SITES[site].legacyVersion,targetTabId:tab.id,
     claim:null,soundRunId:crypto.randomUUID(),
     lastPostViewDurationMs:null,lastPostViewWithin2s:null,
-    ...(site==='four'?{fourLastCheckedSection:'',fourLastCheckedAt:null,
+    ...(site==='four'?{fourSortIndex:0,fourSortLastAt:null,
+      fourSortLastHeading:'',fourLastCheckedSection:'',fourLastCheckedAt:null,
       fourCycleCount:0,refreshCount:0,lastRefreshAt:null}:{}),
     lastResult:'Watching '+SITES[site].name+
       '; on order sound, View, Take it and OK, then STOP. Final acknowledgement manual.'
