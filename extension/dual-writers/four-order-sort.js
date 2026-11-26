@@ -1,5 +1,5 @@
 /* Dual-only 4Writers idle sorting: rotate the four real sort headings
- * every 800 ms only on a fully loaded, EMPTY Available Orders list.
+ * 800 ms after each fully loaded, EMPTY Available Orders page becomes ready.
  * Never clicks order/claim buttons, bypasses challenges, or changes page
  * navigation. The existing 4-second refresh and order-taking engines own
  * those separate workflows.
@@ -18,8 +18,9 @@
   const HEADINGS=['date added','time remaining','pages','total price'];
   const CONTROLS='a,button,span,th,[role="button"],[role="columnheader"],[data-sort],[ng-click],[onclick]';
   const WARNING=/captcha|verify you are human|unusual activity|using automated site parsers is prohibited|automated (?:access|activity|parsing) (?:is )?prohibited|your account will be banned|automation warning/i;
-  let tabId=null,timer=null,next=0,disabled=false;
-  let state={armed:false,claimConsentVersion:'',targetTabId:null,claim:null};
+  let tabId=null,timer=null,next=0,disabled=false,clicking=false;
+  let state={armed:false,claimConsentVersion:'',targetTabId:null,claim:null,
+    fourSortIndex:0};
 
   const active=()=>state.armed===true &&
     state.claimConsentVersion===VERSION &&
@@ -65,7 +66,7 @@
     return matched;
   }
   function emptySortScreen(){
-    if(!active()||disabled||state.claim||orderVisible()||
+    if(!active()||disabled||clicking||state.claim||orderVisible()||
        document.readyState!=='complete'||!sections.available?.()||
        sections.overview?.())return false;
     const page=String(document.body?.innerText||document.body?.textContent||'');
@@ -90,37 +91,61 @@
     timer=setTimeout(()=>{
       timer=null;
       if(!emptySortScreen())return;
-      const fresh=findSortControls();
-      if(HEADINGS.some(name=>!fresh.has(name)))return;
-      const name=HEADINGS[next%HEADINGS.length];
-      next=(next+1)%HEADINGS.length;
-      try{
-        // Re-scan immediately BEFORE each click; an appearing order wins.
-        if(!emptySortScreen())return;
-        fresh.get(name).click();
-      }catch(error){
-        disabled=true;
-        console.warn('Prowell 4writers sort stopped:',String(error?.message||error));
-        return;
-      }
-      evaluate();
+      void rotateOnce();
     },SORT_MS);
+  }
+  async function rotateOnce(){
+    if(!emptySortScreen())return;
+    clicking=true;
+    const name=HEADINGS[next%HEADINGS.length];
+    const nextIndex=(next+1)%HEADINGS.length;
+    try{
+      // Sorting on 4Writers may cause a FULL PAGE RELOAD. Persist the next
+      // heading BEFORE clicking, so a new document resumes the rotation
+      // rather than always starting from "Date added".
+      await store.local.set({
+        fourSortIndex:nextIndex,fourSortLastAt:Date.now(),
+        fourSortLastHeading:name
+      });
+      next=nextIndex;
+      clicking=false;
+      // Order detection wins immediately after the storage round-trip too.
+      // Re-acquire the live control (do not click a stale detached element).
+      if(!emptySortScreen())return;
+      const controls=findSortControls();
+      if(HEADINGS.some(heading=>!controls.has(heading)))return;
+      if(!emptySortScreen())return;
+      controls.get(name).click();
+    }catch(error){
+      clicking=false;
+      disabled=true;
+      console.warn('Prowell 4writers sort stopped:',
+        String(error?.message||error));
+      return;
+    }
+    // For AJAX sorting, keep rotating on the same screen. If the click
+    // navigates, Chrome destroys this timer and the next page loads the
+    // stored fourSortIndex before scheduling another 800-ms click.
+    evaluate();
   }
   store.onChanged.addListener((changes,area)=>{
     if(area!=='local')return;
-    for(const key of ['armed','claimConsentVersion','targetTabId','claim'])
+    for(const key of ['armed','claimConsentVersion','targetTabId','claim',
+      'fourSortIndex'])
       if(changes[key])state[key]=changes[key].newValue;
-    if(changes.armed?.newValue===true&&changes.armed?.oldValue!==true){
-      next=0;disabled=false;
-    }
+    if(changes.armed?.newValue===true&&changes.armed?.oldValue!==true)
+      disabled=false;
+    if(changes.fourSortIndex)next=Math.max(0,
+      Number(changes.fourSortIndex.newValue)||0)%HEADINGS.length;
     evaluate();
   });
   chrome.runtime.sendMessage({type:'PROWELL_TAB_ID'},async result=>{
     tabId=result?.tabId??null;
     try{
       state={...state,...await store.local.get([
-        'armed','claimConsentVersion','targetTabId','claim'
+        'armed','claimConsentVersion','targetTabId','claim','fourSortIndex'
       ])};
+      next=Math.max(0,Number(state.fourSortIndex)||0)%HEADINGS.length;
     }catch(error){
       console.warn('Prowell 4writers sort state unavailable:',
         String(error?.message||error));return;
