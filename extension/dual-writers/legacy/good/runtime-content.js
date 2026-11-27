@@ -1,5 +1,5 @@
-/* Prowell dual monitor: alert, View, Take it, OK, then STOP.
- * The final "I understand" acknowledgement is ALWAYS manual.
+/* Prowell Good-Writers monitor: sound, STOP, View once on new order.
+ * Processing orders also scroll verified details. No order acceptance.
  * Does not bypass security challenges or automatically restart.
  */
 (() => {
@@ -56,14 +56,10 @@
   function schedule(){
     if(!active()||queued||busy||finishing)return;
     queued=true;
-    queueMicrotask(()=>{
-      queued=false;
-      if(!active()||busy||finishing)return;
-      void scan().catch(error=>{
-        console.warn('Prowell order scan failed:',String(error?.message||error));
-        void stop('Scan failed; restart manually after checking the order.');
-      });
-    });
+    void scan().catch(error=>{
+      console.warn('Prowell order scan failed:',String(error?.message||error));
+      void stop('Scan failed; restart manually after checking the order.');
+    }).finally(()=>{queued=false;});
   }
   function followUp(){
     if(!active()||!state.claim||pollTimer!==null||finishing)return;
@@ -224,6 +220,36 @@
     }finally{busy=false;}
     scheduleProcessingScroll();
   }
+  async function availableViewOnly(card){
+    if(!active()||busy||!visible(card.view)||
+       typeof card.view.click!=='function')return;
+    busy=true;
+    cancel();
+    alert(card);
+    await stop('New order #'+card.id+
+      ': sound requested, View opened once, refresh stopped. Handle manually.',
+      {lastAlertOrderId:String(card.id),lastAlertKind:'available',
+        lastAlertAt:Date.now()});
+    try{
+      if(!warned()&&visible(card.view))card.view.click();
+    }catch(error){
+      console.warn('Good-Writers View-only failed:',
+        String(error?.message||error));
+    }finally{busy=false;}
+  }
+  // Sort changes can reveal a card without a further page reload. Hand it
+  // to the existing order runtime synchronously; busy/STOP prevent duplicates.
+  function prioritizeVisibleOrder(){
+    if(!active()||state.claim||busy||finishing||!document.body)return false;
+    if(!cards().length)return false;
+    cancel();
+    void scan().catch(error=>{
+      console.warn('Good-Writers immediate order handoff:',String(error?.message||error));
+      void stop('Order handoff failed; inspect manually.');
+    });
+    return true;
+  }
+  window.__prowellDualPrioritizeOrder=prioritizeVisibleOrder;
   async function begin(card){
     if(!active()||busy||!visible(card.view)||
        typeof card.view.click!=='function')return;
@@ -318,7 +344,7 @@
     const first=found.find(card=>card.type==='available')||
       found.find(card=>card.type==='processing');
     if(first){
-      if(first.type==='available')await begin(first);
+      if(first.type==='available')await availableViewOnly(first);
       else await processingView(first);
     }
   }

@@ -81,11 +81,18 @@
       setStatus('Order detected — refresh stopped for claiming');
       return;
     }
+    // When actual sort headings are present on the empty order list,
+    // allow the sorting sidecar to refresh. Otherwise use the 4s fallback.
+    if (window.__prowellDualGoodSortEnabled?.()) {
+      cancel();
+      setStatus('Good-Writers: sorting empty order list');
+      return;
+    }
     if (timer !== null) return;
     setStatus('Refreshing every 4 seconds');
     timer = setTimeout(async () => {
       timer = null;
-      if (!isActive() || local.claim || challengeVisible() || !orderListVisible() || unseenOrderVisible()) {
+      if (!isActive() || local.claim || challengeVisible() || !orderListVisible() || unseenOrderVisible() || window.__prowellDualGoodSortEnabled?.()) {
         evaluate();
         return;
       }
@@ -97,7 +104,8 @@
         lastRefreshAt:at,
         refreshStatus:'Reloading Available Orders'
       });
-      if (isActive() && !local.claim && !unseenOrderVisible()) location.reload();
+      if (isActive() && !local.claim && !unseenOrderVisible() &&
+          !window.__prowellDualGoodSortEnabled?.()) location.reload();
     },interval);
   }
   const relevant = new Set(['armed','claimConsentVersion','targetTabId','claim','attemptedIds','completed']);

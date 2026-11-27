@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Prowell Dual-Platform Instant Bot",
-  "version": "2.1.32",
-  "description": "4Writers: sort headings provide refresh with immediate DOM order detection. Good-Writers: 4-second refresh. Final I understand manual.",
+  "version": "2.1.33",
+  "description": "4Writers: 4-second blank dashboard reload and 800ms sort-heading checks. Good-Writers: conditional sort clicks or 4-second reload; sound, View, STOP.",
   "permissions": [
     "storage",
     "tabs",
@@ -57,6 +57,7 @@
         "four-sections.js",
         "legacy-order-sound.js",
         "legacy/four/runtime-content.js",
+        "four-overview-refresh.js",
         "four-order-sort.js"
       ],
       "run_at": "document_start"
@@ -72,6 +73,7 @@
         "legacy/good/order-card.js",
         "legacy-order-sound.js",
         "legacy/good/runtime-content.js",
+        "good-order-sort.js",
         "legacy/good/runtime-refresh.js"
       ],
       "run_at": "document_start"

@@ -13,6 +13,8 @@ const four=sites.find(x=>x.matches.some(m=>m.includes('4writers.net')));
 const good=sites.find(x=>x.matches.some(m=>m.includes('good-writers.com')));
 assert(four.js.includes('four-order-sort.js'));
 assert(!good.js.includes('four-order-sort.js'));
+assert(good.js.includes('good-order-sort.js'));
+assert(four.js.includes('four-overview-refresh.js'));
 assert(!four.js.includes('four-section-refresh.js'),
   'There must be no 4-second 4Writers refresh engine alongside sorting');
 assert(four.js.indexOf('legacy/four/runtime-content.js')<
