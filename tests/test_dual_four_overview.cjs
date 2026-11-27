@@ -1,7 +1,7 @@
 'use strict';
 // Regression for actual screenshot: 4writers header + Writings/Rewritings
 // nav + sidebar, blank middle, no selected tab. This is a watchable orders
-// overview, NOT a failed Writings page. Observe DOM; never auto-reload.
+// overview, NOT a failed Writings page. Reload only this neutral view at 4s.
 const assert=require('node:assert/strict');
 const vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
 const dir=path.join(__dirname,'../extension/dual-writers');
@@ -66,6 +66,7 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve();await new Pr
  };
  vm.runInNewContext(read('four-sections.js'),ctx,{filename:'four-sections.js'});
  vm.runInNewContext(read('four-order-sort.js'),ctx,{filename:'four-order-sort.js'});
+ vm.runInNewContext(read('four-overview-refresh.js'),ctx,{filename:'four-overview-refresh.js'});
  await settle();
  const timer=ms=>timers.find(x=>x.ms===ms);
  async function fire(ms){
@@ -78,21 +79,30 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve();await new Pr
  assert.equal(win.__prowellCardDetector.pageKind(),'available',
    'The neutral overview must let original order action engine inspect cards');
 
- assert.equal(timers.length,0,
-   'Neutral overview without sorting headers must not schedule reload or sorting');
- assert.equal(reloads,0,'No fallback page reloads on overview');
- assert.equal(events.length,0,'Do not switch sections automatically');
+
+ assert(timer(4000),'Blank central dashboard should schedule 4-second reload');
+ assert.equal(timer(800),undefined,'No sort-heading clicks on blank dashboard');
+ await fire(4000);
+ assert.equal(reloads,1,'4-second timer reloads the SAME neutral URL');
+ assert.equal(state.fourLastCheckedSection,'overview');
+ assert.equal(events.some(x=>x.includes('section click')),false,
+   'Do not click Writings/Rewritings links on blank dashboard');
+ // An order is rendered while the page is still armed.
  card={id:'12345678',type:'unknown'};mutation();await settle();
  assert.equal(win.__prowellCardDetector.cards()[0].type,'available');
- assert.equal(timers.length,0,'New order is observer-only, no pending refresh');
+ assert.equal(Boolean(timer(4000)),false,'New order cancels dashboard refresh immediately');
  card=null;mutation();await settle();
- assert.equal(timers.length,0,'Disappearing order does not trigger reload');
+ assert(timer(4000),'Resume 4-second overview refresh if order disappears');
  await store.local.set({claim:{id:'12345678',stage:'view-clicked'}});
- assert.equal(timers.length,0,'Claim must not trigger reload');
+ assert.equal(Boolean(timer(4000)),false,'An active taking workflow cancels reload');
  await store.local.set({claim:null});
- assert.equal(timers.length,0);
+ assert(timer(4000));
+ ready='loading';mutation();await settle();
+ assert.equal(Boolean(timer(4000)),false,'Never reload a partial dashboard');
+ ready='complete';mutation();await settle();
+ assert(timer(4000),'Resume once dashboard fully loaded');
  await store.local.set({armed:false});
- assert.equal(timers.length,0,'STOP must leave all refresh timers disabled');
- assert.equal(reloads,0,'Overview must never be automatically reloaded');
- console.log('4Writers neutral overview: DOM standby only, no 4-second auto-refresh or section click PASS');
+ assert.equal(Boolean(timer(4000)),false,'STOP cancels the 4-second reload');
+ assert.equal(reloads,1,'No further reload after STOP');
+ console.log('4Writers blank dashboard: guarded 4s reload, stops on order, claim, loading, STOP PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});
