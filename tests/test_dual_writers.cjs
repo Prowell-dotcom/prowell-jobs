@@ -5,12 +5,13 @@ const vm=require('node:vm'),path=require('node:path');
 const dir=path.join(__dirname,'../extension/dual-writers');
 const read=name=>fs.readFileSync(path.join(dir,name),'utf8');
 const manifest=JSON.parse(read('manifest.json'));
-assert.equal(manifest.version,'2.1.32');
+assert.equal(manifest.version,'2.1.33');
 assert.equal(manifest.content_scripts.length,4);
 assert(manifest.host_permissions.some(h=>h.includes('4writers.net')));
 assert(manifest.host_permissions.some(h=>h.includes('good-writers.com')));
 const files=['scoped-store.js','legacy-bridge.js','legacy-order-sound.js',
  'four-sections.js','four-section-refresh.js','four-order-sort.js',
+ 'four-overview-refresh.js','good-order-sort.js',
  'background.js','popup.js','order-sound-background.js','order-sound.js',
  'legacy/four/runtime-content.js','legacy/four/runtime-refresh.js',
  'legacy/four/order-card.js','legacy/four/confirm-main.js',
@@ -26,6 +27,8 @@ for(const site of ['four','good']){
 assert(!sources.includes('four-section-refresh.js'),
   '4Writers must not run the separate timed refresh/section navigation engine');
 assert(sources.includes('four-order-sort.js'));
+assert(sources.includes('four-overview-refresh.js'));
+assert(sources.includes('good-order-sort.js'));
 assert.equal(sources.filter(x=>x==='four-order-sort.js').length,1);
 assert(sources.includes('legacy/good/runtime-refresh.js'));
 assert(!sources.includes('legacy/four/runtime-refresh.js'));
