@@ -1,7 +1,7 @@
 'use strict';
-/* Compact dual popup: 4Writers sorts the empty order page; Good-Writers refreshes every 4 seconds.
- * On available order: sound, pause, View -> Take it -> OK -> STOP.
- * Final I understand acknowledgement remains manual.
+/* 4Writers: blank dashboard reloads at 4s, sortable lists at 800ms.
+ * Good-Writers: optional sorting, otherwise 4s refresh. Sound, View, STOP.
+ * Only 4Writers takes available orders through OK; final I understand manual.
  */
 const SITES={
   four:{name:'4writers.net',prefix:'dual_four_',legacyVersion:'0.5.4',
@@ -9,7 +9,7 @@ const SITES={
   good:{name:'good-writers.com',prefix:'dual_good_',legacyVersion:'1.0.4',
     host:/^https:\/\/(?:www\.)?good-writers\.com\//i}
 };
-const VERSION='2.1.32';
+const VERSION='2.1.33';
 const notice=document.querySelector('#sr-notice');
 const key=(site,name)=>SITES[site].prefix+name;
 const put=(site,values)=>chrome.storage.local.set(Object.fromEntries(
@@ -34,7 +34,8 @@ async function render(site){
   stopButton(site).disabled=!running;
   startButton(site).title=!tab?'Open '+cfg.name+' in a browser tab':
     running?'Already watching '+cfg.name:
-      'Sound, pause, View, Take it and OK; then STOP before final acknowledgement';
+      (site==='good'?'Sound, View once, then STOP; manual order taking':
+        'Sound, View, Take it and OK; then STOP before final acknowledgement');
   stopButton(site).title=running?'Stop watching orders on '+cfg.name:
     'Monitoring is already stopped';
 }
@@ -48,11 +49,13 @@ async function start(site){
     claimConsentVersion:SITES[site].legacyVersion,targetTabId:tab.id,
     claim:null,soundRunId:crypto.randomUUID(),
     lastPostViewDurationMs:null,lastPostViewWithin2s:null,
+    ...(site==='good'?{goodSortIndex:0,goodSortLastAt:null,goodSortLastHeading:''}:{}),
     ...(site==='four'?{fourSortIndex:0,fourSortLastAt:null,
       fourSortLastHeading:'',fourLastCheckedSection:'',fourLastCheckedAt:null,
       fourCycleCount:0,refreshCount:0,lastRefreshAt:null}:{}),
     lastResult:'Watching '+SITES[site].name+
-      '; on order sound, View, Take it and OK, then STOP. Final acknowledgement manual.'
+      +(site==='good'?'; on order sound, View once, then STOP. Take manually.'
+      :'; on order sound, View, Take it and OK, then STOP. Final acknowledgement manual.')
   });
   // Sound is prepared separately; it does not delay scanning or clicking.
   void chrome.runtime.sendMessage({type:'PROWELL_PREPARE_ORDER_SOUND'}).catch(()=>{});
