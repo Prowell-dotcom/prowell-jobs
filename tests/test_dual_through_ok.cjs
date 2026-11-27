@@ -1,6 +1,7 @@
 'use strict';
 // Simulate both live-active runtimes. Available: sound, View, Take it, OK,
-// STOP (no acknowledgement). Processing: sound, STOP, View, verified scroll.
+// STOP (no acknowledgement). Good available: sound, STOP, View only.
+// Processing: sound, STOP, View and verified scroll.
 const assert=require('node:assert/strict'),fs=require('node:fs'),
   path=require('node:path'),vm=require('node:vm');
 const ROOT=path.join(__dirname,'../extension/dual-writers');
@@ -78,6 +79,22 @@ async function run(site,kind,{mismatched=false,resumeAtOk=false}={}){
   };
   vm.runInNewContext(code,context);
   await settle();
+  if(site==='good'&&kind==='available'&&!resumeAtOk){
+    assert.equal(events.filter(x=>x==='SOUND').length,1,'Good-Writers alerts once');
+    assert.equal(events.filter(x=>x==='VIEW').length,1,'Good-Writers opens View once');
+    assert.equal(state.armed,false,'Good-Writers must STOP on View');
+    assert.equal(state.targetTabId,null);
+    assert.equal(state.claim,null);
+    assert.equal(events.filter(x=>x==='TAKE'||x==='OK').length,0,
+      'Good-Writers must not auto-take or confirm orders');
+    assert(events.indexOf('STORE STOP')<events.indexOf('VIEW'),
+      'Good-Writers must persist STOP before opening View');
+    mutation();mutation();await settle();
+    assert.equal(events.filter(x=>x==='VIEW').length,1,
+      'DOM mutations after STOP must not re-open View');
+    console.log('good available: sound / STOP / View once, no Take it or OK PASS');
+    return;
+  }
   if(kind==='available' && !resumeAtOk){
     assert.equal(events.filter(x=>x==='VIEW').length,1,'First View must click once');
     assert.equal(events.filter(x=>x==='SOUND').length,1);
@@ -148,8 +165,10 @@ async function run(site,kind,{mismatched=false,resumeAtOk=false}={}){
 (async()=>{
   for(const site of ['four','good']){
     for(const kind of ['available','processing','warning'])await run(site,kind);
-    await run(site,'available',{mismatched:true});
-    await run(site,'available',{resumeAtOk:true});
+    if(site==='four'){
+      await run(site,'available',{mismatched:true});
+      await run(site,'available',{resumeAtOk:true});
+    }
     await run(site,'processing',{mismatched:true});
   }
 })().catch(e=>{console.error(e);process.exitCode=1;});
