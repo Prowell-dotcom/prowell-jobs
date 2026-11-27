@@ -54,7 +54,7 @@ async function start(site){
       fourSortLastHeading:'',fourLastCheckedSection:'',fourLastCheckedAt:null,
       fourCycleCount:0,refreshCount:0,lastRefreshAt:null}:{}),
     lastResult:'Watching '+SITES[site].name+
-      +(site==='good'?'; on order sound, View once, then STOP. Take manually.'
+      (site==='good'?'; on order sound, View once, then STOP. Take manually.'
       :'; on order sound, View, Take it and OK, then STOP. Final acknowledgement manual.')
   });
   // Sound is prepared separately; it does not delay scanning or clicking.
