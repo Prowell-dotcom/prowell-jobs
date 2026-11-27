@@ -45,6 +45,14 @@ const code=fs.readFileSync(path.join(root,'legacy/good/runtime-refresh.js'),'utf
   assert.equal(state.refreshStatus,'Reloading Available Orders');
   observer([{target:document.body}]);
   assert(find(),'Countdown must rearm on the next loaded page');
+  // When Good-Writers exposes real sortable headings, the 4-second
+  // reload is cancelled so it cannot interrupt the 800-ms sort cycle.
+  window.__prowellDualGoodSortEnabled=()=>true;
+  observer([{target:document.body}]);
+  assert.equal(find(),undefined,'Active sorting must cancel 4-second fallback');
+  window.__prowellDualGoodSortEnabled=()=>false;
+  observer([{target:document.body}]);
+  assert(find(),'Fallback must rearm when sort headings disappear');
   cards=[{id:'12345678',type:'available'}];
   observer([{target:document.body}]);
   assert.equal(find(),undefined,'Detected order must cancel pending refresh');
