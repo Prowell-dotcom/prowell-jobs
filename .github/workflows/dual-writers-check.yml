@@ -30,12 +30,15 @@ jobs:
         run: |
           node --check extension/dual-writers/legacy/four/runtime-content.js
           node --check extension/dual-writers/legacy/good/runtime-content.js
+          node --check extension/dual-writers/four-overview-refresh.js
+          node --check extension/dual-writers/good-order-sort.js
           node --check extension/dual-writers/popup.js
           node tests/test_dual_writers.cjs
           node tests/test_dual_minimal_popup.cjs
           node tests/test_dual_four_sections.cjs
           node tests/test_dual_four_overview.cjs
           node tests/test_dual_four_sort_rotation.cjs
+          node tests/test_dual_good_sort_rotation.cjs
           node tests/test_dual_four_second_refresh.cjs
           node tests/test_dual_service_worker_boot.cjs
           node tests/test_dual_legacy_merge.cjs
