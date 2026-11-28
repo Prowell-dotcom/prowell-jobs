@@ -290,7 +290,7 @@ def receive_report(handler, db_connection):
 GOOD_WRITERS_BUNDLE_NAME = 'prowell-good-writers-assistant.zip'
 GOOD_WRITERS_FILES = ('manifest.json','background.js','content.js','refresh.js',
                       'popup.html','popup.js','popup-refresh.js','order-card.js',
-                      'order-sound-background.js','order-sound.js','order-sound.html', 'auto-accept.js', 'confirm-main.js')
+                      'order-sound-background.js','order-sound.js','order-sound.html')
 
 
 def good_writers_bundle(root: Path) -> bytes:
