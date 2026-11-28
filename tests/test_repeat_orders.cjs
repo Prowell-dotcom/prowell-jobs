@@ -87,7 +87,7 @@ async function test(slug,host,version,tabMessage){
 }
 (async()=>{
  await test('4writers','4writers.net','0.5.16','PROWELL_TAB_ID');
- await test('good-writers','good-writers.com','1.0.16','GW_TAB_ID');
+ // Good-Writers v1.0.17 deliberately STOPS on first order; dedicated regression covers restart.
 
 
 })().catch(error=>{console.error(error);process.exitCode=1;});
