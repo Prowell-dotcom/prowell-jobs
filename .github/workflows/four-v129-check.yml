@@ -45,7 +45,7 @@ jobs:
           node --check extension/4writers-v129/legacy/four/runtime-content.js
           node --check extension/4writers-v129/legacy/four/confirm-main.js
           python -m py_compile admin_extension_store.py server.py
-      - name: Simulate timing, order taking and manual acknowledgement
+      - name: Simulate timing, order taking and automatic one-time final acknowledgement
         run: |
           node tests/test_four_v129_schedule.cjs
           node tests/test_four_v129_irregular_refresh.cjs
