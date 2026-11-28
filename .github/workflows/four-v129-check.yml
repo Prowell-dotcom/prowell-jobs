@@ -1,0 +1,53 @@
+name: Standalone 4Writers v2.1.29 checks
+
+on:
+  push:
+    paths:
+      - 'extension/4writers-v129/**'
+      - 'tests/test_four_v129_*.cjs'
+      - 'tests/test_four_v129_bundle.py'
+      - 'admin_extension_store.py'
+      - 'admin.html'
+      - 'admin.js'
+      - 'server.py'
+      - '.github/workflows/four-v129-check.yml'
+  pull_request:
+    paths:
+      - 'extension/4writers-v129/**'
+      - 'tests/test_four_v129_*.cjs'
+      - 'tests/test_four_v129_bundle.py'
+      - 'admin_extension_store.py'
+      - 'admin.html'
+      - 'admin.js'
+      - 'server.py'
+      - '.github/workflows/four-v129-check.yml'
+  workflow_dispatch:
+
+jobs:
+  four-v129:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check extension and admin syntax
+        run: |
+          node --check admin.js
+          node --check extension/4writers-v129/popup.js
+          node --check extension/4writers-v129/background.js
+          node --check extension/4writers-v129/scoped-store.js
+          node --check extension/4writers-v129/legacy-bridge.js
+          node --check extension/4writers-v129/four-section-refresh.js
+          node --check extension/4writers-v129/legacy/four/runtime-content.js
+          node --check extension/4writers-v129/legacy/four/confirm-main.js
+          python -m py_compile admin_extension_store.py server.py
+      - name: Simulate timing, order taking and manual acknowledgement
+        run: |
+          node tests/test_four_v129_schedule.cjs
+          node tests/test_four_v129_flow.cjs
+      - name: Validate standalone extension ZIP
+        run: python -m unittest discover -s tests -p test_four_v129_bundle.py -v
