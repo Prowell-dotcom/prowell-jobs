@@ -349,7 +349,7 @@ $('#downloadFourV129Extension')?.addEventListener('click',async()=>{
     }
     const blob=await response.blob(),url=URL.createObjectURL(blob);
     const anchor=document.createElement('a');anchor.href=url;
-    anchor.download='prowell-4writers-v2.1.29.4.zip';
+    anchor.download='prowell-4writers-v2.1.29.5.zip';
     document.body.appendChild(anchor);anchor.click();anchor.remove();
     setTimeout(()=>URL.revokeObjectURL(url),3000);
     setFourV129Status('ZIP downloaded. Extract and use Load unpacked in Chrome.');
