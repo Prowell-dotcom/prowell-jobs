@@ -5,7 +5,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),
   path=require('node:path'),vm=require('node:vm');
 const root=path.join(__dirname,'../extension/4writers-v129');
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));
-assert.equal(manifest.version,'2.1.29.3');
+assert.equal(manifest.version,'2.1.29.4');
 assert.deepEqual(manifest.content_scripts.map(s=>s.matches.length),[2,2]);
 assert.equal(manifest.content_scripts.some(s=>s.matches.some(x=>x.includes('good-writers.com'))),false);
 const code=fs.readFileSync(path.join(root,'four-section-refresh.js'),'utf8');
