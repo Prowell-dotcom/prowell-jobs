@@ -4,7 +4,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),
 const root=path.join(__dirname,'../extension/4writers-v129');
 const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 const manifest=JSON.parse(read('manifest.json'));
-assert.equal(manifest.version,'2.1.29.3');
+assert.equal(manifest.version,'2.1.29.4');
 assert.equal(manifest.content_scripts.length,2);
 assert(manifest.content_scripts.every(s=>s.matches.every(x=>x.includes('4writers.net'))),
   'Standalone extension must never inject into Good-Writers');
