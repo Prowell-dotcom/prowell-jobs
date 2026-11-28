@@ -1,4 +1,4 @@
-"""Regression: isolated 4Writers v2.1.29.3 remains separate from dual bot."""
+"""Regression: isolated 4Writers v2.1.29.4 remains separate from dual bot."""
 import json
 import unittest
 import zipfile
@@ -14,12 +14,12 @@ ROOT = Path(__file__).resolve().parents[1]
 class FourOnlyLegacyBotTests(unittest.TestCase):
     def test_standalone_zip_contains_only_4writers_hosts(self):
         data = bundles.four_v129_bundle(ROOT)
-        self.assertEqual(bundles.validate_bundle(data), '2.1.29.3')
+        self.assertEqual(bundles.validate_bundle(data), '2.1.29.4')
         with zipfile.ZipFile(BytesIO(data)) as zip_file:
             names = zip_file.namelist()
             self.assertEqual(set(names), set(bundles.FOUR_V129_FILES))
             manifest = json.loads(zip_file.read('manifest.json'))
-            self.assertEqual(manifest['version'], '2.1.29.3')
+            self.assertEqual(manifest['version'], '2.1.29.4')
             self.assertEqual(manifest['name'], 'Prowell 4Writers Watcher (v2.1.29 Custom)')
             self.assertEqual(len(manifest['content_scripts']), 2)
             self.assertEqual(len(manifest['host_permissions']), 2)
