@@ -1,6 +1,6 @@
 'use strict';
 // Simulate both live-active runtimes. Available: sound, View, Take it, OK,
-// STOP (no acknowledgement). Processing: sound, STOP, View, verified scroll.
+// STOP after automatically clicking I understand ONCE; processing remains View-only.
 const assert=require('node:assert/strict'),fs=require('node:fs'),
   path=require('node:path'),vm=require('node:vm');
 const ROOT=path.join(__dirname,'../extension/4writers-v129');
@@ -12,7 +12,7 @@ async function run(site,kind,{mismatched=false,resumeAtOk=false}={}){
   const code=fs.readFileSync(path.join(ROOT,'legacy',site,'runtime-content.js'),'utf8');
   assert.match(code,/function takeStage\(/);
   assert.match(code,/function okStage\(/);
-  assert.doesNotMatch(code,/ack(?:nowledg\w*|cept)\.click\(/i);
+  assert.match(code,/target\.click\(\)/,'Final acknowledgement is automated');
   const startsAt=Date.now();
   const state={armed:true,targetTabId:7,claimConsentVersion:version,
     soundRunId:'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
@@ -28,7 +28,7 @@ async function run(site,kind,{mismatched=false,resumeAtOk=false}={}){
   const view=node('View',()=>{events.push('VIEW');step='details';});
   const take=node('Take it',()=>{events.push('TAKE');step='confirm';});
   const ok=node('OK',()=>{events.push('OK');step='ack';});
-  const ack=node('I understand',()=>{events.push('UNWANTED ACKNOWLEDGEMENT');});
+  const ack=node('I understand',()=>{events.push('ACK CLICK');step='done';});
   ack.scrollIntoView=()=>events.push('ACK SCROLL');
   const detail={...node(mismatched?'Order ID: 9999999999':'Order ID: 1234567890',()=>{}),
     scrollHeight:1800,scrollTop:0,
@@ -112,14 +112,19 @@ async function run(site,kind,{mismatched=false,resumeAtOk=false}={}){
     assert.equal(state.lastOkOrderId,'1234567890');
     assert.equal(events.filter(x=>x==='ACK SCROLL').length,1,
       'Bring I understand into view exactly once');
-    assert.equal(state.manualAckScroll,null,'Clear single-use acknowledgement marker');
-    assert(events.indexOf('OK')<events.indexOf('ACK SCROLL'),
-      'Scroll only after OK');
-    assert.equal(events.filter(x=>x==='UNWANTED ACKNOWLEDGEMENT').length,0);
+    assert.equal(events.filter(x=>x==='ACK CLICK').length,1,
+      'Click I understand automatically exactly once');
+    assert.equal(state.pendingAck,null,'Clear single-use acknowledgement marker');
+    assert.equal(state.lastAckOrderId,'1234567890');
+    assert(events.indexOf('OK')<events.indexOf('ACK CLICK'),
+      'Click final acknowledgement only after OK');
+    assert(events.indexOf('STORE STOP')<events.indexOf('ACK CLICK'),
+      'Persist STOP before clicking final acknowledgement');
     mutation();mutation();await settle();
     assert.equal(events.filter(x=>x==='OK').length,1,'DOM events cannot reclick OK');
     assert.equal(events.filter(x=>x==='ACK SCROLL').length,1,'Do not scroll twice');
-    assert.equal(events.filter(x=>x==='UNWANTED ACKNOWLEDGEMENT').length,0);
+    assert.equal(events.filter(x=>x==='ACK CLICK').length,1,
+      'Repeated DOM mutations cannot click I understand twice');
   }else if(kind==='processing'){
     assert.equal(events.filter(x=>x==='VIEW').length,1,'Processing opens View once');
     assert.equal(events.filter(x=>x==='TAKE').length,0,'Processing is never taken');

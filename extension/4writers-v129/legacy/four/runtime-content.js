@@ -1,5 +1,5 @@
-/* Prowell standalone 4Writers v2.1.29.1: sound, View, Take it, OK, STOP.
- * The final "I understand" acknowledgement is ALWAYS manual.
+/* Prowell standalone 4Writers v2.1.29.4: sound, View, Take it, OK,
+ * click the final I understand exactly once, then stay STOPPED.
  * Does not bypass security challenges or automatically restart.
  */
 (() => {
@@ -16,7 +16,7 @@
 
   const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,
     claim:null,soundRunId:'',autoAcceptEnabled:false,processingScroll:null,
-    manualAckScroll:null};
+    pendingAck:null};
   const ACTIONS='a,button,input[type="button"],input[type="submit"],[role="button"]';
   const DETAILS='dialog[open],[role="dialog"],.modal.show,.modal.in,.modal-content,.modal-dialog,.modal-body,[class*="order-info"],[class*="orderInfo"],[data-order-details]';
   const MODALS='dialog[open],[role="dialog"],.modal.show,.modal.in,.swal2-popup,.sweet-alert,.modal-content';
@@ -76,14 +76,14 @@
     finishing=true;
     state.armed=false;state.targetTabId=null;state.claim=null;
     state.processingScroll=extra.processingScroll||null;
-    state.manualAckScroll=extra.manualAckScroll||null;
-    if(!state.manualAckScroll&&ackTimer!==null){clearTimeout(ackTimer);ackTimer=null;}
+    state.pendingAck=extra.pendingAck||null;
+    if(!state.pendingAck&&ackTimer!==null){clearTimeout(ackTimer);ackTimer=null;}
     if(!state.processingScroll&&processingTimer!==null){clearTimeout(processingTimer);processingTimer=null;}
     cancel();
     try{
       await chrome.storage.local.set({
         armed:false,targetTabId:null,claim:null,autoFlow:null,
-        autoAcceptEnabled:false,processingScroll:null,manualAckScroll:null,
+        autoAcceptEnabled:false,processingScroll:null,pendingAck:null,
         lastResult:SITE+': '+reason,...extra
       });
     }catch(error){
@@ -136,50 +136,52 @@
     return candidates.length===1 && /(?:order|confirm|success|sure)/i.test(
       textOf(document.body))?candidates[0]:null;
   }
-  // The last step is ONLY a viewport handoff: never click I understand.
-  // Persist this marker before OK because the site may navigate/reload.
+  // A one-use acknowledgement handoff is stored BEFORE OK so that a full
+  // navigation can resume it. The actual click occurs only AFTER OK, and
+  // the marker is durably cleared BEFORE clicking to prevent duplicates.
   const ACK=/^i\s+understand(?:\s+the\s+order)?[.!]?$/i;
-  function scheduleManualAckScroll(){
-    if(!state.manualAckScroll||ackQueued||ackBusy)return;
+  function scheduleFinalAckClick(){
+    // OK stage stays busy through storage and button click.
+    if(!state.pendingAck||ackQueued||ackBusy||busy||finishing)return;
     ackQueued=true;
     queueMicrotask(()=>{
       ackQueued=false;
-      void inspectManualAckScroll().catch(error=>
-        console.warn('Prowell manual acknowledgement scroll:',
+      void inspectFinalAckClick().catch(error=>
+        console.warn('Prowell final acknowledgement click:',
           String(error?.message||error)));
     });
   }
-  function retryManualAckScroll(){
-    if(ackTimer!==null||!state.manualAckScroll)return;
+  function retryFinalAckClick(){
+    if(ackTimer!==null||!state.pendingAck)return;
     ackTimer=setTimeout(()=>{
-      ackTimer=null;scheduleManualAckScroll();
+      ackTimer=null;scheduleFinalAckClick();
     },200);
   }
-  async function clearManualAckScroll(message){
+  async function clearFinalAckClick(message){
     if(ackTimer!==null){clearTimeout(ackTimer);ackTimer=null;}
-    state.manualAckScroll=null;
+    state.pendingAck=null;
     await chrome.storage.local.set({
-      manualAckScroll:null,lastResult:SITE+': '+message
+      pendingAck:null,lastResult:SITE+': '+message
     });
   }
-  async function inspectManualAckScroll(){
-    const handoff=state.manualAckScroll;
-    if(!handoff||ackBusy||!Number.isInteger(tabId)||
+  async function inspectFinalAckClick(){
+    const handoff=state.pendingAck;
+    if(!handoff||ackBusy||busy||finishing||!Number.isInteger(tabId)||
        handoff.tabId!==tabId||!document.body)return;
     ackBusy=true;
     try{
       if(warned()){
-        await clearManualAckScroll('Security warning; manual acknowledgement scroll cancelled.');
+        await clearFinalAckClick('Security warning; final acknowledgement cancelled.');
         return;
       }
       if(!/^\d{5,16}$/.test(String(handoff.id||''))||
          Date.now()-Number(handoff.startedAt||0)>18000){
-        await clearManualAckScroll('Acknowledgement not found; finish manually.');
+        await clearFinalAckClick('Acknowledgement expired or invalid; inspect order manually.');
         return;
       }
       const candidates=actions(document).filter(el=>ACK.test(label(el)));
       if(candidates.length!==1){
-        retryManualAckScroll();
+        retryFinalAckClick();
         return;
       }
       const target=candidates[0];
@@ -197,11 +199,43 @@
           }catch(_){}
         }
       }
-      // scrollIntoView is not an acknowledgement click.
       try{target.scrollIntoView?.({block:'center',behavior:'instant'});}
       catch(_){try{target.scrollIntoView?.();}catch(__){}}
-      await clearManualAckScroll('Order #'+handoff.id+
-        ': OK complete; I understand visible for your manual click. STOP.');
+      if(!visible(target)||warned()){
+        await clearFinalAckClick('Order #'+handoff.id+
+          ': acknowledgement unavailable or blocked; complete manually.');
+        return;
+      }
+      // Clear the marker durably BEFORE clicking, so repeated DOM callbacks,
+      // document reloads and extension restarts cannot click twice.
+      state.pendingAck=null;
+      if(ackTimer!==null){clearTimeout(ackTimer);ackTimer=null;}
+      try{
+        await chrome.storage.local.set({
+          pendingAck:null,lastAckOrderId:String(handoff.id),
+          lastAckAt:Date.now(),lastResult:SITE+': order #'+handoff.id+
+            ' stopped; attempting final I understand acknowledgement once.'
+        });
+      }catch(error){
+        console.warn('Prowell final acknowledgement guard failed:',
+          String(error?.message||error));
+        return; // No click without a durable one-use STOP state.
+      }
+      if(!visible(target)||warned()){
+        try{await chrome.storage.local.set({lastResult:SITE+': order #'+handoff.id+
+          ' stopped; I understand disappeared; complete manually.'});}catch(_){}
+        return;
+      }
+      try{
+        target.click();
+        await chrome.storage.local.set({lastResult:SITE+': order #'+handoff.id+
+          ' I understand clicked once; site assignment not independently verified. STOP.'});
+      }catch(error){
+        console.warn('Prowell final acknowledgement failed:',
+          String(error?.message||error));
+        try{await chrome.storage.local.set({lastResult:SITE+': order #'+handoff.id+
+          ' stopped; I understand click failed; inspect manually.'});}catch(_){}
+      }
     }finally{ackBusy=false;}
   }
   // A processing order is VIEW-ONLY: after monitoring STOPs, inspect the
@@ -344,23 +378,23 @@
   async function okStage(claim,button){
     if(!active()||busy||!visible(button))return;
     busy=true;
-    // STOP is saved BEFORE the final automated OK action, so the extension
-    // never proceeds into "I understand" even after a navigation.
+    // STOP is saved before OK and the one-use handoff enables exactly one
+    // final acknowledgement click after OK, even if the site navigates.
     const handoff={id:String(claim.id),tabId,
       startedAt:Date.now(),listUrl:location.href};
     await stop('Order #'+claim.id+
-      ': refresh stopped before OK; final I understand is manual.',
-      {lastOkOrderId:claim.id,lastOkAt:Date.now(),manualAckScroll:handoff});
+      ': refresh stopped before OK; final I understand will be clicked once.',
+      {lastOkOrderId:claim.id,lastOkAt:Date.now(),pendingAck:handoff});
     try{
       if(!visible(button))throw Error('OK control disappeared before click');
       button.click();
-      // The acknowledgement may be rendered in the same document.
-      scheduleManualAckScroll();
+      // After OK, the acknowledgement may render here or on the next page.
+      // busy remains true so final acknowledgement cannot run before OK.
     }catch(error){
       console.warn('Prowell OK button failed:',String(error?.message||error));
-      await clearManualAckScroll('Order #'+claim.id+
+      await clearFinalAckClick('Order #'+claim.id+
         ': OK unavailable; complete remaining steps manually.');
-    }finally{busy=false;}
+    }finally{busy=false;scheduleFinalAckClick();}
   }
   async function scan(){
     if(!active()||busy||finishing||!document.body)return;
@@ -404,7 +438,7 @@
       state[key]=changes[key].newValue;
     if(!active())cancel();
     if(changes.processingScroll)scheduleProcessingScroll();
-    if(changes.manualAckScroll)scheduleManualAckScroll();
+    if(changes.pendingAck)scheduleFinalAckClick();
     schedule();
   });
   chrome.runtime.sendMessage({type:TAB_MESSAGE},async result=>{
@@ -416,14 +450,14 @@
     }
     schedule();
     scheduleProcessingScroll();
-    scheduleManualAckScroll();
+    scheduleFinalAckClick();
   });
   new MutationObserver(()=>{
-    schedule();scheduleProcessingScroll();scheduleManualAckScroll();
+    schedule();scheduleProcessingScroll();scheduleFinalAckClick();
   }).observe(document,{
     childList:true,subtree:true,characterData:true
   });
   document.addEventListener('DOMContentLoaded',()=>{
-    schedule();scheduleProcessingScroll();scheduleManualAckScroll();
+    schedule();scheduleProcessingScroll();scheduleFinalAckClick();
   },{once:true});
 })();

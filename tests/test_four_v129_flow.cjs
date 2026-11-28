@@ -1,6 +1,6 @@
 'use strict';
 // Simulate both live-active runtimes. Available: sound, View, Take it, OK,
-// STOP after OK, scroll to manual I understand; processing still View-scroll-only.
+// STOP after OK, scroll to and click I understand ONCE; processing View-only.
 const assert=require('node:assert/strict'),fs=require('node:fs'),
   path=require('node:path'),vm=require('node:vm');
 const ROOT=path.join(__dirname,'../extension/4writers-v129');
@@ -12,13 +12,13 @@ async function run(site,kind,{mismatched=false,resumeAtOk=false,resumeAtAck=fals
   const code=fs.readFileSync(path.join(ROOT,'legacy',site,'runtime-content.js'),'utf8');
   assert.match(code,/function takeStage\(/);
   assert.match(code,/function okStage\(/);
-  assert.doesNotMatch(code,/ack(?:nowledg\w*|cept)\.click\(/i);
+  assert.match(code,/target\.click\(\)/,'One-use I understand click exists');
   const startsAt=Date.now();
   const state={armed:!resumeAtAck,targetTabId:resumeAtAck?null:7,claimConsentVersion:version,
     soundRunId:'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
     claim:resumeAtOk?{id:'1234567890',kind:'available',stage:'take-clicked',
       startedAt:startsAt,listUrl:'https://'+host+'/orders'}:null,
-    manualAckScroll:resumeAtAck?{id:'1234567890',tabId:7,
+    pendingAck:resumeAtAck?{id:'1234567890',tabId:7,
       startedAt:startsAt,listUrl:'https://'+host+'/orders'}:null};
   const events=[],subscribers=[],timers=new Map();
   let timerId=0,mutation,step=resumeAtAck?'ack':resumeAtOk?'confirm':'list';
@@ -30,7 +30,7 @@ async function run(site,kind,{mismatched=false,resumeAtOk=false,resumeAtAck=fals
   const view=node('View',()=>{events.push('VIEW');step='details';});
   const take=node('Take it',()=>{events.push('TAKE');step='confirm';});
   const ok=node('OK',()=>{events.push('OK');step='ack';});
-  const ack=node('I understand',()=>{events.push('UNWANTED ACKNOWLEDGEMENT');});
+  const ack=node('I understand',()=>{events.push('ACK CLICK');step='done';});
   ack.scrollIntoView=()=>events.push('ACK SCROLL');
   const detail={...node(mismatched?'Order ID: 9999999999':'Order ID: 1234567890',()=>{}),
     scrollHeight:1800,scrollTop:0,
@@ -84,13 +84,18 @@ async function run(site,kind,{mismatched=false,resumeAtOk=false,resumeAtAck=fals
   if(resumeAtAck){
     assert.equal(state.armed,false,'Acknowledgement handoff never rearms bot');
     assert.equal(events.filter(x=>x==='ACK SCROLL').length,1,
-      'Resume after navigation scrolls manual acknowledgement exactly once');
-    assert.equal(state.manualAckScroll,null,'One-time scroll marker clears');
-    assert.equal(events.filter(x=>x==='UNWANTED ACKNOWLEDGEMENT').length,0,
-      'Never click I understand');
+      'Resume after navigation scrolls to acknowledgement');
+    assert.equal(events.filter(x=>x==='ACK CLICK').length,1,
+      'Resume after navigation clicks I understand exactly once');
+    assert.equal(state.pendingAck,null,'One-use acknowledgement marker cleared');
+    assert.equal(state.lastAckOrderId,'1234567890','Persist final acknowledged ID');
+    assert(events.indexOf('STORE UPDATE')<events.indexOf('ACK CLICK'),
+      'Persist one-use acknowledgement guard before click');
     mutation();mutation();await settle();
     assert.equal(events.filter(x=>x==='ACK SCROLL').length,1);
-    console.log('four resume-after-OK manual acknowledgement PASS');
+    assert.equal(events.filter(x=>x==='ACK CLICK').length,1,
+      'Repeated DOM mutations cannot click final acknowledgement twice');
+    console.log('four resume-after-OK automatic one-time acknowledgement PASS');
     return;
   }
   if(kind==='available' && !resumeAtOk){
@@ -125,14 +130,20 @@ async function run(site,kind,{mismatched=false,resumeAtOk=false,resumeAtAck=fals
     assert(events.indexOf('STORE STOP')<events.indexOf('OK'),'Persist STOP before OK');
     assert.equal(state.lastOkOrderId,'1234567890');
     assert.equal(events.filter(x=>x==='ACK SCROLL').length,1,
-      'After OK scroll exactly once to I understand');
-    assert.equal(state.manualAckScroll,null,'Clear persisted one-time scroll marker');
-    assert(events.indexOf('OK')<events.indexOf('ACK SCROLL'),
-      'Scroll only AFTER OK');
-    assert.equal(events.filter(x=>x==='UNWANTED ACKNOWLEDGEMENT').length,0);
+      'After OK scroll to I understand once');
+    assert.equal(events.filter(x=>x==='ACK CLICK').length,1,
+      'After OK click I understand exactly once');
+    assert.equal(state.pendingAck,null,'Clear persisted one-use acknowledgement marker');
+    assert.equal(state.lastAckOrderId,'1234567890');
+    assert.equal(state.armed,false,'Bot remains STOPPED after final click');
+    assert(events.indexOf('OK')<events.indexOf('ACK CLICK'),
+      'Only click I understand AFTER OK');
+    assert(events.indexOf('STORE STOP')<events.indexOf('ACK CLICK'),
+      'Persist STOP before final click');
     mutation();mutation();await settle();
     assert.equal(events.filter(x=>x==='OK').length,1,'DOM events cannot reclick OK');
-    assert.equal(events.filter(x=>x==='UNWANTED ACKNOWLEDGEMENT').length,0);
+    assert.equal(events.filter(x=>x==='ACK CLICK').length,1,
+      'DOM events cannot reclick I understand');
     assert.equal(events.filter(x=>x==='ACK SCROLL').length,1);
   }else if(kind==='processing'){
     assert.equal(events.filter(x=>x==='VIEW').length,1,'Processing opens View once');
