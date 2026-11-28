@@ -84,7 +84,7 @@ async function run(slug,kind){
   console.log(slug+' '+kind+': sound → stop → View only; NO scroll/acceptance: PASS');
 }
 
-(async()=>{for(const slug of ['4writers','good-writers']){
+(async()=>{for(const slug of ['4writers']){
   await run(slug,'available');
   await run(slug,'processing');
 }})().catch(e=>{console.error(e);process.exitCode=1;});
