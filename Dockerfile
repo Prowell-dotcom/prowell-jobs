@@ -5,6 +5,7 @@ COPY index.html jobs.html account.html dashboard.html writing.html writing-admin
 COPY styles.css membership.css public-paraphraser.css public-paraphraser.js writing.css app.js member.js admin-account.js writing.js writing-admin.js admin.js admin-paraphraser.js admin-documents.js admin-documents.html favicon.svg robots.txt sitemap.xml ./
 COPY server.py notifications.py accounts.py writing_marketplace.py admin_document_sender.py admin_extension_store.py good_writers_reporting.py admin_paraphraser.py prowell_deeprewrite.py prowell_openai_rewrite.py prowell_gemini_rewrite.py prowell_rewrite_quality.py ./
 COPY extension/4writers/ ./extension/4writers/
+COPY extension/4writers-v129/ ./extension/4writers-v129/
 COPY extension/good-writers/ ./extension/good-writers/
 COPY extension/dual-writers/ ./extension/dual-writers/
 COPY assets/ ./assets/
