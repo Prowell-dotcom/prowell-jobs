@@ -1,108 +1,52 @@
 'use strict';
-const $ = id => document.getElementById(id);
-const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,refreshMs:1000,
- claim:null,lastResult:'Ready',log:[],autoAcceptEnabled:false};
-let state={...DEFAULTS},tab=null;
+const $=id=>document.getElementById(id);
+const VERSION='1.0.17';
 const valid=url=>/^https:\/\/(?:www\.)?good-writers\.com\//i.test(url||'');
-const current=()=>Boolean(tab&&valid(tab.url)&&state.targetTabId===tab.id);
-const isArmed=()=>Boolean(state.armed&&state.claimConsentVersion==='1.0.16');
-async function store(delta){state={...state,...delta};await chrome.storage.local.set(delta);render();}
+const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,
+  refreshMs:2000,claim:null,lastResult:'Ready',autoAcceptEnabled:false,
+  autoFlow:null,seenOrderIds:[]};
+let tab=null,state={...DEFAULTS};
+function armed(){return state.armed===true&&state.claimConsentVersion===VERSION;}
 function render(){
- $('arm').disabled=!tab||!valid(tab.url)||Boolean(isArmed()&&current());
- $('stop').disabled=!isArmed();
- $('status').textContent=(isArmed()&&current()?'ARMED — THIS TAB':isArmed()?'ARMED IN ANOTHER TAB':'STOPPED')+
- '\nRefresh interval: every 1 second' +
- '\nAction after detection: '+(state.autoAcceptEnabled?'FULL AUTO: sound, View, instant scroll, Take it, OK, I understand':'Press START AUTO-TAKE to enable the complete workflow')+
- '\nLast: '+(state.lastResult||'Ready');
- // START AUTO-TAKE itself is the explicit opt-in; all acceptance steps are enabled.
- $('history').textContent=(state.log||[]).slice(-10).reverse().join('\n')||'No events yet.';
- // Automatic scrolling is available independently of order acceptance.
+  $('arm').disabled=!tab||!valid(tab.url)||armed();
+  $('stop').disabled=!armed();
+  $('status').textContent=(armed()?'WATCHING':'STOPPED')+
+    '\nIdle refresh: every 2 seconds'+
+    '\nOrder action: sound → STOP → View once'+
+    '\nLast: '+(state.lastResult||'Ready');
 }
-async function start(){
- [tab]=await chrome.tabs.query({active:true,currentWindow:true});
- state={...DEFAULTS,...await chrome.storage.local.get(DEFAULTS)};
- if(!tab||!valid(tab.url))$('notice').textContent='Open good-writers.com in Chrome first.';
- render();
+async function put(patch){
+  state={...state,...patch};
+  await chrome.storage.local.set(patch);
+  render();
 }
 $('arm').addEventListener('click',async()=>{
- if(!tab||!valid(tab.url))return;
- await store({autoFlow:null,seenOrderIds:[],autoAcceptEnabled:true,armed:true,claimConsentVersion:'1.0.16',targetTabId:tab.id,claim:null,soundRunId:crypto.randomUUID(),lastResult:'Watching continuously; refresh pauses for each order and resumes after closing details'});
- $('notice').textContent='AUTO-TAKE enabled: sound + instant View, details scroll, Take it, OK, I understand.';
+  if(!tab||!valid(tab.url)){ $('notice').textContent='Open good-writers.com first.';return; }
+  try{
+    await put({
+      armed:true,claimConsentVersion:VERSION,targetTabId:tab.id,
+      claim:null,autoFlow:null,autoAcceptEnabled:false,seenOrderIds:[],
+      soundRunId:crypto.randomUUID(),refreshMs:2000,refreshCount:0,
+      lastResult:'Watching Good-Writers; order taking remains manual'
+    });
+    $('notice').textContent='Watching. The next detected order stops monitoring.';
+  }catch(error){$('notice').textContent='START failed: '+error.message;}
 });
 $('stop').addEventListener('click',async()=>{
- await chrome.storage.local.set({autoFlow:null});
- await store({autoAcceptEnabled:false,armed:false,targetTabId:null,lastResult:'Stopped by owner'});
- $('notice').textContent='Monitoring stopped. Any in-progress acceptance workflow was cancelled.';
+  try{
+    await put({armed:false,targetTabId:null,claim:null,autoFlow:null,
+      autoAcceptEnabled:false,lastResult:'Stopped manually'});
+    $('notice').textContent='Monitoring stopped.';
+  }catch(error){$('notice').textContent='STOP failed: '+error.message;}
 });
 chrome.storage.onChanged.addListener((changes,area)=>{
- if(area!=='local')return;
- for(const [key,value] of Object.entries(changes))if(key in DEFAULTS)state[key]=value.newValue;
- render();
+  if(area!=='local')return;
+  for(const name of Object.keys(DEFAULTS))
+    if(changes[name])state[name]=changes[name].newValue;
+  render();
 });
-
-
-async function updateGoodWritersPairingStatus(){
- const values=await chrome.storage.local.get(['goodWritersReportCode','goodWritersReportStatus','goodWritersPending']);
- $('gwPairStatus').textContent=(values.goodWritersReportCode?'Paired':'Not paired')+
-  ' · '+(values.goodWritersReportStatus||'No connection test yet.')+
-  ' · Pending reports: '+(values.goodWritersPending||[]).length;
-}
-$('gwPair')?.addEventListener('click',async()=>{
- const code=$('gwReportCode').value.trim();
- if(code.length<30||code.length>180){$('gwPairStatus').textContent='Paste the Good-Writers pairing code from the Prowell administrator dashboard.';return;}
- $('gwPair').disabled=true;
- $('gwPairStatus').textContent='Verifying pairing with Prowell Jobs…';
- try{
-  const response=await chrome.runtime.sendMessage({type:'GOOD_WRITERS_VERIFY',code});
-  if(!response?.ok)throw Error(response?.error||'Pairing could not be verified.');
-  $('gwReportCode').value='';
-  await updateGoodWritersPairingStatus();
- }catch(err){$('gwPairStatus').textContent='Connection failed: '+err.message;}
- finally{$('gwPair').disabled=false;}
-});
-$('gwUnpair')?.addEventListener('click',async()=>{
- if(!confirm('Disconnect Good-Writers notifications? Saved local reports will remain.'))return;
- await chrome.runtime.sendMessage({type:'GOOD_WRITERS_DISCONNECT'});
- $('gwReportCode').value='';
- await updateGoodWritersPairingStatus();
-});
-$('gwRetry')?.addEventListener('click',async()=>{
- $('gwPairStatus').textContent='Retrying pending Good-Writers reports…';
- const result=await chrome.runtime.sendMessage({type:'GOOD_WRITERS_RETRY'});
- await updateGoodWritersPairingStatus();
- if(result?.error)$('gwPairStatus').textContent=result.error;
-});
-chrome.storage.onChanged.addListener((changed,area)=>{
- if(area==='local' && ['goodWritersReportCode','goodWritersReportStatus','goodWritersPending'].some(k=>changed[k])){
-  void updateGoodWritersPairingStatus();
- }
-});
-
-$('testOrderSound')?.addEventListener('click',async()=>{
- const button=$('testOrderSound');
- button.disabled=true;
- $('notice').textContent='Playing a test notification chime…';
- try{
-   const result=await chrome.runtime.sendMessage({type:'PROWELL_TEST_ORDER_SOUND'});
-   $('notice').textContent=result?.ok?'Notification sound sent. Check your browser and system volume.':
-     'Sound could not play; check Chrome audio permissions and extension status.';
- }catch(_){$('notice').textContent='Sound test failed; reload the extension and try again.';}
- finally{button.disabled=false;}
-});
-start().catch(err=>{$('notice').textContent=err.message;});
-void updateGoodWritersPairingStatus();
-// START AUTO-TAKE enables this flow until STOP. No extra click is needed.
-$('testScrollOnly')?.addEventListener('click',async()=>{
-  const btn=$('testScrollOnly');
-  btn.disabled=true;
-  $('notice').textContent='Checking order-details scrolling; no acceptance buttons will be clicked…';
-  try{
-    const [activeTab]=await chrome.tabs.query({active:true,currentWindow:true});
-    if(!activeTab||!valid(activeTab.url))throw Error('Open an order and click View on the correct website.');
-    const response=await chrome.tabs.sendMessage(activeTab.id,{type:'PROWELL_SCROLL_TEST'});
-    $('notice').textContent=response?.ok?
-      'Scroll test passed: '+(response.steps?'one instant jump':'already at bottom')+' in '+(response.container||'order panel')+'.':
-      'Scroll test failed: '+(response?.reason||'Could not reach extension in this tab. Reload the extension and page.');
-  }catch(error){$('notice').textContent='Scroll test failed: '+String(error?.message||error);}
-  finally{btn.disabled=false;}
-});
+(async()=>{
+  [tab]=await chrome.tabs.query({active:true,currentWindow:true});
+  state={...DEFAULTS,...await chrome.storage.local.get(DEFAULTS)};
+  render();
+})().catch(error=>{$('notice').textContent='Could not read status: '+error.message;});
