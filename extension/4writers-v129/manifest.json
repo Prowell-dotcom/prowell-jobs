@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Prowell 4Writers Watcher (v2.1.29 Custom)",
-  "version": "2.1.29.4",
-  "description": "4Writers-only: mixed 2–60-second checks; detect and take available orders through I understand automatically, then STOP.",
+  "version": "2.1.29.5",
+  "description": "4Writers-only: mixed 2–30-second checks; detect and take available orders through I understand automatically, then STOP.",
   "permissions": [
     "storage",
     "tabs",

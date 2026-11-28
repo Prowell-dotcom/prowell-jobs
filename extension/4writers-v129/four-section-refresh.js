@@ -1,5 +1,5 @@
 /* Standalone 4Writers refresh engine for two Available Orders sections.
- * Uses a fixed uneven cycle of idle waits from 2 to 60 seconds,
+ * Uses a fixed uneven cycle of idle waits from 2 to 30 seconds,
  * never invents section URLs, and never refreshes a partly rendered page.
  * Does NOT replace the owner's original View/Take it/confirmation engine.
  */
@@ -16,8 +16,8 @@
   // infrequently; most waits are longer, avoiding sustained high-rate reloads.
   // This is scheduling for normal operation, not site-detection evasion.
   const INTERVALS=Object.freeze([
-    60000,8000,40000,5000,50000,12000,30000,3000,45000,10000,
-    20000,4000,35000,6000,15000,2000,25000,9000,55000,7000
+    30000,7000,24000,3000,18000,11000,27000,5000,15000,2000,
+    22000,9000,29000,4000,13000,6000,25000,10000,17000,8000
   ]);
   const nextWait=()=>INTERVALS[count%INTERVALS.length];
   let tabId=null,timer=null,timerMode='',count=0,lastSection='';

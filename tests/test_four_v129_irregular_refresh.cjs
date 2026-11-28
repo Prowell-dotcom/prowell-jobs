@@ -4,7 +4,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),
 const root=path.join(__dirname,'../extension/4writers-v129');
 const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 const manifest=JSON.parse(read('manifest.json'));
-assert.equal(manifest.version,'2.1.29.4');
+assert.equal(manifest.version,'2.1.29.5');
 assert.equal(manifest.content_scripts.length,2);
 assert(manifest.content_scripts.every(s=>s.matches.every(x=>x.includes('4writers.net'))),
   'Standalone extension must never inject into Good-Writers');
@@ -18,8 +18,8 @@ const source=read('four-section-refresh.js');
 const match=source.match(/const INTERVALS=Object\.freeze\(\[([\d\s,]+)\]\)/);
 assert(match,'Must define the exact fixed irregular timing sequence');
 const intervals=match[1].split(',').map(x=>x.trim()).filter(Boolean).map(Number);
-assert.deepEqual(intervals,[60000,8000,40000,5000,50000,12000,30000,3000,
-  45000,10000,20000,4000,35000,6000,15000,2000,25000,9000,55000,7000]);
+assert.deepEqual(intervals,[30000,7000,24000,3000,18000,11000,27000,5000,
+  15000,2000,22000,9000,29000,4000,13000,6000,25000,10000,17000,8000]);
 assert.equal(new Set(intervals).size,20);
 const shared={armed:true,claimConsentVersion:'0.5.4',
   targetTabId:77,claim:null,refreshCount:0};
@@ -103,8 +103,8 @@ function page({ready=true,warning=false,order=false}={}){
   p=page({ready:false});await p.settle();
   assert.equal(p.timer(),undefined,'Loading document cannot schedule refresh');
   p.setLoaded(true);await p.settle();
-  assert.equal(p.timer()?.ms,60000);
+  assert.equal(p.timer()?.ms,30000);
   await p.patch({armed:false,targetTabId:null});
   assert.equal(p.timer(),undefined,'Manual STOP cancels refresh');
-  console.log('Standalone 4Writers: exact mixed 2–60-second cycle, full-reload persistence, order priority, warning and STOP PASS');
+  console.log('Standalone 4Writers: exact mixed 2–30-second cycle, full-reload persistence, order priority, warning and STOP PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});
