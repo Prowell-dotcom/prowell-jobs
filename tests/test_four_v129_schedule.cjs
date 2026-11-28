@@ -5,16 +5,16 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),
   path=require('node:path'),vm=require('node:vm');
 const root=path.join(__dirname,'../extension/4writers-v129');
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));
-assert.equal(manifest.version,'2.1.29.4');
+assert.equal(manifest.version,'2.1.29.5');
 assert.deepEqual(manifest.content_scripts.map(s=>s.matches.length),[2,2]);
 assert.equal(manifest.content_scripts.some(s=>s.matches.some(x=>x.includes('good-writers.com'))),false);
 const code=fs.readFileSync(path.join(root,'four-section-refresh.js'),'utf8');
-const sequence=[60000,8000,40000,5000,50000,12000,30000,3000,45000,10000,
-  20000,4000,35000,6000,15000,2000,25000,9000,55000,7000];
+const sequence=[30000,7000,24000,3000,18000,11000,27000,5000,15000,2000,
+  22000,9000,29000,4000,13000,6000,25000,10000,17000,8000];
 assert.equal(sequence.length,20);
 assert.equal(new Set(sequence).size,sequence.length);
 assert.equal(Math.min(...sequence),2000);
-assert.equal(Math.max(...sequence),60000);
+assert.equal(Math.max(...sequence),30000);
 assert(sequence.filter(x=>x<=5000).length<=5,
   'Short waits should be infrequent to limit reload pressure');
 const state={armed:true,claimConsentVersion:'0.5.4',
@@ -93,7 +93,7 @@ function simulate({orders=false,warning=false,listing=false,ready=true}={}){
  }
  state.refreshCount=0;
  let p=simulate({listing:true});await p.settle();
- assert.equal(p.find()?.ms,60000,'Writings/Rewritings share sequence');
+ assert.equal(p.find()?.ms,30000,'Writings/Rewritings share sequence');
  await p.fire();
  assert.deepEqual(p.clicks,['rewritings']);
  assert.equal(state.refreshCount,1);
