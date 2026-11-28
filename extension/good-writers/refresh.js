@@ -1,5 +1,5 @@
 /* Prowell Order Assistant: independent, page-local refresh timer.
- * Operates only on the currently armed 4writers tab. No direct/API polling.
+ * Operates only on the currently armed Good-Writers tab. No direct/API polling.
  * Does not restart its countdown when page elements change.
  */
 (() => {
@@ -14,8 +14,8 @@
   let count = 0;
   let status = '';
   let local = {armed:false,targetTabId:null,claim:null,claimConsentVersion:'',attemptedIds:[],completed:[],autoFlow:null,seenOrderIds:[]};
-  const interval = 1000;
-  const isActive = () => !stoppedForVisibleOrder && local.armed && local.claimConsentVersion === '1.0.16' && local.targetTabId === tabId;
+  const interval = 2000;
+  const isActive = () => !stoppedForVisibleOrder && local.armed && local.claimConsentVersion === '1.0.17' && local.targetTabId === tabId;
 
   function setStatus(message) {
     if (message === status) return;
@@ -102,7 +102,7 @@
       return;
     }
     if (timer !== null) return;
-    setStatus('Refreshing every 1 second');
+    setStatus('Refreshing every 2 seconds');
     timer = setTimeout(async () => {
       timer = null;
       if (!isActive() || local.claim || detailsOpen() ||
@@ -120,7 +120,8 @@
         refreshStatus:'Reloading Available Orders'
       });
       if (isActive() && !local.claim && !detailsOpen() && !unseenOrderVisible() &&
-          !(local.autoFlow?.enabled && Date.now()-Number(local.autoFlow.startedAt||0)<90000)) location.reload();
+          !(local.autoFlow?.enabled && Date.now()-Number(local.autoFlow.startedAt||0)<90000) &&
+          !challengeVisible() && orderListVisible()) location.reload();
     },interval);
   }
   const relevant = new Set(['armed','claimConsentVersion','targetTabId','claim',
