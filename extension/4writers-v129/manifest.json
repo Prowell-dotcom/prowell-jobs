@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Prowell 4Writers Watcher (v2.1.29 Custom)",
-  "version": "2.1.29.1",
+  "version": "2.1.29.2",
   "description": "4Writers-only: alternating 3–13-second idle checks, sound, View, Take it, OK, STOP; scroll to manual I understand.",
   "permissions": [
     "storage",

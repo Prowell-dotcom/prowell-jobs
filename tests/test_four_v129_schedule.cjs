@@ -5,11 +5,11 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),
   path=require('node:path'),vm=require('node:vm');
 const root=path.join(__dirname,'../extension/4writers-v129');
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));
-assert.equal(manifest.version,'2.1.29.1');
+assert.equal(manifest.version,'2.1.29.2');
 assert.deepEqual(manifest.content_scripts.map(s=>s.matches.length),[2,2]);
 assert.equal(manifest.content_scripts.some(s=>s.matches.some(x=>x.includes('good-writers.com'))),false);
 const code=fs.readFileSync(path.join(root,'four-section-refresh.js'),'utf8');
-const sequence=[3000,13000,4000,12000,5000,11000,6000,10000,7000,9000,8000];
+const sequence=[12000,3000,9000,5000,13000,4000,10000,7000,11000,6000,8000];
 assert.deepEqual([...sequence].sort((a,b)=>a-b),[3000,4000,5000,6000,7000,8000,9000,10000,11000,12000,13000]);
 const state={armed:true,claimConsentVersion:'0.5.4',
   targetTabId:37,claim:null,refreshCount:0,fourLastCheckedSection:''};
@@ -87,7 +87,7 @@ function simulate({orders=false,warning=false,listing=false,ready=true}={}){
  }
  state.refreshCount=0;
  let p=simulate({listing:true});await p.settle();
- assert.equal(p.find()?.ms,3000,'Writings/Rewritings share sequence');
+ assert.equal(p.find()?.ms,12000,'Writings/Rewritings share sequence');
  await p.fire();
  assert.deepEqual(p.clicks,['rewritings']);
  assert.equal(state.refreshCount,1);
