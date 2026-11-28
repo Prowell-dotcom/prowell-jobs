@@ -412,7 +412,7 @@ def dual_writers_download(handler, root: Path):
 
 # Independent custom fork of the verified dual-bot v2.1.29 4Writers runtime.
 # The current dual-platform release and the original /extension download stay unchanged.
-FOUR_V129_BUNDLE_NAME = 'prowell-4writers-v2.1.29.2.zip'
+FOUR_V129_BUNDLE_NAME = 'prowell-4writers-v2.1.29.3.zip'
 FOUR_V129_FILES = (
     'manifest.json', 'background.js', 'popup.html', 'popup.js',
     'scoped-store.js', 'legacy-bridge.js', 'legacy-order-sound.js',
@@ -437,7 +437,7 @@ def four_v129_bundle(root: Path) -> bytes:
     with zipfile.ZipFile(BytesIO(data), 'r') as bundle:
         manifest = json.loads(bundle.read('manifest.json'))
     if (manifest.get('name') != 'Prowell 4Writers Watcher (v2.1.29 Custom)'
-            or manifest.get('version') != '2.1.29.2'
+            or manifest.get('version') != '2.1.29.3'
             or len(manifest.get('content_scripts', [])) != 2):
         raise ValueError('Incorrect 4Writers-only v2.1.29 manifest.')
     hosts = ' '.join(manifest.get('host_permissions', []))

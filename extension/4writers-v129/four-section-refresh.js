@@ -1,5 +1,5 @@
-/* Dual-only 4writers refresh engine for the two Available Orders sections.
- * Alternates Writings / Rewritings navigation and 3–13-second idle waits,
+/* Standalone 4Writers refresh engine for two Available Orders sections.
+ * Uses a fixed uneven cycle of idle waits from 2 to 60 seconds,
  * never invents section URLs, and never refreshes a partly rendered page.
  * Does NOT replace the owner's original View/Take it/confirmation engine.
  */
@@ -12,9 +12,13 @@
   const sections=window.__prowellFourSections;
   if(!store||!sections)return;
   const VERSION='0.5.4';
-  // Covers each whole-second delay from 3 through 13 once per cycle.
-  const INTERVALS=Object.freeze([12000,3000,9000,5000,13000,4000,
-    10000,7000,11000,6000,8000]);
+  // Deterministic mixed-length idle intervals. Brief 2–5s waits occur
+  // infrequently; most waits are longer, avoiding sustained high-rate reloads.
+  // This is scheduling for normal operation, not site-detection evasion.
+  const INTERVALS=Object.freeze([
+    60000,8000,40000,5000,50000,12000,30000,3000,45000,10000,
+    20000,4000,35000,6000,15000,2000,25000,9000,55000,7000
+  ]);
   const nextWait=()=>INTERVALS[count%INTERVALS.length];
   let tabId=null,timer=null,timerMode='',count=0,lastSection='';
   let status='',local={armed:false,claimConsentVersion:'',targetTabId:null,
@@ -63,7 +67,7 @@
   }
   // The neutral 4writers account screen is a separate orders surface. It
   // has no selected Writings/Rewritings tab, so section switching never
-  // refreshes it. Reload THIS SAME SCREEN every 4 seconds while idle.
+  // refreshes it. Reload THIS SAME SCREEN on the chosen interval while idle.
   async function refreshOverview(){
     timer=null;timerMode='';
     if(!active()||local.claim||blocked()||unseenOrder()||
@@ -125,6 +129,9 @@
       setTimeout(evaluate,100);
     }catch(error){
       report('4writers: could not switch to '+target+': '+String(error?.message||error));
+      // A navigation exception should not silently strand the watcher.
+      // The next check is scheduled by the normal bounded interval logic.
+      evaluate();
     }
   }
   function evaluate(){
@@ -218,4 +225,5 @@
     childList:true,subtree:true,characterData:true
   });
   document.addEventListener('DOMContentLoaded',evaluate,{once:true});
+  window.addEventListener?.('pageshow',evaluate);
 })();

@@ -2,7 +2,7 @@
 /* Standalone 4Writers extension forked from v2.1.29.
  * No Good-Writers access or controls. One targeted browser tab per START.
  */
-const PREFIX='four_v129_',CONSENT='0.5.4',VERSION='2.1.29.2';
+const PREFIX='four_v129_',CONSENT='0.5.4',VERSION='2.1.29.3';
 const URL_PATTERN=/^https:\/\/(?:www\.)?4writers\.net\//i;
 const byId=id=>document.getElementById(id);
 const key=name=>PREFIX+name;
@@ -34,7 +34,7 @@ async function start(){
    manualAckScroll:null,attemptedIds:[],completed:[],seenOrderIds:[],
    fourLastCheckedSection:'',fourLastCheckedAt:null,fourCycleCount:0,
    refreshCount:0,lastRefreshAt:null,soundRunId:crypto.randomUUID(),
-   lastResult:'Watching 4writers.net with 3–13-second alternating idle checks'
+   lastResult:'Watching 4writers.net with 2–60-second mixed idle checks'
  });
  // Sound preparation must not hold up order scans or View.
  try{void chrome.runtime.sendMessage({type:'PROWELL_PREPARE_ORDER_SOUND'}).catch(()=>{});}

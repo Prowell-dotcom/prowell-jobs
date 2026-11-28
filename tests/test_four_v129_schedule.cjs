@@ -1,16 +1,22 @@
 'use strict';
-// Exact order of all 11 waits must survive 11 separate page reloads.
+// Exact fixed mixed-length cycle must survive repeated full page reloads.
 // The DOM observer is independent: it cancels refreshing on a visible order.
 const assert=require('node:assert/strict'),fs=require('node:fs'),
   path=require('node:path'),vm=require('node:vm');
 const root=path.join(__dirname,'../extension/4writers-v129');
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));
-assert.equal(manifest.version,'2.1.29.2');
+assert.equal(manifest.version,'2.1.29.3');
 assert.deepEqual(manifest.content_scripts.map(s=>s.matches.length),[2,2]);
 assert.equal(manifest.content_scripts.some(s=>s.matches.some(x=>x.includes('good-writers.com'))),false);
 const code=fs.readFileSync(path.join(root,'four-section-refresh.js'),'utf8');
-const sequence=[12000,3000,9000,5000,13000,4000,10000,7000,11000,6000,8000];
-assert.deepEqual([...sequence].sort((a,b)=>a-b),[3000,4000,5000,6000,7000,8000,9000,10000,11000,12000,13000]);
+const sequence=[60000,8000,40000,5000,50000,12000,30000,3000,45000,10000,
+  20000,4000,35000,6000,15000,2000,25000,9000,55000,7000];
+assert.equal(sequence.length,20);
+assert.equal(new Set(sequence).size,sequence.length);
+assert.equal(Math.min(...sequence),2000);
+assert.equal(Math.max(...sequence),60000);
+assert(sequence.filter(x=>x<=5000).length<=5,
+  'Short waits should be infrequent to limit reload pressure');
 const state={armed:true,claimConsentVersion:'0.5.4',
   targetTabId:37,claim:null,refreshCount:0,fourLastCheckedSection:''};
 let reloads=0;
@@ -87,7 +93,7 @@ function simulate({orders=false,warning=false,listing=false,ready=true}={}){
  }
  state.refreshCount=0;
  let p=simulate({listing:true});await p.settle();
- assert.equal(p.find()?.ms,12000,'Writings/Rewritings share sequence');
+ assert.equal(p.find()?.ms,60000,'Writings/Rewritings share sequence');
  await p.fire();
  assert.deepEqual(p.clicks,['rewritings']);
  assert.equal(state.refreshCount,1);
@@ -103,5 +109,5 @@ function simulate({orders=false,warning=false,listing=false,ready=true}={}){
  p=simulate({warning:true});await p.settle();
  assert.equal(p.find(),undefined,'Website warning blocks refresh');
  assert.equal(state.armed,false,'Website warning stops monitoring');
- console.log('Standalone 4Writers: all 11 alternating delays, page reload persistence, order priority, claim and warning STOP PASS');
+ console.log('Standalone 4Writers: all 20 mixed-length delays, page reload persistence, order priority, claim and warning STOP PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});
