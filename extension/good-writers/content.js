@@ -99,6 +99,8 @@
     if(area!=='local')return;
     for(const name of Object.keys(DEFAULTS))
       if(changes[name])state[name]=changes[name].newValue;
+    if(changes.armed?.newValue===true&&changes.armed?.oldValue!==true)
+      stopping=false; // explicit manual START begins a fresh session
     schedule();
   });
   chrome.runtime.onMessage.addListener((message,_sender,reply)=>{
