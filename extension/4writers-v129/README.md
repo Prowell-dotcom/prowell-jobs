@@ -4,7 +4,7 @@ This is an **independent 4Writers-only** Chrome extension based on the **v2.1.29
 
 ## Alternating refresh
 
-The explicit cycle is **12, 3, 9, 5, 13, 4, 10, 7, 11, 6, 8 seconds**, repeating indefinitely. This covers every integer delay from 3 to 13 seconds exactly once. The next delay is computed from the stored refresh count, so reloading a page does not reset the sequence. START WATCH resets it to the beginning. This intentionally uneven sequence is deterministic, not randomized. It is not designed to conceal automation or bypass website protections.
+The explicit cycle is **3, 13, 4, 12, 5, 11, 6, 10, 7, 9, 8 seconds**, repeating indefinitely. This covers every integer delay from 3 to 13 seconds exactly once. The next delay is computed from the stored refresh count, so reloading a page does not reset the sequence. START WATCH resets it to the beginning. This alternating short/long sequence is deterministic, not randomized. It is not designed to conceal automation or bypass website protections.
 
 The 4Writers account overview reloads its current URL after the chosen delay. On the Writings and Rewritings listings, the original v2.1.29 refresh controller switches between the website's own section links after the chosen delay and reloads only if a required section link cannot be found. When an order is present, the DOM observer stops the refresh immediately. Incomplete/blocked pages are never blindly reloaded. Delays are **scheduled waits**, not guarantees of wall-clock reload frequency; website page load and Chrome throttling add time.
 
