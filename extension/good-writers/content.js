@@ -13,7 +13,8 @@
     soundRunId:'',claim:null,lastResult:'Ready',log:[],
     autoAcceptEnabled:false,autoFlow:null,seenOrderIds:[]};
   const WARNING=/captcha|verify you are human|unusual activity|using automated site parsers is prohibited|automated (?:access|activity|parsing) (?:is )?prohibited|your account will be banned|automation warning/i;
-  let state={...DEFAULTS},tabId=null,stopping=false,scanning=false;
+  let state={...DEFAULTS},tabId=null,stopping=false,scanning=false,
+    rescanPending=false;
   const active=()=>state.armed===true&&state.claimConsentVersion===VERSION&&
     Number.isInteger(tabId)&&state.targetTabId===tabId;
   const warned=()=>WARNING.test(String(document.body?.innerText||''))||
@@ -89,11 +90,16 @@
     if(card)await handle(card);
   }
   function schedule(){
-    if(!active()||stopping||scanning)return;
+    if(!active()||stopping)return;
+    if(scanning){rescanPending=true;return;}
     scanning=true;
     void scan().catch(error=>{
       console.warn('Good-Writers scan failed:',String(error?.message||error));
-    }).finally(()=>{scanning=false;});
+    }).finally(()=>{
+      scanning=false;
+      // DOM changes while a scan ran must not be lost.
+      if(rescanPending){rescanPending=false;schedule();}
+    });
   }
   chrome.storage.onChanged.addListener((changes,area)=>{
     if(area!=='local')return;
