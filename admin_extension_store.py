@@ -409,3 +409,74 @@ def dual_writers_download(handler, root: Path):
     handler.send_header('Pragma', 'no-cache')
     handler.end_headers()
     handler.wfile.write(data)
+
+# Independent custom fork of the verified dual-bot v2.1.29 4Writers runtime.
+# The current dual-platform release and the original /extension download stay unchanged.
+FOUR_V129_BUNDLE_NAME = 'prowell-4writers-v2.1.29.1.zip'
+FOUR_V129_FILES = (
+    'manifest.json', 'background.js', 'popup.html', 'popup.js',
+    'scoped-store.js', 'legacy-bridge.js', 'legacy-order-sound.js',
+    'four-sections.js', 'four-section-refresh.js',
+    'legacy/four/confirm-main.js', 'legacy/four/order-card.js',
+    'legacy/four/runtime-content.js', 'order-sound.html', 'order-sound.js',
+    'README.md',
+)
+
+
+def four_v129_bundle(root: Path) -> bytes:
+    """Package the standalone 4Writers-only legacy v2.1.29-derived watcher."""
+    source = root / 'extension' / '4writers-v129'
+    if not all((source / name).is_file() for name in FOUR_V129_FILES):
+        raise FileNotFoundError('4Writers legacy watcher source is missing.')
+    output = BytesIO()
+    with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as bundle:
+        for name in FOUR_V129_FILES:
+            bundle.write(source / name, arcname=name)
+    data = output.getvalue()
+    validate_bundle(data)
+    with zipfile.ZipFile(BytesIO(data), 'r') as bundle:
+        manifest = json.loads(bundle.read('manifest.json'))
+    if (manifest.get('name') != 'Prowell 4Writers Watcher (v2.1.29 Custom)'
+            or manifest.get('version') != '2.1.29.1'
+            or len(manifest.get('content_scripts', [])) != 2):
+        raise ValueError('Incorrect 4Writers-only v2.1.29 manifest.')
+    hosts = ' '.join(manifest.get('host_permissions', []))
+    scripts = ' '.join(' '.join(item.get('matches', []))
+                       for item in manifest['content_scripts'])
+    if ('4writers.net' not in hosts or 'good-writers.com' in hosts
+            or 'good-writers.com' in scripts):
+        raise ValueError('The standalone extension must support 4Writers only.')
+    return data
+
+
+def four_v129_status(handler, root: Path):
+    if not _owner_only(handler):
+        return
+    try:
+        data = four_v129_bundle(root)
+        version = validate_bundle(data)
+    except (ValueError, OSError) as exc:
+        return handler.send_json(500, {'error': str(exc)})
+    return handler.send_json(200, {
+        'available': True, 'version': version,
+        'sizeBytes': len(data), 'source': 'github-bundled',
+        'sha256': hashlib.sha256(data).hexdigest()
+    })
+
+
+def four_v129_download(handler, root: Path):
+    if not _owner_only(handler):
+        return
+    try:
+        data = four_v129_bundle(root)
+    except (ValueError, OSError) as exc:
+        return handler.send_json(500, {'error': str(exc)})
+    handler.send_response(200)
+    handler.send_header('Content-Type', 'application/zip')
+    handler.send_header('Content-Disposition',
+                        'attachment; filename="' + FOUR_V129_BUNDLE_NAME + '"')
+    handler.send_header('Content-Length', str(len(data)))
+    handler.send_header('Cache-Control', 'private, no-store, max-age=0')
+    handler.send_header('Pragma', 'no-cache')
+    handler.end_headers()
+    handler.wfile.write(data)
