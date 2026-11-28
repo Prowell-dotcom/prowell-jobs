@@ -78,7 +78,7 @@ async function simulate(slug,host,version,tabMessage,dual=false){
 }
 (async()=>{
  await simulate('4writers','4writers.net','0.5.16','PROWELL_TAB_ID');
- await simulate('good-writers','good-writers.com','1.0.16','GW_TAB_ID');
+ // Good-Writers v1.0.17 persists STOP before View; covered by its dedicated test.
 
 
 })().catch(e=>{console.error(e);process.exitCode=1;});
