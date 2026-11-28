@@ -31,7 +31,7 @@ async function start(){
  await storageSet({
    armed:true,claimConsentVersion:CONSENT,targetTabId:selected.id,
    claim:null,autoFlow:null,autoAcceptEnabled:false,processingScroll:null,
-   pendingAck:null,manualAckScroll:null,attemptedIds:[],completed:[],seenOrderIds:[],
+   pendingAck:null,pendingAck:null,manualAckScroll:null,attemptedIds:[],completed:[],seenOrderIds:[],
    fourLastCheckedSection:'',fourLastCheckedAt:null,fourCycleCount:0,
    refreshCount:0,lastRefreshAt:null,soundRunId:crypto.randomUUID(),
    lastResult:'Watching 4writers.net with 2–60-second mixed idle checks'
@@ -43,7 +43,7 @@ async function start(){
 }
 async function stop(){
  await storageSet({armed:false,targetTabId:null,claim:null,autoFlow:null,
-   autoAcceptEnabled:false,processingScroll:null,pendingAck:null,manualAckScroll:null,
+   autoAcceptEnabled:false,processingScroll:null,pendingAck:null,pendingAck:null,manualAckScroll:null,
    lastResult:'Stopped by user'});
  await render();
 }
