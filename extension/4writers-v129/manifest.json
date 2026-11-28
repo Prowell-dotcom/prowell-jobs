@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "Prowell 4Writers Watcher (v2.1.29 Custom)",
+  "version": "2.1.29.1",
+  "description": "4Writers-only: alternating 3–13-second idle checks, sound, View, Take it, OK, STOP; scroll to manual I understand.",
+  "permissions": [
+    "storage",
+    "tabs",
+    "offscreen"
+  ],
+  "host_permissions": [
+    "https://4writers.net/*",
+    "https://www.4writers.net/*"
+  ],
+  "action": {
+    "default_title": "Prowell 4Writers START/STOP",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://4writers.net/*",
+        "https://www.4writers.net/*"
+      ],
+      "js": [
+        "legacy/four/confirm-main.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://4writers.net/*",
+        "https://www.4writers.net/*"
+      ],
+      "js": [
+        "scoped-store.js",
+        "legacy-bridge.js",
+        "legacy/four/order-card.js",
+        "four-sections.js",
+        "legacy-order-sound.js",
+        "legacy/four/runtime-content.js",
+        "four-section-refresh.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}
