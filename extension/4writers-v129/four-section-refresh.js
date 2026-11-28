@@ -13,8 +13,8 @@
   if(!store||!sections)return;
   const VERSION='0.5.4';
   // Covers each whole-second delay from 3 through 13 once per cycle.
-  const INTERVALS=Object.freeze([3000,13000,4000,12000,5000,11000,
-    6000,10000,7000,9000,8000]);
+  const INTERVALS=Object.freeze([12000,3000,9000,5000,13000,4000,
+    10000,7000,11000,6000,8000]);
   const nextWait=()=>INTERVALS[count%INTERVALS.length];
   let tabId=null,timer=null,timerMode='',count=0,lastSection='';
   let status='',local={armed:false,claimConsentVersion:'',targetTabId:null,
