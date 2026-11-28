@@ -93,7 +93,7 @@ async function dual(){
 }
 
 async function handoff(){
-  for(const site of ['4writers','good-writers']){
+  for(const site of ['4writers']){
     const source=fs.readFileSync(path.join(base,site,'content.js'),'utf8');
     const stop=source.indexOf('window.__prowellCancelRefresh?.()');
     const sound=source.indexOf("type:'PROWELL_ORDER_SOUND'");
@@ -107,9 +107,15 @@ async function handoff(){
     assert.match(automation,/instantScroll\(root,bottom\)/);
     assert.doesNotMatch(automation,/await sleep\(|STEP_DELAY|STEP_PX/);
   }
-  console.log('All three bot engines: stop → sound → View → instant scroll → three acceptance actions: PASS');
+  const good=JSON.parse(fs.readFileSync(path.join(base,'good-writers','manifest.json'),'utf8'));
+  assert(!good.content_scripts.some(x=>x.js.includes('auto-accept.js')));
+  assert(!good.content_scripts.some(x=>x.js.includes('confirm-main.js')));
+  const html=fs.readFileSync(path.join(base,'good-writers','popup.html'),'utf8');
+  assert.match(html,/>START WATCH</);assert.doesNotMatch(html,/START AUTO-TAKE/);
+  assert.equal((html.match(/<button\\b/g)||[]).length,2);
+  console.log('4writers auto-take unchanged; Good-Writers active extension is STOP/View-only: PASS');
 }
 
 (async()=>{await single('4writers','4writers.net','0.5.16');
-  await single('good-writers','good-writers.com','1.0.16');
+  // Good-Writers v1.0.17 has only START WATCH/STOP and NEVER auto-accept.
   await handoff();})().catch(error=>{console.error(error);process.exitCode=1;});

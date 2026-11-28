@@ -46,7 +46,7 @@ async function run(slug,host,key){
 }
 (async()=>{
  await run('4writers','4writers.net','autoFlow');
- await run('good-writers','good-writers.com','autoFlow');
+ // Good-Writers v1.0.17 contains no acceptance-flow tab handoff.
  await run('dual-writers','4writers.net','dual_four_autoFlow');
  await run('dual-writers','good-writers.com','dual_good_autoFlow');
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -16,5 +16,5 @@ for(const slug of ['4writers','good-writers']){
   assert.doesNotMatch(content,/setTimeout\s*\(/);
   assert.match(content,/first\.view\.click\(\)/);
   assert.match(content,/mode:accepts\?'accept':'scroll-only'/);
-  console.log(slug+': instant scrolling and event-driven Take it / OK / acknowledgement: PASS');
+  console.log(slug+': archived acceptance helper validated; active Good-Writers manifest is View-only: PASS');
 }

@@ -1,124 +1,126 @@
-/* Prowell order watcher: sound, stop refresh, open View, then let the
- * shared acceptance script instantly scroll the selected order details.
- * Take it and confirmations require an explicit per-session opt-in.
+/* Good-Writers standalone v1.0.17: sound, immediate STOP, View once.
+ * Does not click Take it, OK or I understand; manual order acceptance.
  */
 (() => {
   'use strict';
-  if(window!==window.top || !/^https:\/\/(?:www\.)?good-writers\.com$/i.test(location.origin))return;
-  if(window.__prowellWatcherV1016)return;
-  window.__prowellWatcherV1016=true;
+  if(window!==window.top||
+    !/^https:\/\/(?:www\.)?good-writers\.com$/i.test(location.origin))return;
+  if(window.__prowellGoodSoundViewStop1017)return;
+  window.__prowellGoodSoundViewStop1017=true;
 
-  const VERSION='1.0.16',TAB_MESSAGE='GW_TAB_ID';
+  const VERSION='1.0.17';
   const DEFAULTS={armed:false,claimConsentVersion:'',targetTabId:null,
-    soundRunId:'',claim:null,lastResult:'Ready',log:[],autoAcceptEnabled:false,
-    autoFlow:null,seenOrderIds:[]};
-  let state={...DEFAULTS},tabId=null,opening=false,queued=false,sawFlow=false;
-  // Preserve the monitoring session while one order is being viewed.
-  // Pause further detection while that order panel is still on screen.
-  function detailsOpen(){
-    const surfaces=document.querySelectorAll?.(
-      '[role="dialog"],dialog,[aria-modal="true"],.modal,.popup,[class*="drawer"]')||[];
-    for(const el of surfaces){
-      if(el.getClientRects?.().length &&
-         /order\s*(?:information|details|requirements|instructions)|take it/i.test(
-           String(el.innerText||el.textContent||'')))return true;
-    }
-    const text=String(document.body?.innerText||'');
-    return /order\s*(?:information|details|requirements|instructions)/i.test(text) &&
-      [...(document.querySelectorAll?.(
-        'button,a,input[type="button"],input[type="submit"],[role="button"]')||[])]
-        .some(el=>/^take it$/i.test(String(el.innerText||el.textContent||el.value||'').trim()) &&
-          Boolean(el.getClientRects?.().length));
+    soundRunId:'',claim:null,lastResult:'Ready',log:[],
+    autoAcceptEnabled:false,autoFlow:null,seenOrderIds:[]};
+  const WARNING=/captcha|verify you are human|unusual activity|using automated site parsers is prohibited|automated (?:access|activity|parsing) (?:is )?prohibited|your account will be banned|automation warning/i;
+  let state={...DEFAULTS},tabId=null,stopping=false,scanning=false,
+    rescanPending=false;
+  const active=()=>state.armed===true&&state.claimConsentVersion===VERSION&&
+    Number.isInteger(tabId)&&state.targetTabId===tabId;
+  const warned=()=>WARNING.test(String(document.body?.innerText||''))||
+    Boolean(document.querySelector?.('iframe[src*="captcha"],[class*="g-recaptcha"]'));
+  function stopNow(){
+    // Synchronous cancellation prevents all subsequent scans and refreshes.
+    stopping=true;
+    state.armed=false;
+    state.targetTabId=null;
+    state.claim=null;
+    state.autoFlow=null;
+    state.autoAcceptEnabled=false;
+    try{window.__prowellCancelRefresh?.();}catch(_){}
   }
-  const flowActive=()=>Boolean(state.autoFlow?.enabled &&
-    Date.now()-Number(state.autoFlow.startedAt||0)<90000);
-  const active=()=>Boolean(state.armed && state.claimConsentVersion===VERSION &&
-    tabId!==null && tabId===state.targetTabId);
-  const challenge=()=>/captcha|verify you are human|unusual activity/i.test(
-    document.body?.innerText||'')||Boolean(document.querySelector(
-    'iframe[src*="captcha"],[class*="g-recaptcha"]'));
-
-  async function detect(){
-    if(!active() || opening || flowActive() || detailsOpen() || !document.body || challenge())return;
-    const cards=window.__prowellCardDetector?.cards()||[];
-    // The first eligible card in page order, regardless of whether it is
-    // a new order or a previously assigned processing order.
-    const seen=new Set((state.seenOrderIds||[]).map(String));
-    const first=cards.find(card=>['available','processing'].includes(card?.type) &&
-      !seen.has(String(card.id||'')) &&
-      /^\d{5,16}$/.test(String(card.id||'')) &&
-      card.view?.isConnected && typeof card.view.click==='function');
-    if(!first)return;
-    opening=true; // synchronous: prevent all subsequent observer triggers
-    window.__prowellCancelRefresh?.(); // stop reload in this same event-loop turn
-
-    // Request the notification sound immediately and independently of View. The background audio
-    // handler stays active after the local armed state is cleared.
-    if(state.soundRunId){
+  async function stopForWarning(){
+    if(!active()||stopping)return;
+    stopNow();
+    try{
+      await chrome.storage.local.set({armed:false,targetTabId:null,
+        claim:null,autoFlow:null,autoAcceptEnabled:false,
+        refreshStatus:'Stopped — security warning',
+        lastResult:'Good-Writers: website security warning; STOP. Restart manually.'});
+    }catch(error){
+      console.warn('Good-Writers warning STOP failed:',String(error?.message||error));
+    }
+  }
+  async function handle(card){
+    if(!active()||stopping||!card.view?.isConnected||
+       typeof card.view.click!=='function')return;
+    stopNow();
+    // Request sound in the same task as detecting the new order.
+    try{
+      if(state.soundRunId)chrome.runtime.sendMessage({
+        type:'PROWELL_ORDER_SOUND',orderId:String(card.id),kind:card.type,
+        soundRunId:String(state.soundRunId)
+      },()=>void chrome.runtime.lastError);
+    }catch(_){}
+    const message='Good-Writers order #'+card.id+' ('+card.type+
+      '): sound requested, STOP, View opened once.';
+    try{
+      // Persist STOP before a View click that could navigate away.
+      await chrome.storage.local.set({
+        armed:false,targetTabId:null,claim:null,autoFlow:null,
+        autoAcceptEnabled:false,seenOrderIds:[String(card.id)],
+        lastAlertOrderId:String(card.id),lastAlertKind:card.type,
+        lastAlertAt:Date.now(),lastResult:message,
+        refreshStatus:'Stopped — order detected',
+        log:[...(state.log||[]),new Date().toLocaleTimeString()+' '+message].slice(-30)
+      });
+      if(warned())return;
+      if(!card.view?.isConnected||typeof card.view.click!=='function'){
+        await chrome.storage.local.set({lastResult:
+          'Good-Writers order #'+card.id+': STOPPED; View unavailable, open manually.'});
+        return;
+      }
+      card.view.click();
+    }catch(error){
+      console.warn('Good-Writers View failed:',String(error?.message||error));
       try{
-        chrome.runtime.sendMessage({
-          type:'PROWELL_ORDER_SOUND',orderId:String(first.id),
-          kind:first.type,soundRunId:state.soundRunId
-        },()=>void chrome.runtime.lastError);
+        await chrome.storage.local.set({lastResult:
+          'Good-Writers: STOPPED but View could not open: '+
+          String(error?.message||error)+'. Open manually.'});
       }catch(_){}
     }
-    const accepts=first.type==='available' && state.autoAcceptEnabled===true;
-    const message='Order #'+first.id+' ('+first.type+') detected; paused refresh and opened View.'+
-      (accepts?' Auto acceptance enabled.':' Instant details scroll only.');
-    const entry=new Date().toLocaleTimeString()+' '+message;
-    // Synchronous, same-task cancellation. Never wait for storage to stop refresh.
-    // Keep START and the optional consent active for future orders until STOP.
-    // This order is marked seen before View, preventing an endless re-open loop.
-    state.seenOrderIds=[...seen,String(first.id)].slice(-150);
-    const flow={
-      enabled:true,mode:accepts?'accept':'scroll-only',orderId:String(first.id),
-      tabId,startedAt:Date.now(),listUrl:location.href,
-      stage:'await-view',stageStartedAt:Date.now()
-    };
-    // Cancel refresh first, then initiate the single persistence write.
-    // Click View immediately; do not wait for storage to finish.
-    // The acceptance script observes later storage changes if navigation wins.
-    try{
-      const saving=chrome.storage.local.set({
-        autoFlow:flow,seenOrderIds:state.seenOrderIds,
-        refreshStatus:'Paused — handling order #'+first.id,
-        lastResult:message,log:[...(state.log||[]),entry].slice(-30)
-      });
-      if(!first.view.isConnected)throw Error('View disappeared before it could be clicked');
-      first.view.click();
-      await saving;
-    }catch(error){
-      await chrome.storage.local.set({
-        autoFlow:null,
-        lastResult:'Could not open View: '+String(error?.message||error)
-      }).catch(()=>{});
-    }
+  }
+  async function scan(){
+    if(!active()||stopping||!document.body)return;
+    if(warned())return stopForWarning();
+    const card=(window.__prowellCardDetector?.cards?.()||[])
+      .find(c=>['available','processing'].includes(c?.type)&&
+        /^\d{5,16}$/.test(String(c.id||''))&&
+        c.view?.isConnected&&typeof c.view.click==='function');
+    if(card)await handle(card);
   }
   function schedule(){
-    // Release the single-order handoff after its details close, without
-    // requiring another START click. No duplicate trigger for the seen ID.
-    if(opening && sawFlow && !flowActive() && !detailsOpen()){
-      opening=false;sawFlow=false;
-    }
-    if(!active()||opening||flowActive()||detailsOpen()||queued)return;
-    queued=true;
-    queueMicrotask(()=>{queued=false;void detect().catch(()=>{});});
+    if(!active()||stopping)return;
+    if(scanning){rescanPending=true;return;}
+    scanning=true;
+    void scan().catch(error=>{
+      console.warn('Good-Writers scan failed:',String(error?.message||error));
+    }).finally(()=>{
+      scanning=false;
+      // DOM changes while a scan ran must not be lost.
+      if(rescanPending){rescanPending=false;schedule();}
+    });
   }
-  chrome.storage.onChanged.addListener((changed,area)=>{
+  chrome.storage.onChanged.addListener((changes,area)=>{
     if(area!=='local')return;
-    for(const key of Object.keys(changed)){
-      if(Object.prototype.hasOwnProperty.call(DEFAULTS,key))
-        state[key]=changed[key].newValue;
-    }
-    if(changed.autoFlow?.newValue?.enabled)sawFlow=true;
+    for(const name of Object.keys(DEFAULTS))
+      if(changes[name])state[name]=changes[name].newValue;
+    if(changes.armed?.newValue===true&&changes.armed?.oldValue!==true)
+      stopping=false; // explicit manual START begins a fresh session
     schedule();
   });
-  chrome.runtime.onMessage.addListener((message,sender,respond)=>{
-    if(message?.type==='PROWELL_SCAN_NOW'){schedule();respond({ok:true});}
+  chrome.runtime.onMessage.addListener((message,_sender,reply)=>{
+    if(message?.type==='PROWELL_SCAN_NOW'){
+      schedule();reply({ok:true});
+    }
   });
-  chrome.runtime.sendMessage({type:TAB_MESSAGE},async reply=>{
+  chrome.runtime.sendMessage({type:'GW_TAB_ID'},async reply=>{
     tabId=reply?.tabId??null;
-    state={...DEFAULTS,...await chrome.storage.local.get(DEFAULTS)};
+    try{state={...DEFAULTS,...await chrome.storage.local.get(DEFAULTS)};}
+    catch(error){
+      console.warn('Good-Writers state unavailable:',String(error?.message||error));
+      return;
+    }
     schedule();
   });
   new MutationObserver(schedule).observe(document,{

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Prowell Good-Writers Assistant",
-  "version": "1.0.16",
-  "description": "Order watcher with explicit opt-in to foreground-only order-details scrolling with optional acceptance.",
+  "version": "1.0.17",
+  "description": "Good-Writers standalone: refresh every 2 seconds while idle; sound, STOP, and View once on an order. Taking orders is manual.",
   "permissions": [
     "storage",
     "tabs",
@@ -10,8 +10,7 @@
   ],
   "host_permissions": [
     "https://good-writers.com/*",
-    "https://www.good-writers.com/*",
-    "https://prowelljobs.com/*"
+    "https://www.good-writers.com/*"
   ],
   "action": {
     "default_title": "Good-Writers Assistant",
@@ -26,20 +25,10 @@
         "https://good-writers.com/*",
         "https://www.good-writers.com/*"
       ],
-      "js": ["confirm-main.js"],
-      "world": "MAIN",
-      "run_at": "document_start"
-    },
-    {
-      "matches": [
-        "https://good-writers.com/*",
-        "https://www.good-writers.com/*"
-      ],
       "js": [
         "order-card.js",
         "content.js",
-        "refresh.js",
-        "auto-accept.js"
+        "refresh.js"
       ],
       "run_at": "document_start"
     }

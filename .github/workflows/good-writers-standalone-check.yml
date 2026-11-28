@@ -1,0 +1,42 @@
+name: Good-Writers standalone extension checks
+on:
+  push:
+    paths:
+      - 'extension/good-writers/**'
+      - 'tests/test_good_writers_*'
+      - 'admin_extension_store.py'
+      - '.github/workflows/good-writers-standalone-check.yml'
+  pull_request:
+    paths:
+      - 'extension/good-writers/**'
+      - 'tests/test_good_writers_*'
+      - 'admin_extension_store.py'
+      - '.github/workflows/good-writers-standalone-check.yml'
+  workflow_dispatch:
+
+jobs:
+  good-view-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check Good-Writers extension syntax
+        run: |
+          node --check extension/good-writers/background.js
+          node --check extension/good-writers/content.js
+          node --check extension/good-writers/refresh.js
+          node --check extension/good-writers/popup.js
+          node --check extension/good-writers/popup-refresh.js
+          node --check extension/good-writers/order-card.js
+          python -m py_compile admin_extension_store.py
+      - name: Test 2-second idle refresh and sound STOP View-once
+        run: |
+          node tests/test_good_writers_refresh.cjs
+          node tests/test_good_writers_sound_view_stop.cjs
+      - name: Verify admin ZIP excludes auto-acceptance
+        run: python -m unittest discover -s tests -p test_good_writers_bundle.py -v
