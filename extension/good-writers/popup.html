@@ -1,36 +1,23 @@
 <!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Prowell Good-Writers Assistant</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prowell Good-Writers Watcher</title>
 <style>
-body{margin:0;padding:16px;width:330px;box-sizing:border-box;background:#f5f8fc;color:#172b48;font:13px/1.5 system-ui,Arial,sans-serif}
-h1{font-size:19px;margin:0 0 4px}p{margin:6px 0 12px;color:#52687d}
-.panel{border:1px solid #d8e0eb;border-radius:10px;background:white;padding:12px;margin:11px 0;white-space:pre-wrap;overflow-wrap:anywhere}
-.controls{display:flex;gap:8px}.controls button{flex:1}
-button{padding:11px 8px;border-radius:8px;border:1px solid #b6c7da;background:white;cursor:pointer;font-weight:700}
-button:disabled{opacity:.45}.go{background:#147b52;color:white}.stop{background:#b7303f;color:white}
-label{display:block;margin-top:12px}.note{font-size:11px;color:#6b5b30;background:#fff5da;padding:9px;border-radius:8px;margin-top:12px}
-small{color:#5a7089}#history{font:11px/1.6 monospace;max-height:95px;overflow:auto}
-</style></head>
-<body>
-<h1>Prowell Good-Writers Assistant</h1><small>Version 1.0.16 · private browser extension</small>
-<p>One START enables the full flow for eligible new orders: immediately stop refresh, play a sound, open View, jump to the bottom of the order details, and click Take it, OK, and I understand without programmed pauses.</p>
-<div id="status" class="panel" role="status">Loading extension...</div>
-<div class="controls"><button id="arm" class="go">START AUTO-TAKE</button><button id="stop" class="stop">STOP</button></div>
-<div class="panel"><strong>Automatic acceptance is ON when START is pressed.</strong><small style="display:block">Applies to available orders on this platform until STOP. Processing orders open for review only. Use only where the website permits automation.</small></div>
-<div style="margin-top:10px"><button type="button" id="testScrollOnly">Test scrolling (no order acceptance)</button></div>
-<div style="margin-top:10px"><button type="button" id="testOrderSound">🔔 Test notification sound</button></div>
-
-<div class="note">On detection: cancel refresh and request an audible alert, click View immediately, jump the order-details panel to the bottom, then Take it → OK → I understand as soon as those controls appear. No fixed click delays. STOP cancels any pending workflow. Browser and website response times still apply.</div>
-
-<details id="gwPairing" style="margin-top:12px"><summary>Private Prowell admin notifications</summary>
-<p>In Prowell Admin, select Generate Good-Writers pairing code. Paste it below to connect this extension only.</p>
-<label for="gwReportCode">Good-Writers pairing code</label>
-<input id="gwReportCode" type="password" autocomplete="off" placeholder="Paste private pairing code" style="box-sizing:border-box;width:100%;padding:10px;border:1px solid #b6c7da;border-radius:8px">
-<div class="controls" style="margin-top:8px"><button type="button" id="gwPair">Connect & test</button><button type="button" id="gwUnpair">Disconnect</button></div>
-<button type="button" id="gwRetry" style="margin-top:8px">Retry pending reports</button>
-<div id="gwPairStatus" class="panel" role="status">No connection verified yet.</div>
-</details>
-<details style="margin-top:12px"><summary>Recent actions</summary><div id="history" class="panel"></div></details>
-<p id="notice" role="status"></p><script src="popup.js"></script><script src="popup-refresh.js"></script>
+*{box-sizing:border-box}
+body{width:260px;margin:0;padding:13px;background:white;color:#20324b;font:12px/1.45 system-ui,Arial,sans-serif}
+h1{font-size:16px;margin:0 0 7px}p{font-size:11px;line-height:1.5;color:#52677c;margin:8px 0}
+.controls{display:flex;gap:8px;margin:12px 0}
+button{flex:1;border:1px solid #c4d2dd;border-radius:7px;padding:9px 5px;background:white;font-weight:700;cursor:pointer}
+button:disabled{opacity:.48;cursor:default}
+#arm{color:white;background:#187c53;border-color:#187c53}#stop{color:#b42a3c}
+#status{margin:10px 0;white-space:pre-wrap}#notice{margin:7px 0;color:#5d7188}
+</style></head><body>
+<h1>Good-Writers Watcher</h1>
+<p>Version 1.0.17 · 2-second idle refresh. On an order: sound notification, STOP, open View once, then remain stopped. Order acceptance is manual.</p>
+<div class="controls">
+<button id="arm" type="button">START WATCH</button>
+<button id="stop" type="button">STOP</button>
+</div>
+<div id="status" role="status">Checking status…</div>
+<p id="notice" role="status"></p>
+<script src="popup.js"></script><script src="popup-refresh.js"></script>
 </body></html>
