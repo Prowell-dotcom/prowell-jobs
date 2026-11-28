@@ -1253,6 +1253,10 @@ class Handler(SimpleHTTPRequestHandler):
             return owner_extension.list_report_events(self, db_connection)
         if path == '/api/admin/good-writers/events':
             return good_writers_reports.events(self, db_connection)
+        if path == '/api/admin/four-v129/extension/status':
+            return owner_extension.four_v129_status(self, ROOT)
+        if path == '/api/admin/four-v129/extension/download':
+            return owner_extension.four_v129_download(self, ROOT)
         if path == '/api/admin/dual-writers/extension/status':
             return owner_extension.dual_writers_status(self, ROOT)
         if path == '/api/admin/dual-writers/extension/download':

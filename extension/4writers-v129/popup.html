@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prowell 4Writers Watcher</title>
+<style>
+*{box-sizing:border-box}
+body{width:248px;margin:0;padding:12px;font:12px/1.4 system-ui,Arial,sans-serif;color:#172d49;background:#fff}
+h1{font-size:15px;margin:0 0 9px}
+p{font-size:11px;color:#49617c;line-height:1.4;margin:6px 0 11px}
+.actions{display:flex;gap:7px}
+button{flex:1;min-width:0;padding:8px;border:1px solid #b8cee0;border-radius:6px;background:white;font-weight:700;cursor:pointer}
+#start{background:#248364;color:white;border-color:#248364}
+#stop{color:#bd2835}
+button:disabled{opacity:.5;cursor:default}
+#notice{margin-top:10px;min-height:28px}
+</style></head><body>
+<h1>4writers.net</h1>
+<div class="actions">
+<button id="start" type="button">START WATCH</button>
+<button id="stop" type="button">STOP</button>
+</div>
+<p>Idle checks: 3–13 seconds, alternating short and long waits. On a new order: sound, View, Take it, OK, STOP. Final “I understand” is yours to click.</p>
+<p id="notice" role="status" aria-live="polite">Checking status…</p>
+<script src="popup.js"></script>
+</body></html>
