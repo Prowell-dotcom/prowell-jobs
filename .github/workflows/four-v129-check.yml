@@ -48,6 +48,7 @@ jobs:
       - name: Simulate timing, order taking and manual acknowledgement
         run: |
           node tests/test_four_v129_schedule.cjs
+          node tests/test_four_v129_irregular_refresh.cjs
           node tests/test_four_v129_flow.cjs
       - name: Validate standalone extension ZIP
         run: python -m unittest discover -s tests -p test_four_v129_bundle.py -v
