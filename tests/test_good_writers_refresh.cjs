@@ -6,7 +6,7 @@ const path=require('node:path');
 async function run(){
   let timeoutId=0,reloadCount=0,observer=()=>{},timer=null,oldTimer=null;
   const subscribers=[];
-  const state={armed:true,claimConsentVersion:'1.0.16',targetTabId:42,claim:null,refreshCount:0,attemptedIds:[],completed:[]};
+  const state={armed:true,claimConsentVersion:'1.0.17',targetTabId:42,claim:null,refreshCount:0,attemptedIds:[],completed:[]};
   let text='Available Orders Writings';
   const doc={
     body:{get innerText(){return text;}},
@@ -28,7 +28,7 @@ async function run(){
   window.__prowellCardDetector={pageKind:()=> 'available',cards:()=>[]};
   const ctx={window,document:doc,chrome,location:{origin:'https://good-writers.com',reload(){reloadCount++;}},
     MutationObserver:class{constructor(cb){observer=cb;}observe(){}},
-    setTimeout(fn,ms){assert.equal(ms,1000);timer=async()=>{timer=null;return fn();};return ++timeoutId;},
+    setTimeout(fn,ms){assert.equal(ms,2000);timer=async()=>{timer=null;return fn();};return ++timeoutId;},
     clearTimeout(id){oldTimer=id;timer=null;},
     Date,Number,Set,RegExp,Boolean};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../extension/good-writers/refresh.js'),'utf8'),ctx);
@@ -45,6 +45,6 @@ async function run(){
   state.claim={id:'6447728953'};
   subscribers.forEach(fn=>fn({claim:{newValue:state.claim}},'local'));
   assert.equal(timer,null,'timer must stop when claiming');
-  console.log('Good-Writers independent refresh: stable 1-second timer, counter, stop on claim: PASS');
+  console.log('Good-Writers independent refresh: stable 2-second timer, counter, stop on claim: PASS');
 }
 run().catch(e=>{console.error(e);process.exitCode=1;});
