@@ -40,9 +40,9 @@ async function markSectionViewed(section){
  unreadCounts[section]=0;
  renderUnreadBadges();
 }
-function showSignedIn(){signedIn=true;window.dispatchEvent(new CustomEvent('prowell-admin-session',{detail:{signedIn:true}}));$('#activityPanel').hidden=false;$('#externalWriterPanel').hidden=false;$('#ownerExtensionPanel').hidden=false;loadOwnerExtensionStatus().catch(err=>setExtensionStatus(err.message));loadGoodWritersStatus().catch(err=>setGoodWritersStatus(err.message));loadDualWritersStatus().catch(err=>setDualWritersStatus(err.message));renderUnreadBadges();$('#keyForm').hidden=true;$('#sessionPanel').hidden=false;$('#notificationDiagnostics').hidden=activeTab!=='notification_outbox';$('#extensionClaimNotifications').hidden=activeTab!=='notification_outbox';$('#goodWritersClaimNotifications').hidden=activeTab!=='notification_outbox';}
+function showSignedIn(){signedIn=true;window.dispatchEvent(new CustomEvent('prowell-admin-session',{detail:{signedIn:true}}));$('#activityPanel').hidden=false;$('#externalWriterPanel').hidden=false;$('#ownerExtensionPanel').hidden=false;loadOwnerExtensionStatus().catch(err=>setExtensionStatus(err.message));loadGoodWritersStatus().catch(err=>setGoodWritersStatus(err.message));loadDualWritersStatus().catch(err=>setDualWritersStatus(err.message));loadFourV129Status().catch(err=>setFourV129Status(err.message));renderUnreadBadges();$('#keyForm').hidden=true;$('#sessionPanel').hidden=false;$('#notificationDiagnostics').hidden=activeTab!=='notification_outbox';$('#extensionClaimNotifications').hidden=activeTab!=='notification_outbox';$('#goodWritersClaimNotifications').hidden=activeTab!=='notification_outbox';}
 function showSignedOut(message='Signed out. Use your administrator account to sign in again.'){
- signedIn=false;window.dispatchEvent(new CustomEvent('prowell-admin-session',{detail:{signedIn:false}}));csrfToken='';unreadCounts={};$('#activityPanel').hidden=true;$('#externalWriterPanel').hidden=true;$('#ownerExtensionPanel').hidden=true;$('#downloadOwnerExtension').disabled=true;$('#downloadGoodWritersExtension').disabled=true;$('#downloadDualWritersExtension').disabled=true;renderUnreadBadges();dataset={jobs:[],applications:[],candidates:[],reviews:[],reports:[],alerts:[],notification_outbox:[]};
+ signedIn=false;window.dispatchEvent(new CustomEvent('prowell-admin-session',{detail:{signedIn:false}}));csrfToken='';unreadCounts={};$('#activityPanel').hidden=true;$('#externalWriterPanel').hidden=true;$('#ownerExtensionPanel').hidden=true;$('#downloadOwnerExtension').disabled=true;$('#downloadGoodWritersExtension').disabled=true;$('#downloadDualWritersExtension').disabled=true;$('#downloadFourV129Extension').disabled=true;renderUnreadBadges();dataset={jobs:[],applications:[],candidates:[],reviews:[],reports:[],alerts:[],notification_outbox:[]};
  $('#sessionPanel').hidden=true;$('#keyForm').hidden=false;$('#adminKey').value='';
  $('#adminStatus').textContent=message;$('#notificationDiagnostics').hidden=true;$('#extensionClaimNotifications').hidden=true;$('#goodWritersClaimNotifications').hidden=true;render();
 }
@@ -324,6 +324,38 @@ $('#downloadDualWritersExtension')?.addEventListener('click',async()=>{
  finally{if(signedIn)button.disabled=false;}
 });
 
+function setFourV129Status(message){
+  const node=$('#fourV129ExtensionStatus');if(node)node.textContent=message;
+}
+async function loadFourV129Status(){
+  if(!signedIn)return;
+  const data=await api('/api/admin/four-v129/extension/status');
+  $('#downloadFourV129Extension').disabled=!data.available;
+  setFourV129Status(data.available
+    ? '4Writers-only v'+data.version+' ready · '+Math.round(data.sizeBytes/1024)+' KB'
+    : '4Writers-only package is unavailable.');
+}
+$('#downloadFourV129Extension')?.addEventListener('click',async()=>{
+  if(!signedIn)return;
+  const button=$('#downloadFourV129Extension');
+  button.disabled=true;
+  setFourV129Status('Preparing 4Writers-only bot ZIP...');
+  try{
+    const response=await fetch('/api/admin/four-v129/extension/download',
+      {credentials:'same-origin',cache:'no-store'});
+    if(!response.ok){
+      const error=await response.json();
+      throw Error(error.error||'Download failed.');
+    }
+    const blob=await response.blob(),url=URL.createObjectURL(blob);
+    const anchor=document.createElement('a');anchor.href=url;
+    anchor.download='prowell-4writers-v2.1.29.1.zip';
+    document.body.appendChild(anchor);anchor.click();anchor.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),3000);
+    setFourV129Status('ZIP downloaded. Extract and use Load unpacked in Chrome.');
+  }catch(error){setFourV129Status('Download failed: '+error.message);}
+  finally{if(signedIn)button.disabled=false;}
+});
 function setGoodWritersStatus(message){
  const node=$('#goodWritersExtensionStatus');
  if(node)node.textContent=message;
