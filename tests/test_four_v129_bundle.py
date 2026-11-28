@@ -39,8 +39,10 @@ class FourOnlyLegacyBotTests(unittest.TestCase):
             refresher = zip_file.read('four-section-refresh.js').decode('utf-8')
             self.assertIn('INTERVALS=Object.freeze([\n    60000,8000,40000,5000,50000,12000,', refresher)
             handler = zip_file.read('legacy/four/runtime-content.js').decode('utf-8')
-            self.assertIn('scheduleManualAckScroll()', handler)
-            self.assertNotIn('understand.click()', handler)
+            self.assertIn('scheduleFinalAckClick()', handler)
+            self.assertIn('target.click()', handler)
+            self.assertIn('pendingAck:null,lastAckOrderId', handler)
+            self.assertNotIn('manualAckScroll:handoff', handler)
 
     def test_dual_extension_is_not_replaced(self):
         original = json.loads((ROOT / 'extension' / 'dual-writers' /
