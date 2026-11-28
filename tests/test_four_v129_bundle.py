@@ -1,4 +1,4 @@
-"""Regression: isolated 4Writers v2.1.29.1 remains separate from dual bot."""
+"""Regression: isolated 4Writers v2.1.29.2 remains separate from dual bot."""
 import json
 import unittest
 import zipfile
@@ -14,12 +14,12 @@ ROOT = Path(__file__).resolve().parents[1]
 class FourOnlyLegacyBotTests(unittest.TestCase):
     def test_standalone_zip_contains_only_4writers_hosts(self):
         data = bundles.four_v129_bundle(ROOT)
-        self.assertEqual(bundles.validate_bundle(data), '2.1.29.1')
+        self.assertEqual(bundles.validate_bundle(data), '2.1.29.2')
         with zipfile.ZipFile(BytesIO(data)) as zip_file:
             names = zip_file.namelist()
             self.assertEqual(set(names), set(bundles.FOUR_V129_FILES))
             manifest = json.loads(zip_file.read('manifest.json'))
-            self.assertEqual(manifest['version'], '2.1.29.1')
+            self.assertEqual(manifest['version'], '2.1.29.2')
             self.assertEqual(manifest['name'], 'Prowell 4Writers Watcher (v2.1.29 Custom)')
             self.assertEqual(len(manifest['content_scripts']), 2)
             self.assertEqual(len(manifest['host_permissions']), 2)
@@ -37,7 +37,7 @@ class FourOnlyLegacyBotTests(unittest.TestCase):
                            'legacy/four/confirm-main.js']:
                 self.assertIn(script, names)
             refresher = zip_file.read('four-section-refresh.js').decode('utf-8')
-            self.assertIn('INTERVALS=Object.freeze([3000,13000,4000,12000,5000,11000,', refresher)
+            self.assertIn('INTERVALS=Object.freeze([12000,3000,9000,5000,13000,4000,', refresher)
             handler = zip_file.read('legacy/four/runtime-content.js').decode('utf-8')
             self.assertIn('scheduleManualAckScroll()', handler)
             self.assertNotIn('understand.click()', handler)
